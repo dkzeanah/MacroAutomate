@@ -1,0 +1,291 @@
+═══════════════════════════════════════════════════════════════════════════════
+VISUAL GUIDE - WHAT YOU'LL SEE WITH THE ENHANCEMENTS
+═══════════════════════════════════════════════════════════════════════════════
+
+FEATURE 1: CLEAR INSTRUCTIONAL HINTS
+═══════════════════════════════════════════════════════════════════════════════
+
+When you select "Grab OCR to Var" action:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Action: [Grab OCR to Var ▼]                                                │
+│                                                                             │
+│ Hint: PARAM: varName,x1,y1,x2,y2 (stores in $varName)                     │
+│       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^              │
+│       Now you know EXACTLY what format to use!                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+When you select "Use Var Paste" action:
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Action: [Use Var Paste ▼]                                                  │
+│                                                                             │
+│ Hint: PARAM: Text with $variables (ID: $id, Name: $name)                  │
+│       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                 │
+│       Shows you how to use variables in text!                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 2: PARAMETER SUGGESTIONS DROPDOWN
+═══════════════════════════════════════════════════════════════════════════════
+
+When you click the Param dropdown for "Grab OCR to Var":
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Param: [▼]                                                                  │
+│                                                                             │
+│ ┌───────────────────────────────────────────────────────────────────────┐ │
+│ │ patientName,100,50,300,80                                             │ │
+│ │ insuranceID,500,200,700,250                                           │ │
+│ │ status,900,100,1000,120                                               │ │
+│ │ varName,x1,y1,x2,y2  (use 📷 to select region)                       │ │
+│ └───────────────────────────────────────────────────────────────────────┘ │
+│   Click any example to use it, or modify to your needs!                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+For "Use Var Paste":
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Param: [▼]                                                                  │
+│                                                                             │
+│ ┌───────────────────────────────────────────────────────────────────────┐ │
+│ │ Hello $name                                                           │ │
+│ │ ID: $id, Date: $date                                                  │ │
+│ │ $firstName $lastName                                                  │ │
+│ │ Status: $status                                                       │ │
+│ └───────────────────────────────────────────────────────────────────────┘ │
+│   See exactly how to mix text and variables!                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+For "Show Notification":
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Param: [▼]                                                                  │
+│                                                                             │
+│ ┌───────────────────────────────────────────────────────────────────────┐ │
+│ │ Complete,Processing finished,5                                        │ │
+│ │ Check This,Please review data,0                                       │ │
+│ │ Status,Record saved,3                                                 │ │
+│ │ Title,Message,Timeout (0=manual dismiss)                              │ │
+│ └───────────────────────────────────────────────────────────────────────┘ │
+│   Working examples for every action!                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 3: PERSISTENT OCR HIGHLIGHT
+═══════════════════════════════════════════════════════════════════════════════
+
+STEP 1: Click 📷 OCR button
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  Tooltip appears: "📷 Drag to select OCR region"                           │
+│                   "ESC to cancel"                                           │
+│                   "Highlight will persist after selection"                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+STEP 2: Drag to select region on screen
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│         ┌──────────────────────────┐  ← Green border while dragging        │
+│         │                          │                                        │
+│         │   Your selected region   │                                        │
+│         │                          │                                        │
+│         └──────────────────────────┘                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+STEP 3: Release mouse - HIGHLIGHT STAYS!
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│     ┌─────────────────────────────────────┐                                │
+│   X │ OCR Region                          │  ← Label shows what it is      │
+│     │                                     │  ← Green semi-transparent      │
+│     │   This area will be scanned        │  ← Border persists!            │
+│     │   You can see exactly what         │  ← Click-through (doesn't     │
+│     │   region you selected!             │     block interaction)         │
+│     └─────────────────────────────────────┘                                │
+│     ^                                                                       │
+│     └─ X button to dismiss when done                                       │
+│                                                                             │
+│  Status bar: "OCR Region: 100,50,300,80 (highlight persists - click X)"   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+STEP 4: Continue working with highlight visible
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Workflow Tab                                                               │
+│                                                                             │
+│  Action: [Grab OCR to Var ▼]                                               │
+│  Target: [100,50,300,80    ▼] ← Auto-filled!                              │
+│  Param:  [patientName,100,50,300,80] ← Auto-filled with example!          │
+│           ^                                                                 │
+│           └─ Just change "patientName" to what you want!                   │
+│                                                                             │
+│  Meanwhile, on your screen:                                                │
+│     ┌─────────────────────────────────────┐                                │
+│   X │ OCR Region                          │  ← Still visible!              │
+│     │                                     │  ← Shows what will be scanned  │
+│     │   Patient Name Here                │                                 │
+│     └─────────────────────────────────────┘                                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+STEP 5: Click X to dismiss when ready
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  Click the X button → Highlight disappears → Clean screen                  │
+│                                                                             │
+│  Status bar: "OCR highlight dismissed"                                     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+OR: Select new region (auto-dismisses old one)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  Click 📷 again → Drag new region → Old highlight auto-disappears         │
+│                → New highlight appears in new location                      │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+FEATURE 4: SMART AUTO-FILL
+═══════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 1: Action is "OCR Region"
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. Select "OCR Region"                                                      │
+│ 2. Click 📷, drag to 100,50,300,80                                         │
+│ 3. AUTOMATICALLY:                                                           │
+│    Target: [100,50,300,80 ▼]  ← Coordinates filled                        │
+│    Param:  [copy          ]  ← "copy" auto-filled!                        │
+│                                                                             │
+│ Just click Add! It's ready to go!                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SCENARIO 2: Action is "Grab OCR to Var"
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. Select "Grab OCR to Var"                                                 │
+│ 2. Click 📷, drag to 500,200,700,250                                       │
+│ 3. AUTOMATICALLY:                                                           │
+│    Target: [(blank)                    ]  ← Stays blank (correct)          │
+│    Param:  [varName,500,200,700,250    ]  ← Full format auto-filled!      │
+│                                                                             │
+│ Change "varName" to "patientID" → Done!                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+SCENARIO 3: Action is "OCR Click"
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ 1. Select "OCR Click"                                                       │
+│ 2. Click 📷, drag region                                                   │
+│ 3. AUTOMATICALLY:                                                           │
+│    Target: [900,100,1000,300▼]  ← Region coordinates                      │
+│    Param:  [Button          ]  ← Example text auto-filled                 │
+│                                                                             │
+│ Change "Button" to text you want to find → Done!                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+REAL WORKFLOW EXAMPLE: BEFORE vs AFTER
+═══════════════════════════════════════════════════════════════════════════════
+
+BEFORE (OLD WAY - CONFUSING):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Task: Extract patient name with OCR and paste it                           │
+│                                                                             │
+│ Step 1: Select "Grab OCR to Var"                                           │
+│   Hint: "Param: varName,region"  ← Vague!                                 │
+│   You think: "What's the format? Do I use Point_1?"                        │
+│                                                                             │
+│ Step 2: Try wrong format                                                    │
+│   Target: [Point_1]  ← WRONG! This is a click coordinate                  │
+│   Param:  [copy    ]  ← WRONG! Missing variable name                      │
+│   Add step → Test → "step failed" ❌                                       │
+│                                                                             │
+│ Step 3: Try again (guessing)                                                │
+│   Target: [(blank)]                                                         │
+│   Param:  [patientName]  ← Still WRONG! Missing coordinates               │
+│   Add step → Test → "step failed" ❌                                       │
+│                                                                             │
+│ Step 4: Search documentation, finally get format right                      │
+│   Target: [(blank)]                                                         │
+│   Param:  [patientName,100,50,300,80]  ← Finally correct!                 │
+│   But you had to guess at coordinates...                                   │
+│   Add step → Test → IT WORKS! ✅ (after 3 tries)                          │
+│                                                                             │
+│ Time wasted: 10 minutes of trial and error                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+AFTER (NEW WAY - INTUITIVE):
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Task: Extract patient name with OCR and paste it                           │
+│                                                                             │
+│ Step 1: Select "Grab OCR to Var"                                           │
+│   Hint: "PARAM: varName,x1,y1,x2,y2 (stores in $varName)"  ← CLEAR!       │
+│   Dropdown shows: "patientName,100,50,300,80" ← See example!              │
+│                                                                             │
+│ Step 2: Click 📷 OCR button                                                │
+│   Drag over patient name on screen                                         │
+│   Green highlight STAYS VISIBLE  ← See what you selected!                 │
+│                                                                             │
+│ Step 3: Check auto-filled values                                            │
+│   Target: [(blank)]  ← Correct! (auto-set)                                │
+│   Param:  [varName,100,50,300,80]  ← Auto-filled with REAL coords!       │
+│                                                                             │
+│ Step 4: Edit variable name                                                  │
+│   Change "varName" to "patientName"                                        │
+│   Param:  [patientName,100,50,300,80]  ← Done!                            │
+│                                                                             │
+│ Step 5: Add and test                                                        │
+│   Add step → Test → IT WORKS! ✅ (first try!)                             │
+│                                                                             │
+│ Time saved: 30 seconds, got it right immediately!                          │
+│                                                                             │
+│ Step 6: Dismiss highlight when done                                         │
+│   Click X on green highlight → Clean screen                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+WHAT YOU'LL LOVE
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ NO MORE GUESSING what format to use
+✅ SEE EXACTLY what region you selected (persistent highlight)
+✅ EXAMPLES in dropdown for every action
+✅ AUTO-FILL with correct format (just edit values)
+✅ CLEAR INSTRUCTIONS in hints (TARGET: ... | PARAM: ...)
+✅ VISUAL CONFIRMATION you got it right
+✅ GET IT RIGHT THE FIRST TIME (no trial and error)
+✅ FASTER WORKFLOW BUILDING
+✅ LESS FRUSTRATION
+✅ MORE PRODUCTIVITY
+
+═══════════════════════════════════════════════════════════════════════════════
+THE BOTTOM LINE
+═══════════════════════════════════════════════════════════════════════════════
+
+OLD WAY:
+- Read vague hint
+- Guess at format
+- Try wrong coordinate type
+- Get error "step failed"
+- Try again with different format
+- Still wrong
+- Search documentation
+- Finally get it right after 3-5 tries
+- Not sure if region is correct (highlight disappeared)
+
+NEW WAY:
+- Read crystal-clear hint showing exact format
+- Click 📷 button
+- Drag to select region (visually confirm)
+- Highlight STAYS so you know it's right
+- Format auto-fills with actual coordinates
+- Just edit the variable name
+- Add step
+- IT WORKS first try!
+
+RESULT:
+From 10 minutes of frustration → 30 seconds of success! 🎉
+
+═══════════════════════════════════════════════════════════════════════════════
