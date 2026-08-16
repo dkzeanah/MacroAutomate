@@ -1,0 +1,892 @@
+ArrObj := [1,2,3,4,5,6,7,8,9,10]
+
+Array.Prototype.DefineProp("HasValue", {Call: _ArrayHasValue})
+
+Array.Prototype.DefineProp("Slice", {Call: _ArraySlice})
+
+Array.Prototype.DefineProp("ToString", {Call: _ArrayToString})
+
+SlicedObj := ArrObj.Slice(1, -1, 2)
+Str := SlicedObj.ToString()
+MsgBox Str
+
+;this is all the code I have. so far, it has created the globalcoder.db file as intended, i could not get it to auto create a questions table, so i manually executed in db browser. ( mild error point here...)
+
+;not sure how to get the question to execute a record on the questions table when called...
+1::googler()
+
+InitDB() {
+    static DB := SQLiteDB()
+    if !DB.OpenDB(A_ScriptDir "\globalcoder.db") {
+        MsgBox("Failed to open database: " DB.ErrorMsg)
+        return false
+    }
+
+    ; Create questions table if it doesn't exist
+    sql := "
+    (
+        CREATE TABLE IF NOT EXISTS questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question TEXT NOT NULL,
+            date DATETIME DEFAULT CURRENT_TIMESTAMP
+        );)"
+
+    if !DB.Exec(sql) {
+        MsgBox("Failed to create table: " DB.ErrorMsg)
+        return false
+    }
+    return DB
+}
+
+; Example usage of other DBManager features
+ExampleUsage() {
+    dbManager := DBManager()
+
+    ; Create a custom table
+    dbManager.CreateTable("custom_logs",
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        . "event_type TEXT NOT NULL,"
+        . "details TEXT,"
+        . "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP")
+
+    ; Execute a custom query
+    dbManager.ExecuteQuery("INSERT INTO custom_logs (event_type, details) "
+        . "VALUES ('test_event', 'Testing custom logging')")
+
+    ; Get query history
+    history := dbManager.GetQueryHistory()
+    for query in history {
+        MsgBox("Historical Query: " query)
+    }
+
+    ; Fetch and display questions
+    result := ""
+    if dbManager.GetTable("SELECT * FROM questions ORDER BY date DESC LIMIT 10", &result) {
+        for row in result.Rows {
+            MsgBox("Question: " row[2] "`nDate: " row[3])
+        }
+    }
+}
+
+
+class DBManager {
+    static DB := SQLiteDB()
+    static LogFile := A_ScriptDir "\sqlitelog.txt"
+
+ static  __New(dbPath := A_ScriptDir "\globalcoder.db") {
+        this.dbPath := dbPath
+       ; this.Db := DBManager.DB
+        msgbox "DBManager _new being executed, static new"
+        InitializeDB()
+    }
+    __New(dbPath := A_ScriptDir "\globalcoder.db") {
+        this.dbPath := dbPath
+        ;this.Db := DBManager.DB
+        msgbox "DBManager _new being executed"
+        this.InitializeDB()
+    }
+
+    InitializeDB() {
+        msgbox "in initializedb() method"
+        if !DBManager.DB.OpenDB(this.dbPath) {
+            msgbox "initializing db, db.opendb() method was 'NOT' "
+            sql := `"(CREATE TABLE IF NOT EXISTS questions (id INTEGER PRIMARY KEY AUTOINCREMENT,question TEXT NOT NULL,date DATETIME DEFAULT CURRENT_TIMESTAMP);)"
+            DB.ExecuteQuery(sql)
+            msgbox "db 'initialized' with line: sql := `"CREATE TABLE IF NOT EXISTS questions (id INTEGER PRIMARY KEY AUTOINCREMENT,question TEXT NOT NULL,date DATETIME DEFAULT CURRENT_TIMESTAMP "
+        }
+    }
+
+    LogQuery(query) {
+        try {
+            FileAppend(
+                Format("{}`n[{}] {}`n",
+                    "=".repeat(50),
+                    FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss"),
+                    query
+                ),
+                this.LogFile
+            )
+        }
+    }
+
+    ExecuteQuery(query) {
+        this.LogQuery(query)
+        if !this.DB.Exec(query) {
+            msgbox "didnt exec??"
+           ; throw Error("SQLite Error: " this.DB.ErrorMsg " (Code: " this.DB.ErrorCode ")")
+        }
+        return true
+    }
+
+    GetQueryHistory() {
+        queries := []
+        if FileExist(this.LogFile) {
+            fileContent := FileRead(this.LogFile)
+            lines := StrSplit(fileContent, "`n")
+            for line in lines {
+                if RegExMatch(line, "^\[\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\]\s(.+)$", &match)
+                    queries.Push(match[1])
+            }
+        }
+        return queries
+    }
+
+    AddQuestion(question) {
+        sql := "(INSERT INTO questions (question)VALUES ('" StrReplace(question, "'", "''") "');)"
+        return this.ExecuteQuery(sql)
+    }
+
+    CreateTable(tableName, columns) {
+        sql := "(CREATE TABLE IF NOT EXISTS " tableName " (" columns ");)"
+        return this.ExecuteQuery(sql)
+    }
+
+    GetTable(query, &result) {
+        this.LogQuery(query)
+        if !this.DB.GetTable(query, &result) {
+            throw Error("SQLite Error: " this.DB.ErrorMsg " (Code: " this.DB.ErrorCode ")")
+        }
+        return true
+    }
+}
+
+googler() {
+    static DB := InitDB()  ; Initialize DB connection once
+
+    query := "&as_qdr=y1"
+    ans := InputBox("Enter search query:", "Google Search").Value
+
+    if (ans != "") {
+        ; Log the search query to database
+        if (DB) {
+            sql := "INSERT INTO questions (question) VALUES ('" StrReplace(ans, "'", "''") "');"
+            if !DB.Exec(sql)
+                MsgBox("Failed to log query: " DB.ErrorMsg)
+        }
+
+        ; Perform the search
+        Run("https://www.google.com/search?q=" . UrlEncode(ans) . query)
+        Sleep(500)
+        Send("!g")
+    }
+}
+ViewRecentSearches() {
+    static DB := InitDB()
+
+    if (DB) {
+        result := ""
+        sql := "SELECT * FROM questions ORDER BY date DESC LIMIT 10;"
+
+        if DB.GetTable(sql, &result) {
+            log := ""
+            for row in result.Rows {
+                log .= "ID: " row[1] "`nQuery: " row[2] "`nDate: " row[3] "`n`n"
+            }
+            MsgBox(log ? log : "No searches found")
+        }
+    }
+}
+
+/*
+; Modified googler() function that integrates with DBManager
+googler() {
+    static dbManager1 := DBManager()  ; Create singleton instance
+
+    query := "&as_qdr=y1"
+    ans := InputBox("Enter search query:", "Google Search").Value
+
+    if (ans != "") {
+        ; Log the search query to database
+        try {
+            dbManager.AddQuestion(ans)
+        } catch as err {
+            MsgBox("Failed to log search query: " err.Message)
+        }
+
+        ; Perform the search
+        Run("https://www.google.com/search?q=" . UrlEncode(ans) . query)
+        Sleep(500)
+        Send("!g")
+    }
+}
+*/
+
+Class SQLiteDB {
+
+      Static Version := ""
+   Static _SQLiteDLL := A_ScriptDir . "\SQLite3.dll"
+   Static _RefCount := 0
+   Static _MinVersion := "3.6"
+
+   ; CONSTRUCTOR __New
+   __New() {
+      Local DLL, LibVersion, SQLiteDLL
+      This._Path := ""                  ; Database path                                 (String)
+      This._Handle := 0                 ; Database handle                               (Pointer)
+      This._Stmts := Map()              ; Valid prepared statements                     (Map)
+      If (SQLiteDB._RefCount = 0) {
+         SQLiteDLL := SQLiteDB._SQLiteDLL
+         If !FileExist(SQLiteDLL)
+            If FileExist(A_ScriptDir . "\SQLiteDB.ini") {
+               SQLiteDLL := IniRead(A_ScriptDir . "\SQLiteDB.ini", "Main", "DllPath", SQLiteDLL)
+               SQLiteDB._SQLiteDLL := SQLiteDLL
+         }
+         If !(DLL := DllCall("LoadLibrary", "Str", SQLiteDB._SQLiteDLL, "UPtr")) {
+            MsgBox("DLL " . SQLiteDLL . " does not exist!", "SQLiteDB Error", 16)
+            ExitApp
+         }
+         LibVersion := StrGet(DllCall("SQlite3.dll\sqlite3_libversion", "Cdecl UPtr"), "UTF-8")
+         If (VerCompare(LibVersion, SQLiteDB._MinVersion) < 0) {
+            DllCall("FreeLibrary", "Ptr", DLL)
+            MsgBox("Version " . LibVersion . " of SQLite3.dll is not supported!`n`n" .
+                   "You can download the current version from www.sqlite.org!",
+                   "SQLiteDB ERROR", 16)
+            ExitApp
+         }
+         SQLiteDB.Version := LibVersion
+      }
+      SQLiteDB._RefCount += 1
+   }
+
+   __Delete() {
+      Local DLL
+      If (This._Handle)
+         This.CloseDB()
+      SQLiteDB._RefCount -= 1
+      If (SQLiteDB._RefCount = 0) {
+         If (DLL := DllCall("GetModuleHandle", "Str", SQLiteDB._SQLiteDLL, "UPtr"))
+            DllCall("FreeLibrary", "Ptr", DLL)
+      }
+   }
+
+    ErrorMsg := ""              ; Error message                           (String)
+    ErrorCode := 0              ; SQLite error code / ErrorLevel          (Variant)
+    Changes := 0                ; Changes made by last call of Exec()     (Integer)
+    SQL := ""                   ; Last executed SQL statement             (String)
+
+   OpenDB(DBPath, Access := "W", Create := True) {
+      Static SQLITE_OPEN_READONLY  := 0x01 ; Database opened as read-only
+      Static SQLITE_OPEN_READWRITE := 0x02 ; Database opened as read-write
+      Static SQLITE_OPEN_CREATE    := 0x04 ; Database will be created if not exists
+      Static MEMDB := ":memory:"
+      Local Flags, HDB, RC, UTF8
+      This.ErrorMsg := ""
+      This.ErrorCode := 0
+      HDB := 0
+      If (DBPath = "")
+         DBPath := MEMDB
+      If (DBPath = This._Path) && (This._Handle)
+         Return True
+      If (This._Handle)
+         Return This._SetError(0, "you must first close DB`n" . This._Path)
+      Flags := 0
+      Access := SubStr(Access, 1, 1)
+      If (Access != "W") && (Access != "R")
+         Access := "R"
+      Flags := SQLITE_OPEN_READONLY
+      If (Access = "W") {
+         Flags := SQLITE_OPEN_READWRITE
+         If (Create)
+            Flags |= SQLITE_OPEN_CREATE
+      }
+      This._Path := DBPath
+      UTF8 := This._StrToUTF8(DBPath)
+      HDB := 0
+      RC := DllCall("SQlite3.dll\sqlite3_open_v2", "Ptr", UTF8, "UPtrP", &HDB, "Int", Flags, "Ptr", 0, "Cdecl Int")
+      If (RC) {
+         This._Path := ""
+         Return This._SetError(RC, This._ErrStr(RC) . "`n" . DBPath)
+      }
+      This._Handle := HDB
+      Return True
+   }
+
+   CloseDB() {
+      Local Each, Stmt, RC
+      This.ErrorMsg := ""
+      This.ErrorCode := 0
+      This.SQL := ""
+      If !(This._Handle)
+         Return True
+      For Each, Stmt in This._Stmts
+         DllCall("SQlite3.dll\sqlite3_finalize", "Ptr", Stmt, "Cdecl Int")
+      If (RC := DllCall("SQlite3.dll\sqlite3_close", "Ptr", This._Handle, "Cdecl Int"))
+         Return This._SetError(RC)
+      This._Path := ""
+      This._Handle := ""
+      This._Stmts := Map()
+      Return True
+   }
+
+   AttachDB(DBPath, DBAlias) {
+      Return This.Exec("ATTACH DATABASE '" . DBPath . "' As " . DBAlias . ";")
+   }
+
+   DetachDB(DBAlias) {
+      Return This.Exec("DETACH DATABASE " . DBAlias . ";")
+   }
+
+   Exec(SQL, Callback := "") {
+      Local CBPtr, Err, RC, UTF8
+      This.ErrorMsg := ""
+      This.ErrorCode := 0
+      This.SQL := SQL
+      If !(This._Handle)
+         Return This._SetError(0, "Invalid database handle!")
+      CBPtr := 0
+      Err := 0
+      If (Type(Callback) = "Func") && (Callback.MinParams = 4)
+         CBPtr := CallbackCreate(Callback, "C", 4)
+      UTF8 := This._StrToUTF8(SQL)
+      RC := DllCall("SQlite3.dll\sqlite3_exec", "Ptr", This._Handle, "Ptr", UTF8, "Int", CBPtr, "Ptr", ObjPtr(This),
+                    "UPtrP", &Err, "Cdecl Int")
+      If (CBPtr)
+         CallbackFree(CBPtr)
+      If (RC) {
+         This.ErrorMsg := StrGet(Err, "UTF-8")
+         This.ErrorCode := RC
+         DllCall("SQLite3.dll\sqlite3_free", "Ptr", Err, "Cdecl")
+         Return False
+      }
+      This.Changes := This._Changes()
+      Return True
+   }
+
+   GetTable(SQL, &TB, MaxResult := 0) {
+      TB := ""
+      This.ErrorMsg := ""
+      This.ErrorCode := 0
+      This.SQL := SQL
+      If !(This._Handle)
+         Return This._SetError(0, "Invalid database handle!")
+      Local Names := ""
+      Local Err := 0, GetRows := 0, RC := 0
+      Local I := 0, Rows := Cols := 0
+      Local Table := 0
+      If !IsInteger(MaxResult)
+         MaxResult := 0
+      If (MaxResult < -2)
+         MaxResult := 0
+      Local UTF8 := This._StrToUTF8(SQL)
+      RC := DllCall("SQlite3.dll\sqlite3_get_table", "Ptr", This._Handle, "Ptr", UTF8, "UPtrP", &Table,
+                    "IntP", &Rows, "IntP", &Cols, "UPtrP", &Err, "Cdecl Int")
+      If (RC) {
+         This.ErrorMsg := StrGet(Err, "UTF-8")
+         This.ErrorCode := RC
+         DllCall("SQLite3.dll\sqlite3_free", "Ptr", Err, "Cdecl")
+         Return False
+      }
+      TB := SQLiteDB._Table()
+      TB.ColumnCount := Cols
+      TB.RowCount := Rows
+      If (MaxResult = -1) {
+         DllCall("SQLite3.dll\sqlite3_free_table", "Ptr", Table, "Cdecl")
+         Return True
+      }
+      If (MaxResult = -2)
+         GetRows := 0
+      Else If (MaxResult > 0) && (MaxResult <= Rows)
+         GetRows := MaxResult
+      Else
+         GetRows := Rows
+      Local Offset := 0
+      Names := []
+      Names.Length := Cols
+      Loop Cols {
+         Names[A_Index] := StrGet(NumGet(Table + Offset, "UPtr"), "UTF-8")
+         Offset += A_PtrSize
+      }
+      TB.ColumnNames := Names
+      TB.HasNames := True
+      TB.Rows.Length := GetRows
+      Local ColArr
+      Loop GetRows {
+         ColArr := []
+         ColArr.Length := Cols
+         Loop Cols {
+            ColArr[A_Index] := (Pointer := NumGet(Table + Offset, "UPtr")) ? StrGet(Pointer, "UTF-8") : ""
+            Offset += A_PtrSize
+         }
+         TB.Rows[A_Index] := ColArr
+      }
+      If (GetRows)
+         TB.HasRows := True
+      DllCall("SQLite3.dll\sqlite3_free_table", "Ptr", Table, "Cdecl")
+      Return True
+   }
+
+   Prepare(SQL, &ST) {
+      Local ColumnCount, ColumnNames, Pointer, RC
+      This.ErrorMsg := ""
+      This.ErrorCode := 0
+      This.SQL := SQL
+      If !(This._Handle)
+         Return This._SetError(0, "Invalid database handle!")
+      Local Stmt := 0
+      Local UTF8 := This._StrToUTF8(SQL)
+      RC := DllCall("SQlite3.dll\sqlite3_prepare_v2", "Ptr", This._Handle, "Ptr", UTF8, "Int", -1,
+                    "UPtrP", &Stmt, "Ptr", 0, "Cdecl Int")
+      If (RC)
+         Return This._SetError(RC)
+      ColumnNames := []
+      ColumnCount := DllCall("SQlite3.dll\sqlite3_column_count", "Ptr", Stmt, "Cdecl Int")
+      If (ColumnCount > 0) {
+         ColumnNames.Length := ColumnCount
+         Loop ColumnCount {
+            Pointer := DllCall("SQlite3.dll\sqlite3_column_name", "Ptr", Stmt, "Int", A_Index - 1, "Cdecl UPtr")
+            ColumnNames[A_Index] := StrGet(Pointer, "UTF-8")
+         }
+      }
+        ST := SQLiteDB._Prepared()
+      ST.ColumnCount := ColumnCount
+      ST.ColumnNames := ColumnNames
+      ST.ParamCount := DllCall("SQlite3.dll\sqlite3_bind_parameter_count", "Ptr", Stmt, "Cdecl Int")
+      ST._Handle := Stmt
+      ST._DB := This
+      This._Stmts[Stmt] := Stmt
+      Return True
+   }
+
+   CreateScalarFunc(Name, Args, Func, Enc := 0x0801, Param := 0) {
+      ; SQLITE_DETERMINISTIC = 0x0800 - the function will always return the same result given the same inputs
+      ;                                 within a single SQL statement
+      ; SQLITE_UTF8 = 0x0001
+      This.ErrorMsg := ""
+      This.ErrorCode := 0
+      If !(This._Handle)
+         Return This._SetError(0, "Invalid database handle!")
+      Local RC := DllCall("SQLite3.dll\sqlite3_create_function", "Ptr", This._Handle, "AStr", Name, "Int", Args,
+                          "Int", Enc, "Ptr", Param, "Ptr", Func, "Ptr", 0, "Ptr", 0, "Cdecl Int")
+      Return (RC) ? This._SetError(RC) : True
+   }
+
+   EnableLoadExtension(Enable := 1) {
+      Local RC := DllCall("SQLite3.dll\sqlite3_db_config", "Ptr", This._Handle, "Int", 1005, "Int", !!Enable,
+                          "Ptr", 0, "Cdecl Int")
+      Return (RC) ? This._SetError(RC) : True
+   }
+
+   LoadExtension(File, Proc?) {
+      Local RC := IsSet(Proc) ? DllCall("SQLite3.dll\sqlite3_load_extension", "Ptr", This._Handle, "AStr", File,
+                                        "AStr", Proc, "Ptr", 0, "Cdecl Int")
+                              : DllCall("SQLite3.dll\sqlite3_load_extension", "Ptr", This._Handle, "AStr", File,
+                                        "Ptr", 0, "Ptr", 0, "Cdecl Int")
+      Return (RC) ? This._SetError(RC) : True
+   }
+
+   LastInsertRowID(&RowID) {
+      This.ErrorMsg := ""
+      This.ErrorCode := 0
+      This.SQL := ""
+      If !(This._Handle)
+         Return This._SetError(0, "Invalid database handle!")
+      RowID := DllCall("SQLite3.dll\sqlite3_last_insert_rowid", "Ptr", This._Handle, "Cdecl Int64")
+      Return True
+   }
+
+   TotalChanges(&Rows) {
+      This.ErrorMsg := ""
+      This.ErrorCode := 0
+      This.SQL := ""
+      If !(This._Handle)
+         Return This._SetError(0, "Invalid database handle!")
+      Rows := DllCall("SQLite3.dll\sqlite3_total_changes", "Ptr", This._Handle, "Cdecl Int")
+      Return True
+   }
+
+   SetTimeout(Timeout := 1000) {
+      Local RC
+      This.ErrorMsg := ""
+      This.ErrorCode := 0
+      This.SQL := ""
+      If !(This._Handle)
+         Return This._SetError(0, "Invalid database handle!")
+      If !IsInteger(Timeout)
+         Timeout := 1000
+      If (RC := DllCall("SQLite3.dll\sqlite3_busy_timeout", "Ptr", This._Handle, "Int", Timeout, "Cdecl Int"))
+         Return This._SetError(RC)
+      Return True
+   }
+
+   EscapeStr(&Str, Quote := True) {
+      This.ErrorMsg := ""
+      This.ErrorCode := 0
+      This.SQL := ""
+      If !(This._Handle)
+         Return This._SetError(0, "Invalid database handle!")
+      If IsNumber(Str)
+         Return True
+      Local OP := Buffer(16, 0)
+      StrPut(Quote ? "%Q" : "%q", OP, "UTF-8")
+      Local UTF8 := This._StrToUTF8(Str)
+      Local Ptr := DllCall("SQLite3.dll\sqlite3_mprintf", "Ptr", OP, "Ptr", UTF8, "Cdecl UPtr")
+      Str := StrGet(Ptr, "UTF-8")
+      DllCall("SQLite3.dll\sqlite3_free", "Ptr", Ptr, "Cdecl")
+      Return True
+   }
+
+   ExtErrCode() {
+      If !(This._Handle)
+         Return 0
+      Return DllCall("SQLite3.dll\sqlite3_extended_errcode", "Ptr", This._Handle, "Cdecl Int")
+   }
+
+   _Changes() {
+      Return DllCall("SQLite3.dll\sqlite3_changes", "Ptr", This._Handle, "Cdecl Int")
+   }
+
+   _ErrMsg() {
+      Local RC
+      If (RC := DllCall("SQLite3.dll\sqlite3_errmsg", "Ptr", This._Handle, "Cdecl UPtr"))
+         Return StrGet(RC, "UTF-8")
+      Return ""
+   }
+
+   _ErrCode() {
+      Return DllCall("SQLite3.dll\sqlite3_errcode", "Ptr", This._Handle, "Cdecl Int")
+   }
+
+   _ErrStr(ErrCode) {
+      Return StrGet(DllCall("SQLite3.dll\sqlite3_errstr", "Int", ErrCode, "Cdecl UPtr"), "UTF-8")
+   }
+
+   _SetError(RC, Msg?) {
+      This.ErrorMsg := IsSet(Msg) ? Msg : This._ErrMsg()
+      This.ErrorCode := RC
+      Return False
+   }
+
+   _StrToUTF8(Str) {
+      Local UTF8 := Buffer(StrPut(Str, "UTF-8"), 0)
+      StrPut(Str, UTF8, "UTF-8")
+      Return UTF8
+   }
+
+   _ReturnCode(RC) {
+      Static RCODE := {SQLITE_OK:           0, ; Successful result
+                       SQLITE_ERROR:        1, ; SQL error or missing database
+                       SQLITE_INTERNAL:     2, ; NOT USED. Internal logic error in SQLite
+                       SQLITE_PERM:         3, ; Access permission denied
+                       SQLITE_ABORT:        4, ; Callback routine requested an abort
+                       SQLITE_BUSY:         5, ; The database file is locked
+                       SQLITE_LOCKED:       6, ; A table in the database is locked
+                       SQLITE_NOMEM:        7, ; A malloc() failed
+                       SQLITE_READONLY:     8, ; Attempt to write a readonly database
+                       SQLITE_INTERRUPT:    9, ; Operation terminated by sqlite3_interrupt()
+                       SQLITE_IOERR:       10, ; Some kind of disk I/O error occurred
+                       SQLITE_CORRUPT:     11, ; The database disk image is malformed
+                       SQLITE_NOTFOUND:    12, ; NOT USED. Table or record not found
+                       SQLITE_FULL:        13, ; Insertion failed because database is full
+                       SQLITE_CANTOPEN:    14, ; Unable to open the database file
+                       SQLITE_PROTOCOL:    15, ; NOT USED. Database lock protocol error
+                       SQLITE_EMPTY:       16, ; Database is empty
+                       SQLITE_SCHEMA:      17, ; The database schema changed
+                       SQLITE_TOOBIG:      18, ; String or BLOB exceeds size limit
+                       SQLITE_CONSTRAINT:  19, ; Abort due to constraint violation
+                       SQLITE_MISMATCH:    20, ; Data type mismatch
+                       SQLITE_MISUSE:      21, ; Library used incorrectly
+                       SQLITE_NOLFS:       22, ; Uses OS features not supported on host
+                       SQLITE_AUTH:        23, ; Authorization denied
+                       SQLITE_FORMAT:      24, ; Auxiliary database format error
+                       SQLITE_RANGE:       25, ; 2nd parameter to sqlite3_bind out of range
+                       SQLITE_NOTADB:      26, ; File opened that is not a database file
+                       SQLITE_ROW:        100, ; sqlite3_step() has another row ready
+                       SQLITE_DONE:       101} ; sqlite3_step() has finished executing
+      Return RCODE.HasOwnProp(RC) ? RCODE.%RC% : ""
+   }
+
+
+
+   Class _Table {
+
+      __New() {
+          This.ColumnCount := 0          ; Number of columns in the result table         (Integer)
+          This.RowCount := 0             ; Number of rows in the result table            (Integer)
+          This.ColumnNames := []         ; Names of columns in the result table          (Array)
+          This.Rows := []                ; Rows of the result table                      (Array of Arrays)
+          This.HasNames := False         ; Does var ColumnNames contain names?           (Bool)
+          This.HasRows := False          ; Does var Rows contain rows?                   (Bool)
+          This._CurrentRow := 0          ; Row index of last returned row                (Integer)
+      }
+
+      GetRow(RowIndex, &Row) {
+         Row := ""
+         If (RowIndex < 1 || RowIndex > This.RowCount)
+            Return False
+         If !This.Rows.Has(RowIndex)
+            Return False
+         Row := This.Rows[RowIndex]
+         This._CurrentRow := RowIndex
+         Return True
+      }
+
+      Next(&Row) {
+         Row := ""
+         If (This._CurrentRow >= This.RowCount)
+            Return -1
+         This._CurrentRow += 1
+         If !This.Rows.Has(This._CurrentRow)
+            Return False
+         Row := This.Rows[This._CurrentRow]
+         Return True
+      }
+
+      Reset() {
+         This._CurrentRow := 0
+         Return True
+      }
+   }
+
+   Class _Prepared {
+      ; ----------------------------------------------------------------------------------------------------------------
+      ; CONSTRUCTOR  Create instance variables
+      ; ----------------------------------------------------------------------------------------------------------------
+      __New() {
+         This.ColumnCount := 0         ; Number of columns in the result               (Integer)
+         This.ColumnNames := []        ; Names of columns in the result                (Array)
+         This.CurrentStep := 0         ; Index of current step                         (Integer)
+         This.ErrorMsg := ""           ; Last error message                            (String)
+         This.ErrorCode := 0           ; Last SQLite error code / ErrorLevel           (Variant)
+         This._Handle := 0             ; Query handle                                  (Pointer)
+         This._DB := {}                ; SQLiteDB object                               (Object)
+      }
+      ; ----------------------------------------------------------------------------------------------------------------
+      ; DESTRUCTOR   Clear instance variables
+      ; ----------------------------------------------------------------------------------------------------------------
+      __Delete() {
+         If This.HasOwnProp("_Handle") && (This._Handle != 0)
+            This.Free()
+      }
+
+      Bind(Params) {
+         Static Types := {Blob: 1, Double: 1, Int: 1, Int64: 1, Null: 1, Text: 1}
+         Local Index, Param, ParamType, RC, UTF8, Value
+         This.ErrorMsg := ""
+         This.ErrorCode := 0
+         If !(This._Handle) {
+            This.ErrorMsg := "Invalid statement handle!"
+            Return False
+         }
+         For Index, Param In Params {
+            If (Index < 1) || (Index > This.ParamCount)
+               Return This._SetError(0, "Invalid parameter index: " . Index . "!")
+            For ParamType, Value In Param {
+               If !Types.HasOwnProp(ParamType)
+                  Return This._SetError(0, "Invalid parameter type " . ParamType . " at index " Index . "!")
+               Switch ParamType {
+                  Case "Blob":
+                     ; Value = Buffer object
+                     If !(ParamType(Value) = "Buffer")
+                        Return This._SetError(0, "Invalid blob object at index " . Index . "!")
+                     ; Let SQLite always create a copy of the BLOB
+                     RC := DllCall("SQlite3.dll\sqlite3_bind_blob", "Ptr", This._Handle, "Int", Index, "Ptr", Value,
+                                   "Int", Value.Size, "Ptr", -1, "Cdecl Int")
+                     If (RC)
+                        Return This._SetError(RC)
+                  Case "Double":
+                     ; Value = double value
+                     If !IsFloat(Value)
+                        Return This._SetError(0, "Invalid value for double at index " . Index . "!")
+                     RC := DllCall("SQlite3.dll\sqlite3_bind_double", "Ptr", This._Handle, "Int", Index, "Double", Value,
+                                   "Cdecl Int")
+                     If (RC)
+                        Return This._SetError(RC)
+                  Case "Int":
+                     ; Value = integer value
+                     If !IsInteger(Value)
+                        Return This._SetError(0, "Invalid value for int at index " . Index . "!")
+                     RC := DllCall("SQlite3.dll\sqlite3_bind_int", "Ptr", This._Handle, "Int", Index, "Int", Value,
+                                   "Cdecl Int")
+                     If (RC)
+                        Return This._SetError(RC)
+                  Case "Int64":
+                     ; Value = integer value
+                     If !IsInteger(Value)
+                        Return This._SetError(0, "Invalid value for int64 at index " . Index . "!")
+                     RC := DllCall("SQlite3.dll\sqlite3_bind_int64", "Ptr", This._Handle, "Int", Index, "Int64", Value,
+                                   "Cdecl Int")
+                     If (RC)
+                        Return This._SetError(RC)
+                  Case "Null":
+                     RC := DllCall("SQlite3.dll\sqlite3_bind_null", "Ptr", This._Handle, "Int", Index, "Cdecl Int")
+                     If (RC)
+                        Return This._SetError(RC)
+                  Case "Text":
+                     ; Value = zero-terminated string
+                     UTF8 := This._DB._StrToUTF8(Value)
+                     ; Let SQLite always create a copy of the text
+                     RC := DllCall("SQlite3.dll\sqlite3_bind_text", "Ptr", This._Handle, "Int", Index, "Ptr", UTF8,
+                                   "Int", -1, "Ptr", -1, "Cdecl Int")
+                     If (RC)
+                        Return This._SetError(RC)
+               }
+               Break
+            }
+         }
+         Return True
+      }
+
+      Step(Row?) { ; !!!!! Note: If Row is not omitted is must be a VarRef !!!!!
+         Static SQLITE_INTEGER := 1, SQLITE_FLOAT := 2, SQLITE_BLOB := 4, SQLITE_NULL := 5
+         Static EOR := -1
+         Local Blob, BlobPtr, BlobSize, Column, ColumnType, RC, Res, Value
+         If IsSet(Row) && !(Row Is VarRef)
+            Throw TypeError("Parameter #1 requires a variable reference, but received a" .
+                            (Type(Row) ~= "i)^[aeiou]" ? "n " : " ") . Type(Row) ".", -1, Row)
+         This.ErrorMsg := ""
+         This.ErrorCode := 0
+         If !(This._Handle)
+            Return This._SetError(0, "Invalid query handle!")
+         RC := DllCall("SQlite3.dll\sqlite3_step", "Ptr", This._Handle, "Cdecl Int")
+         If (RC = This._DB._ReturnCode("SQLITE_DONE"))
+            Return (This._SetError(RC, "EOR") | EOR)
+         If (RC != This._DB._ReturnCode("SQLITE_ROW"))
+            Return This._SetError(RC)
+         This.CurrentStep += 1
+         If !IsSet(Row)
+            Return True
+         Res := []
+         RC := DllCall("SQlite3.dll\sqlite3_data_count", "Ptr", This._Handle, "Cdecl Int")
+         If (RC < 1)
+            Return True
+         Res.Length := RC
+         Loop RC {
+            Column := A_Index - 1
+            ColumnType := DllCall("SQlite3.dll\sqlite3_column_type", "Ptr", This._Handle, "Int", Column, "Cdecl Int")
+            Switch ColumnType {
+               Case SQLITE_BLOB:
+                  BlobPtr := DllCall("SQlite3.dll\sqlite3_column_blob", "Ptr", This._Handle, "Int", Column, "Cdecl UPtr")
+                  BlobSize := DllCall("SQlite3.dll\sqlite3_column_bytes", "Ptr", This._Handle, "Int", Column, "Cdecl Int")
+                  If (BlobPtr = 0) || (BlobSize = 0)
+                     Res[A_Index] := ""
+                  Else {
+                     Blob := Buffer(BlobSize)
+                     DllCall("Kernel32.dll\RtlMoveMemory", "Ptr", Blob, "Ptr", BlobPtr, "Ptr", BlobSize)
+                     Res[A_Index] := Blob
+                  }
+               Case SQLITE_INTEGER:
+                  Value := DllCall("SQlite3.dll\sqlite3_column_int64", "Ptr", This._Handle, "Int", Column, "Cdecl Int64")
+                  Res[A_Index] := Value
+               Case SQLITE_FLOAT:
+                  Value := DllCall("SQlite3.dll\sqlite3_column_double", "Ptr", This._Handle, "Int", Column, "Cdecl Double")
+                  Res[A_Index] := Value
+               Case SQLITE_NULL:
+                  Res[A_Index] := ""
+               Default:
+                  Value := DllCall("SQlite3.dll\sqlite3_column_text", "Ptr", This._Handle, "Int", Column, "Cdecl UPtr")
+                  Res[A_Index] := StrGet(Value, "UTF-8")
+            }
+         }
+         %Row% := Res
+         Return True
+      }
+
+      Next(Row?) { ; !!!!! Note: If Row is not omitted is must be a VarRef !!!!!
+         If !IsSet(Row)
+            Return This.Step()
+         If Row Is VarRef
+            Return This.Step(Row)
+         Throw TypeError("Parameter #1 requires a variable reference, but received a" .
+                         (Type(Row) ~= "i)^[aeiou]" ? "n " : " ") . Type(Row) ".", -1, Row)
+      }
+
+      Reset(ClearBindings := True) {
+         Local RC
+         This.ErrorMsg := ""
+         This.ErrorCode := 0
+         If !(This._Handle)
+            Return This._SetError(0, "Invalid query handle!")
+         If (RC := DllCall("SQlite3.dll\sqlite3_reset", "Ptr", This._Handle, "Cdecl Int"))
+            Return This._SetError(RC)
+         If (ClearBindings) && (RC := DllCall("SQlite3.dll\sqlite3_clear_bindings", "Ptr", This._Handle, "Cdecl Int"))
+            Return This._SetError(RC)
+         This.CurrentStep := 0
+         Return True
+      }
+
+      Free() {
+         Local RC
+         This.ErrorMsg := ""
+         This.ErrorCode := 0
+         If !(This._Handle)
+            Return True
+         If (RC := DllCall("SQlite3.dll\sqlite3_finalize", "Ptr", This._Handle, "Cdecl Int"))
+            Return This._SetError(RC)
+         This._DB._Stmts.Delete(This._Handle)
+         This._Handle := 0
+         This._DB := 0
+         Return True
+      }
+
+      _SetError(RC, Msg?) {
+         This.ErrorMsg := IsSet(Msg) ? Msg : This._DB._ErrMsg()
+         This.ErrorCode := RC
+         Return False
+      }
+   }
+}
+
+SQLiteDB_RegExp(Context, ArgC, Values) {
+   Local AddrH, AddrN, Result := 0
+   If (ArgC = 2) {
+      AddrN := DllCall("SQLite3.dll\sqlite3_value_text", "Ptr", NumGet(Values + 0, "UPtr"), "Cdecl UPtr")
+      AddrH := DllCall("SQLite3.dll\sqlite3_value_text", "Ptr", NumGet(Values + A_PtrSize, "UPtr"), "Cdecl UPtr")
+      Result := RegExMatch(StrGet(AddrH, "UTF-8"), StrGet(AddrN, "UTF-8"))
+   }
+   DllCall("SQLite3.dll\sqlite3_result_int", "Ptr", Context, "Int", !!Result, "Cdecl") ; 0 = false, 1 = true
+}
+
+
+
+
+
+_ArraySlice(This, Start := 1, End := This.Length, Step := 1) {
+    Index := 1
+    OutputObj := []
+    If Start > This.Length {
+        Return OutputObj
+    }
+    If End > This.Length {
+        End := This.Length
+    }
+    Else If End < 0 {
+        End := This.Length + 1 + End
+        If End < 1 {
+            Throw IndexError
+        }
+    }
+    If Start < 0 {
+        Start := This.Length + 1 + Start
+        If Start < 1 {
+            Throw IndexError
+        }
+    }
+    While True {
+        If Index >= End {
+            Break
+        }
+        If Index >= Start && Index < End {
+            OutputObj.Push(This[Index])
+            Index += Step
+            Continue
+        }
+        Index += 1
+    }
+    Return OutputObj
+}
+
+_ArrayHasValue(This, Query) {
+    For Index, Value in This {
+        If InStr(Value, Query) {
+            Return True
+        }
+    }
+    Return False
+}
+
+_ArrayToString(This) {
+    For Value in This {
+        Output .= Value
+    }
+    Return Output
+}

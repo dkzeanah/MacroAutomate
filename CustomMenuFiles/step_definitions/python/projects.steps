@@ -1,0 +1,15 @@
+; =====================================================================================
+; PYTHON PROJECT SETUP STEPS
+; =====================================================================================
+
+[Python venv (Standard)]
+1|mkdir MyPythonProject && cd MyPythonProject|Create project folder|Project name|Creates your project directory
+2|python -m venv venv|Create virtual environment|None|Creates isolated Python environment
+3|venv\Scripts\activate|Activate environment (Windows)|None|Activates venv
+4|pip install --upgrade pip|Upgrade pip|None|Ensures latest pip version
+5|pip freeze > requirements.txt|Save dependencies|None|Creates requirements.txt
+
+[Anaconda/Miniconda]
+1|conda create -n myenv python=3.11|Create conda environment|Env name|Creates isolated conda environment
+2|conda activate myenv|Activate environment|None|Activates the conda environment
+3|conda install numpy pandas matplotlib|Install data science packages|Package names|Conda handles dependencies

@@ -1,0 +1,149 @@
+; =====================================================================================
+; JAVASCRIPT PROJECT SETUP STEPS
+; =====================================================================================
+; 
+; HOW TO USE THIS FILE:
+; 1. Each [ProjectType] section defines a different project setup
+; 2. Steps are pipe-delimited: step|command|directions|input_needed|explanation
+; 3. Lines starting with ; are comments (ignored)
+; 4. Empty lines are ignored
+; 5. Add your own project types by copying a section and modifying
+;
+; FORMAT:
+; step_number|command_to_run|short_directions|what_input_is_needed|detailed_explanation
+;
+; =====================================================================================
+
+[Vanilla JS Static Site]
+; Pure vanilla JS - no Node, just a static site you can serve locally
+; Great for learning fundamentals without framework complexity
+1|mkdir VanillaStatic && cd VanillaStatic|Create project folder|Folder name|Creates and enters your project directory. The && chains commands together.
+2|New-Item index.html -ItemType File|Create HTML file (PowerShell)|None|PowerShell command to create an empty file. In bash, use: touch index.html
+3|New-Item main.js -ItemType File|Create JS file (PowerShell)|None|Creates your main JavaScript file where you'll write your code.
+4|code .|Open in VS Code|None|Opens the current folder in Visual Studio Code for editing.
+5|npx serve .|Start local server|None|Uses npx to run 'serve' package without installing globally. Opens http://localhost:3000
+
+[Node + Express API]
+; Basic Node.js Express server - good for APIs and backends
+; Express is the most popular Node.js web framework
+1|mkdir NodeApi && cd NodeApi|Create project folder|Project name|Creates your API project directory and navigates into it.
+2|npm init -y|Initialize package.json|None|Creates default package.json with project metadata. The -y flag accepts all defaults.
+3|npm install express|Install Express framework|None|Adds Express.js web framework to your project as a dependency.
+4|New-Item index.js -ItemType File|Create entry point|None|Creates the main server file where you'll define your routes and middleware.
+5|code .|Open in VS Code|None|Opens folder to add your server code. See explanation for starter code.
+6|npm run dev|Start the server|None|Runs the dev script. First add "dev": "node index.js" to package.json scripts section.
+
+[React with Vite]
+; Modern React setup using Vite bundler - fast and lightweight
+; Vite is much faster than Create React App for development
+1|npm create vite@latest my-react-app -- --template react|Create React project|App name|Vite scaffolds a complete React application with all modern tooling configured.
+2|cd my-react-app|Enter project directory|None|Navigate into the created project folder where package.json lives.
+3|npm install|Install dependencies|None|Downloads all required packages from package.json to node_modules folder.
+4|npm run dev|Start development server|None|Launches Vite dev server with hot module replacement (HMR) for instant updates.
+5|Open http://localhost:5173/|View in browser|None|Default Vite port is 5173, not 3000 like CRA. Your React app is now running!
+
+[React + TypeScript with Vite]
+; React with TypeScript for type safety
+; Catches errors at compile time rather than runtime
+1|npm create vite@latest my-react-ts-app -- --template react-ts|Create React+TS project|App name|Scaffolds React with TypeScript configuration. Files use .tsx extension.
+2|cd my-react-ts-app|Enter project directory|None|Navigate into the created project folder.
+3|npm install|Install dependencies|None|Downloads packages including @types for TypeScript type definitions.
+4|npm run dev|Start development server|None|Launches dev server with TypeScript compilation. Errors show in terminal.
+5|Open http://localhost:5173/|View in browser|None|Your TypeScript React app is now running with full type checking!
+
+[Next.js App]
+; Full-stack React framework with server-side rendering
+; Great for SEO-friendly sites and full-stack applications
+1|npx create-next-app@latest my-next-app|Create Next.js project|App name + options|Interactive wizard asks about TypeScript, Tailwind, ESLint, App Router, etc.
+2|cd my-next-app|Enter project directory|None|Navigate into the created project folder.
+3|npm run dev|Start development server|None|Launches Next.js dev server with Fast Refresh and server-side rendering.
+4|Open http://localhost:3000/|View in browser|None|Next.js uses port 3000 by default. Edit app/page.tsx to see changes!
+
+[Vite + React + TypeScript + Tailwind]
+; Full modern stack with utility-first CSS
+; This is the current industry-standard setup for new React projects
+1|npm create vite@latest my-vite-tailwind -- --template react-ts|Create Vite+React+TS|App name|Base project with TypeScript support and React configured.
+2|cd my-vite-tailwind|Enter project directory|None|Navigate into the project folder.
+3|npm install|Install base dependencies|None|Downloads React and TypeScript packages to node_modules.
+4|npm install -D tailwindcss postcss autoprefixer|Install Tailwind|None|Adds Tailwind CSS and its PostCSS dependencies as dev dependencies.
+5|npx tailwindcss init -p|Initialize Tailwind config|None|Creates tailwind.config.js and postcss.config.js configuration files.
+6|Edit tailwind.config.js content paths|Configure Tailwind scanning|See explanation|Add: content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'] - tells Tailwind which files to scan.
+7|Edit src/index.css|Add Tailwind directives|None|Replace contents with: @tailwind base; @tailwind components; @tailwind utilities;
+8|npm run dev|Start development server|None|Tailwind classes like bg-blue-500 now work in your React components!
+
+[Vanilla TypeScript + Tailwind (No React)]
+; TypeScript without React, with Tailwind styling
+; Good for learning TS fundamentals or building without framework overhead
+1|mkdir vanilla-ts-tailwind && cd vanilla-ts-tailwind|Create project folder|Folder name|Creates your project directory for vanilla TypeScript.
+2|npm init -y|Initialize package.json|None|Creates default package.json for managing dependencies.
+3|npm install -D typescript vite tailwindcss postcss autoprefixer|Install dev dependencies|None|All tooling as dev dependencies - Vite for bundling, TS for types, Tailwind for styles.
+4|npx tsc --init|Create tsconfig.json|None|Initializes TypeScript configuration. Adjust target and module settings as needed.
+5|npx tailwindcss init -p|Initialize Tailwind|None|Creates Tailwind and PostCSS configuration files.
+6|Create index.html and src/main.ts|Create entry files|None|Create index.html at root, src/main.ts for your TypeScript code.
+7|Add "dev": "vite" to package.json scripts|Configure npm script|None|Allows running npm run dev to start the Vite development server.
+8|npm run dev|Start Vite dev server|None|Vite serves your vanilla TS + Tailwind project with hot reloading!
+
+[Express + TypeScript API]
+; Type-safe backend development with Node.js
+; Catches API bugs before runtime with TypeScript
+1|mkdir express-ts-api && cd express-ts-api|Create project folder|Folder name|Creates your API project directory.
+2|npm init -y|Initialize package.json|None|Creates default package.json for the project.
+3|npm install express|Install Express|None|Adds Express.js framework for handling HTTP requests.
+4|npm install -D typescript @types/express @types/node ts-node nodemon|Install dev deps|None|TypeScript compiler, type definitions for Express and Node, ts-node for direct execution, nodemon for auto-restart.
+5|npx tsc --init|Create tsconfig.json|None|Initializes TypeScript configuration. Set outDir to ./dist.
+6|mkdir src && New-Item src/index.ts -ItemType File|Create source structure|None|Create src folder and your main TypeScript server file.
+7|Add dev script to package.json|Configure nodemon|None|Add: "dev": "nodemon --exec ts-node src/index.ts" - auto-restarts on file changes.
+8|npm run dev|Start development server|None|Your TypeScript Express API is now running with hot reload!
+
+; =====================================================================================
+; STARTER CODE TEMPLATES
+; =====================================================================================
+; Below are reference code snippets for the projects above.
+; These are comments and won't be parsed as steps.
+; Copy these into your files as starting points.
+; =====================================================================================
+
+; --- Express index.js starter code ---
+; const express = require('express');
+; const app = express();
+; const PORT = 3000;
+;
+; app.use(express.json());
+;
+; app.get('/api/hello', (req, res) => {
+;     res.json({ message: 'Hello from Express!' });
+; });
+;
+; app.listen(PORT, () => {
+;     console.log(`Server running at http://localhost:${PORT}`);
+; });
+
+; --- TypeScript Express src/index.ts starter code ---
+; import express, { Request, Response } from 'express';
+;
+; const app = express();
+; const PORT = 3000;
+;
+; app.use(express.json());
+;
+; app.get('/api/hello', (req: Request, res: Response) => {
+;     res.json({ message: 'Hello from TypeScript Express!' });
+; });
+;
+; app.listen(PORT, () => {
+;     console.log(`Server running at http://localhost:${PORT}`);
+; });
+
+; --- Vanilla index.html starter ---
+; <!DOCTYPE html>
+; <html>
+; <head>
+;     <meta charset="utf-8" />
+;     <title>My App</title>
+;     <link rel="stylesheet" href="style.css">
+; </head>
+; <body>
+;     <h1>Hello World!</h1>
+;     <script src="main.js"></script>
+; </body>
+; </html>

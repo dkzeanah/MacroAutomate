@@ -1,0 +1,35 @@
+; =====================================================================================
+; TYPESCRIPT PROJECT SETUP STEPS
+; =====================================================================================
+; Format: step|command|directions|input_needed|explanation
+; =====================================================================================
+
+[TypeScript Node Project]
+; Basic TypeScript for Node.js
+1|mkdir ts-node-project && cd ts-node-project|Create project folder|Folder name|Creates your project directory
+2|npm init -y|Initialize package.json|None|Creates default package.json
+3|npm install typescript --save-dev|Install TypeScript|None|Adds TypeScript compiler as dev dependency
+4|npx tsc --init|Create tsconfig.json|None|Initializes TypeScript configuration
+5|mkdir src && New-Item src/index.ts -ItemType File|Create source folder and entry|None|Sets up source directory structure
+6|npx tsc|Compile TypeScript|None|Compiles .ts files to .js based on tsconfig
+7|node dist/index.js|Run compiled code|None|Executes the JavaScript output
+
+[TypeScript with ts-node (No Compile Step)]
+; Run TypeScript directly without pre-compiling
+1|mkdir ts-direct && cd ts-direct|Create project folder|Folder name|Creates your project directory
+2|npm init -y|Initialize package.json|None|Creates default package.json
+3|npm install typescript ts-node @types/node --save-dev|Install dependencies|None|ts-node runs TS directly
+4|npx tsc --init|Create tsconfig.json|None|Initializes TypeScript configuration
+5|Create src/index.ts|Create entry point|None|Your main TypeScript file
+6|npx ts-node src/index.ts|Run directly|None|Executes TypeScript without compiling first
+
+[TypeScript + ESLint + Prettier]
+; Professional TypeScript setup with linting and formatting
+1|mkdir ts-pro && cd ts-pro|Create project folder|Folder name|Creates your project directory
+2|npm init -y|Initialize package.json|None|Creates default package.json
+3|npm install typescript --save-dev|Install TypeScript|None|TypeScript compiler
+4|npm install eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin --save-dev|Install ESLint|None|Linting for TypeScript
+5|npm install prettier eslint-config-prettier --save-dev|Install Prettier|None|Code formatting
+6|npx tsc --init|Create tsconfig.json|None|TypeScript configuration
+7|Create .eslintrc.js|Configure ESLint|None|Set up linting rules
+8|Create .prettierrc|Configure Prettier|None|Set up formatting rules

@@ -1,0 +1,58 @@
+[WORKFLOW]
+format=2
+name=Demo 03 - Clipboard Revolver Orchestration
+speed=1.0
+hotkey=
+hotstring=
+
+[STEPS]
+; Safe internal equivalents exercise program/taskbar activation without opening another app.
+1|Run Program||demo:lab|1|||
+2|Taskbar Activate||demo:lab|1|||
+3|Activate Window||MacroAutomator Demo Lab|1|||
+4|Set Variable|patientName|Avery Example|1|||
+
+; [DEMO] records use the built-in parser and do not depend on personal extraction rules.
+5|Set Clipboard||[DEMO] LastName%3DExample; FirstName%3DAvery; DOB%3D01/02/1990; PatientName%3DAvery Example|1|||
+6|Grab Clipboard|sourceRecord||1|||
+7|Parse Clipboard|||1|||
+8|Click|demo:notepadedit|1|1|||
+9|Insert Field||PatientName|1|||
+10|Send Keys||{Enter}|1|||
+11|Insert Date|||1|||
+12|Send Keys||{Enter}|1|||
+
+; The standard revolver visibly tabs through four dedicated sandbox fields.
+13|Load Revolver|||1|||
+14|Click|demo:field1|1|1|||
+15|Fire Revolver|||1|||
+16|Set Clipboard||[DEMO] LastName%3DExample; FirstName%3DAvery; DOB%3D01/02/1990; PatientName%3DAvery Example|1|||
+17|Parse Clipboard|||1|||
+18|Load Revolver|||1|||
+19|Click|demo:field1|1|1|||
+20|Fire Revolver+Enter|||1|||
+
+; Clipboard transformation, extraction, variables, and conditional one-step branches.
+21|Format Clipboard||uppercase|1|||
+22|Prepend to Clipboard||BEGIN-|1|||
+23|Append to Clipboard||-END|1|||
+24|Extract from Clipboard||between:BEGIN-%7C-END|1|||
+25|Grab Clipboard|transformedClipboard||1|||
+26|If Contains|transformedClipboard|LASTNAME|1|||
+27|Show Notification||Clipboard Condition,$var.transformedClipboard contains LASTNAME.,5|1|||
+28|If Variable|patientName|!%3D,Nobody|1|||
+29|Show Notification||Variable Condition,$var.patientName passed the comparison.,5|1|||
+
+; Keyboard chord, variable paste, scrolling, nested workflow execution, and clean stop.
+30|Click|demo:notepadedit|1|1|||
+31|Send Keys||^{End}|1|||
+32|Send Keys||{Enter}|1|||
+33|Use Var Paste||Patient variable: $var.patientName|1|||
+34|Key Chord||^,{End},1|1|||
+35|Scroll||-2|1|||
+36|Run Sequence||Demo 02 - Mouse FindText Controls|1|||
+37|Show Notification||Orchestration Complete,Clipboard parsing revolvers nested workflows and control flow completed safely.,6|1|||
+38|Set Clipboard||demo:restore|1|||
+39|Stop Execution|||1|||
+
+[END]

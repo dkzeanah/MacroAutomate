@@ -1,0 +1,9 @@
+@echo off
+setlocal
+cd /d "%~dp0"
+python main.py
+if errorlevel 1 (
+  echo.
+  echo The application exited with an error.
+  pause
+)

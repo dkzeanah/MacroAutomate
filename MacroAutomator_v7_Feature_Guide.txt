@@ -1,0 +1,553 @@
+MACRO AUTOMATOR v7 - WORKFLOW AND ACTION GUIDE
+===============================================
+
+PURPOSE
+-------
+This guide explains exactly what to enter for every action in the Workflow tab.
+
+The editor now shows only the fields used by the selected action:
+
+  Location field  = WHERE the action operates (Position, Pattern, or OCR area)
+  Value field     = WHAT to send, find, store, or configure
+  Suggestions     = convenient existing values; click Use to copy one into the
+                    correct field. Suggestions are not a third saved parameter.
+
+Advanced preconditions/safety is optional. Turn it on only when a step must:
+
+  - run only when a saved pattern is visible,
+  - run only over a matching window, or
+  - block clicks near a window's close button.
+
+
+CREATING, SAVING, AND REOPENING A WORKFLOW
+------------------------------------------
+1. Enter a unique name in Save As before or while building the workflow.
+2. Select an Action.
+3. Fill only the contextual fields shown for that action.
+4. Use Suggestions and Use when available.
+5. Click Add. Repeat for each step.
+6. Optionally set Speed, Hotkey, and Hotstring.
+7. The named workflow autosaves after edits. The Save button performs an
+   immediate save and clears the builder after a successful database commit.
+8. Saved Workflows supports normal vertical scrolling and double-click loading.
+   Expand / Manage opens a larger resizable browser for loading, running,
+   simulating, and deleting workflows.
+
+Autosave requires a nonblank Save As name. A brand-new name is written after it
+has at least one step. Once a named workflow exists, edits (including reordering,
+enabling/disabling, speed, hotkey, and hotstring changes) are autosaved.
+
+Before trusting a new workflow, select it and use Simulate. Use Test Step for one
+step and Run All only after the locations and values look correct.
+
+
+ERROR LOGGING
+-------------
+Runtime errors are appended to:
+
+  logs\MacroAutomator_errors.log
+
+Use Open Error Log beside the Saved Workflows list to open it. The log includes
+the time, operation, message, source file, line number, and stack trace when
+AutoHotkey supplies them.
+
+Warnings that occur while AutoHotkey is still loading the script happen before
+OnError can run. Start the program with Run_MacroAutomator_Logged.cmd to redirect
+those startup warnings and syntax/load errors to:
+
+  logs\MacroAutomator_startup.log
+
+When reporting a problem, share the relevant log plus the workflow step/action
+that was running. OCR errors caught by a workflow are also written to the runtime
+error log.
+
+
+COMMON FORMATS
+--------------
+Saved position:       SaveButton
+Raw position:         640,480
+Raw drag:             100,100->800,500
+Milliseconds:         1000 means one second
+Pattern:              the exact name saved on the Patterns tab
+Workflow variable:    $var.patientID
+Create OCR variable:  var:patientID (OCR Region action)
+Hotkey modifiers:     ^ Ctrl, ! Alt, + Shift, # Windows
+Special keys:         {Enter}, {Tab}, {Escape}, {F5}
+
+OCR Region, OCR Click, and OCR Wait use CORNER coordinates:
+  x1,y1,x2,y2
+  Example: 100,100,600,300 selects from (100,100) to (600,300).
+
+Grab OCR to Var uses SIZE coordinates because its OCR helper expects them:
+  x,y,width,height
+  Example: 100,100,500,200 starts at (100,100), 500 wide by 200 high.
+
+Use OCR Area to drag-select. The editor converts the selection to the correct
+format for the selected OCR action.
+
+
+ACTION REFERENCE
+================
+
+MOUSE AND MENU ACTIONS
+----------------------
+
+1. Click
+   Position (required): saved coordinate name or raw x,y.
+   Click count (optional): normally 1; higher values perform repeated clicks.
+   Example: Position=SaveButton, Click count=1
+
+2. Double Click
+   Position (required): saved coordinate name or raw x,y.
+   The action always performs two left clicks; leave Click count empty.
+   Example: Position=PatientRow
+
+3. Triple Click
+   Position (required): saved coordinate name or raw x,y.
+   The action always performs three left clicks.
+   Example: Position=Paragraph
+
+4. Right Click
+   Position (required): saved coordinate name or raw x,y.
+   Example: Position=DesktopItem
+
+5. Drag
+   Saved drag (optional): name captured with the Drag capture button.
+   Raw drag (alternative): x1,y1->x2,y2 when no saved drag is selected.
+   Supply one method, not both.
+   Example: Saved drag=MoveCard
+   Example: Raw drag=100,100->800,500
+
+6. Relative Click
+   Saved offset (required): a coordinate captured with the Rel. button.
+   The offset is applied from the last workflow click location.
+   Example: Saved offset=NextFieldRight
+
+7. Menu Select
+   Down presses (required): number of Down-arrow presses before Enter.
+   Example: Down presses=3
+
+8. Idle Mouse
+   Seconds (optional): duration to gently move the mouse; 0 means indefinitely.
+   Example: Seconds=30
+
+9. Hover Mouse
+   Position (required): saved coordinate name or raw x,y.
+   Moves without clicking.
+   Example: Position=HelpIcon
+
+
+FINDTEXT PATTERN ACTIONS
+------------------------
+Create and test named patterns on the Patterns tab before using these actions.
+
+10. Find & Click
+    Pattern (required): saved pattern name. Performs one left click.
+    Example: Pattern=SubmitButton
+
+11. Find & DblClick
+    Pattern (required): saved pattern name. Performs two left clicks.
+    Example: Pattern=ResultRow
+
+12. Find & TplClick
+    Pattern (required): saved pattern name. Performs three left clicks.
+    Example: Pattern=TextBlock
+
+13. Find & RClick
+    Pattern (required): saved pattern name. Performs one right click.
+    Example: Pattern=FileIcon
+
+14. Find & Drag
+    Pattern (required): saved pattern name used as the drag start.
+    Destination (required): endX,endY.
+    Example: Pattern=SliderHandle, Destination=900,420
+
+15. Wait for Pattern
+    Pattern (required): saved pattern name.
+    Timeout (optional): maximum milliseconds; default comes from Settings.
+    Example: Pattern=ReadyIndicator, Timeout=5000
+
+16. Wait Until Gone
+    Pattern (required): saved pattern name.
+    Timeout (optional): maximum milliseconds.
+    Example: Pattern=LoadingSpinner, Timeout=10000
+
+
+KEYBOARD, TEXT, AND CLIPBOARD ACTIONS
+------------------------------------
+
+17. Send Keys
+    Keys (required): AutoHotkey Send syntax.
+    Example: Keys=^c
+    Example: Keys={Tab}{Tab}{Enter}
+
+18. Type Text
+    Text (required): literal text to type.
+    Example: Text=user@example.com
+
+19. Key Chord
+    Chord (required): modifier,key,count.
+    Example: Chord=#,5,2 sends Win+5 twice.
+    Example: Chord=^,{Tab},3 sends Ctrl+Tab three times.
+
+20. Paste
+    No fields. Sends Ctrl+V using the current clipboard.
+
+21. Set Clipboard
+    Clipboard text (required): literal text or text containing variables.
+    Example: Clipboard text=Patient ID: $var.patientID
+
+22. Insert Field
+    Field name (required): a named value created by clipboard parsing.
+    Example: Field name=LastName
+
+23. Insert Date
+    No fields. Inserts the current date using the configured date format.
+
+24. Parse Clipboard
+    No fields. Parses the current clipboard with the configured extraction rules.
+
+25. Load Revolver
+    No fields. Loads parsed clipboard fields into the standard revolver.
+
+26. Fire Revolver
+    No fields. Pastes the next standard revolver item.
+
+27. Fire Revolver+Enter
+    No fields. Pastes the next revolver item and presses Enter.
+
+28. Use Var Paste
+    Text/template (required): text containing $var.name placeholders.
+    Example: Text/template=Patient: $var.patientID, DOB: $var.dob
+
+
+TIMING, WINDOW, PROGRAM, AND UI ACTIONS
+--------------------------------------
+
+29. Wait
+    Duration (required): milliseconds.
+    Example: Duration=1000
+
+30. Activate Window
+    Window title (required): full or partial title text.
+    Example: Window title=Notepad
+
+31. Taskbar Activate
+    Position,count (required): taskbar number and repeat count.
+    Example: Position,count=5,1 sends Win+5 once.
+
+32. Run Program
+    Program/command (required): executable, document, URL, or command line.
+    Example: Program/command=notepad.exe
+
+33. Scroll
+    Scroll amount (required): positive scrolls up; negative scrolls down.
+    Example: Scroll amount=-5
+
+34. Show Notification
+    Title,message,seconds (required): comma-separated notification values.
+    Example: Title,message,seconds=Done,Patient updated,3
+    Variables may be used in the title or message.
+
+
+OCR ACTIONS
+-----------
+OCR Region/Click/Wait areas are x1,y1,x2,y2. Grab OCR to Var is
+x,y,width,height. Prefer OCR Area rather than calculating manually.
+
+35. OCR Region
+    OCR area (required): x1,y1,x2,y2.
+    Output (optional):
+      copy          copy recognized text to clipboard
+      var:name      store text as $var.name
+      split:N       split recognized text into N parts
+      tab           split at tabs (where supported)
+      line          split at line breaks (where supported)
+      regex:pattern extract using a regular expression
+    Example: OCR area=100,100,600,300, Output=var:patientID
+
+36. OCR Click
+    OCR area (required): x1,y1,x2,y2.
+    Text to click (required): visible text to find in that area.
+    Example: OCR area=0,0,1920,1080, Text to click=Submit
+
+37. OCR Wait
+    OCR area (required): x1,y1,x2,y2.
+    Condition (required):
+      5000                 wait up to 5000 ms for OCR text
+      text:Ready,5000      wait up to 5000 ms for the word Ready
+    Example: Condition=text:Complete,10000
+
+38. Load OCR Revolver
+    Split rule (optional): tab, line, an integer part count, or one delimiter.
+    Example: Split rule=tab
+
+39. Fire OCR Revolver
+    No fields. Pastes the next OCR revolver item.
+
+40. OCR Full Screen to Var
+    Variable name (required): plain name without $, var:, or commas.
+    Captures the whole primary screen, stores all recognized text as $var.name,
+    and draws a yellow box around every recognized word for 10 seconds.
+    Example: Variable name=fullScreenOCR
+    Later use: $var.fullScreenOCR
+
+41. Grab OCR to Var
+    OCR area (required): x,y,width,height.
+    Variable name (required): plain name without $, var:, or commas.
+    Example: OCR area=100,100,500,200, Variable name=patientID
+    Later use: $var.patientID
+
+
+HOW OCR ACTIONS FIT TOGETHER
+----------------------------
+The separate Fire OCR Revolver and Use Var Paste actions are normally used after
+an OCR capture. A common flow is shown below. All 41 dropdown actions are covered
+individually in this reference.
+
+
+EXAMPLE WORKFLOWS
+=================
+
+A. CLICK A SAVED BUTTON
+   1. Click             Position=SaveButton, Click count=1
+   2. Wait              Duration=500
+   3. Show Notification Title,message,seconds=Done,Save clicked,3
+
+B. WAIT FOR A PATTERN, THEN CLICK IT
+   1. Wait for Pattern  Pattern=SubmitButton, Timeout=5000
+   2. Find & Click      Pattern=SubmitButton
+
+C. OCR TO A VARIABLE, THEN PASTE IT
+   1. Grab OCR to Var   OCR area=100,100,500,200; Variable name=patientID
+   2. Click             Position=DestinationField
+   3. Use Var Paste     Text/template=$var.patientID
+
+D. FULL-SCREEN OCR, YELLOW BOXES, THEN DISPLAY THE CAPTURED VARIABLE
+   Use Templates and insert:
+     Full Screen OCR → Yellow Boxes → Notification
+
+   It inserts these exact steps:
+   1. OCR Full Screen to Var  Variable name=fullScreenOCR
+   2. Show Notification       Full Screen OCR,$var.fullScreenOCR,10
+
+   Run the workflow normally (not Simulate). Every recognized word is outlined
+   in yellow and the substituted $var.fullScreenOCR value appears in the
+   notification. This verifies both OCR capture and variable substitution.
+
+E. OCR CLICK VISIBLE TEXT
+   1. OCR Wait          OCR area=0,0,1920,1080; Condition=text:Ready,10000
+   2. OCR Click         OCR area=0,0,1920,1080; Text to click=Ready
+
+F. PARSE CLIPBOARD AND FIRE FIELDS
+   1. Parse Clipboard
+   2. Load Revolver
+   3. Click             Position=FirstField
+   4. Fire Revolver
+   5. Send Keys         Keys={Tab}
+   6. Fire Revolver+Enter
+
+
+TROUBLESHOOTING
+===============
+
+Workflow does not appear after restart:
+  - Confirm Save As is not blank.
+  - Confirm at least one step was added for a brand-new workflow.
+  - Look for Saved or Autosaved status beside Saved Workflows.
+  - If saving fails, the editor stays open and reports the database error; the
+    previous database contents are retained by the transaction.
+
+Click happens at the mouse instead of the intended place:
+  - Select a saved coordinate from Suggestions or enter raw x,y in Position.
+  - Verify the saved coordinate with Test before running the workflow.
+
+Pattern action times out:
+  - Test and recapture the pattern on the Patterns tab.
+  - Make sure display scaling and the application's visual state match capture.
+
+OCR returns the wrong region:
+  - Use OCR Area while the correct OCR action is selected.
+  - Remember the corner format versus size format distinction above.
+
+Variable is blank:
+  - Create it in an earlier enabled step.
+  - Use var:name only in OCR Region's Output field.
+  - Use a plain name in Grab OCR to Var's Variable name field.
+  - Refer to it later as $var.name.
+
+Startup warning or script error popup:
+  - Launch with Run_MacroAutomator_Logged.cmd.
+  - Use Open Error Log for runtime errors.
+  - Share logs\MacroAutomator_startup.log for a load-time warning or
+    logs\MacroAutomator_errors.log for a workflow/runtime failure.
+
+Hotkey does not register:
+  - Use AutoHotkey syntax such as ^!s for Ctrl+Alt+S.
+  - Avoid a hotkey already owned by this script or another application.
+
+
+V7 MERGED FEATURES FROM v6.9
+============================
+
+WORKFLOW VARIABLES AND LOGIC
+----------------------------
+
+Set Variable
+  Variable name: A plain name such as counter or patientName.
+  Value: Text, a number, or a template containing $var.anotherName.
+  Example: Variable name=status; Value=ready
+
+Grab Clipboard
+  Variable name: Where to store the current clipboard text.
+  Example: Variable name=rawClipboard creates $var.rawClipboard.
+
+If Contains
+  Variable name: The variable to inspect.
+  Search text: Text that must occur in the variable (case-insensitive).
+  True runs the next enabled step. False skips exactly that one step.
+
+If Variable
+  Variable name: The variable to compare.
+  Comparison: operator,value. Operators are =, ==, !=, <>, >, <, >=, <=.
+  Example: Variable name=count; Comparison=>=,5
+  Numeric operators require numeric values. False skips the next enabled step.
+
+Stop Execution
+  No fields. Stops the current workflow immediately.
+
+Run Sequence
+  Workflow name: Exact name of another saved workflow.
+  Variables are shared with the sub-workflow. Recursive calls are blocked.
+
+
+CLIPBOARD FORMATTING
+--------------------
+
+Format Clipboard
+  Format: invoice, receipt, uppercase, lowercase, titlecase, trim, date_iso,
+  or a custom template containing {clip}.
+  Example: Patient: {clip} - Active
+
+Append to Clipboard / Prepend to Clipboard
+  Text: Text added after or before the clipboard. $var.name is supported.
+
+Extract from Clipboard
+  Extraction rule uses one of these forms:
+
+    between:start text|end text
+    field:delimiter|1-based index
+    regex:regular expression
+
+  Examples:
+
+    between:Name:|, DOB:
+    field:,|2
+    regex:\d{5}
+
+  A successful extraction replaces the clipboard with the extracted value.
+
+
+V7 TEMPLATES
+------------
+
+Open Templates in the Workflow tab. In addition to the repaired v6.1 OCR
+templates, v7 includes:
+
+  - OCR Conditional Check
+  - Clipboard Formatter
+  - Variable Comparison
+
+Replace placeholder values such as KEYWORD before running a template.
+
+
+IMPORTING AND EXPORTING .MAW WORKFLOWS
+--------------------------------------
+
+The Workflow tab now follows five numbered stages:
+
+  1. Define Workflow
+  2. Configure and Add One Action
+  3. Review and Arrange Steps
+  4. Save and Run
+  5. Saved Workflow Library and Portable .maw Files
+
+Import .maw and Export .maw are visible in stage 5. Select a saved workflow
+before exporting it. With no saved row selected, Export .maw exports the
+workflow currently open in the editor, including unsaved edits.
+
+Write .maw opens the standalone portable-workflow builder. It provides:
+
+  - every action available in the main workflow editor,
+  - the same contextual Target and Parameter help,
+  - per-step validation, editing, deletion, enabling, and reordering,
+  - Open .maw for editing an existing portable workflow,
+  - Save .maw for writing the portable file without touching SQLite, and
+  - Send to Editor for continuing in the main editor before saving to SQLite.
+
+Position Tools in stage 2 opens click, drag, arrow, and relative-coordinate
+capture in a separate window so those controls no longer crowd the workflow.
+
+V7 preserves step enabled state, failsafes, qualifiers, speed, hotkeys, and
+hotstrings. It also imports the older four-column .maw format created by v6.9.
+Imported workflows are committed to the same SQLite autosave database.
+
+
+BUILT-IN WORKFLOW DEMO LAB
+--------------------------
+
+Click Demo Lab in stage 5, or run an action with Run Program = demo:lab. This
+opens an owned, non-destructive secondary window containing:
+
+  - an OCR-readable Notepad button and protected multiline edit box,
+  - click, double-click, triple-click, right-click, hover, and drag targets,
+  - temporary FindText targets generated from the visible Demo Lab controls,
+  - a dropdown for Menu Select,
+  - relative-coordinate start/result controls,
+  - four protected Clipboard Revolver fields, and
+  - a live event log showing what the workflow did.
+
+Portable Demo Lab targets follow the controls when the window moves:
+
+  demo:notepadedit       protected Notepad edit box
+  demo:single            single-click target
+  demo:double            double-click target
+  demo:triple            triple-click target
+  demo:right             right-click target
+  demo:hover             hover target
+  demo:menu              dropdown target
+  demo:dragstart         drag source
+  demo:dropzone          drag destination
+  demo:field1            first revolver field
+  window:MacroAutomator Demo Lab   complete OCR/window region
+
+Taskbar Activate = demo:lab demonstrates activation without sending Win+number
+to a real taskbar application. A clipboard value beginning with [DEMO] is parsed
+by the built-in demonstration parser and never depends on personal extraction
+rules. Example:
+
+  [DEMO] LastName=Example; FirstName=Avery; DOB=01/02/1990
+
+The three Demo_*.maw files in the script folder collectively exercise all 51
+workflow actions. Import all three before running Demo 03 because its Run
+Sequence step calls Demo 02. All steps are enabled and stay inside the Demo Lab;
+the clipboard is temporarily changed to visible sample data during the demos.
+Each workflow ends with Set Clipboard = demo:restore, which restores the original
+clipboard and mouse position. Hiding the Demo Lab restores them as well.
+
+
+APPOINTMENT SCHEDULER AND PATIENTS
+----------------------------------
+
+Open Appointment Scheduler. Use Prev, Next, or Today to change the date.
+
+  - Click Patients to create or edit patient profiles.
+  - Click an empty time slot to choose a patient and appointment type.
+  - Click a booked slot to edit/rebook it or cancel it.
+  - The five appointment types are Contact Lens Exam, Regular Eye Exam,
+    New Patient Intake, Medical Visit, and Follow-Up Visit.
+  - Each type previews its task list and schedules future task notifications.
+
+Patients and appointments persist in data\patients.ini and
+data\appointments.ini. Legacy v6.1 appointment and patient files are loaded
+when possible and are upgraded the next time they are saved.

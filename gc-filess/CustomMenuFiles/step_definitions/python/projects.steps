@@ -1,0 +1,60 @@
+; =====================================================================================
+; PYTHON PROJECT SETUP STEPS
+; =====================================================================================
+; Format: step|command|directions|input_needed|explanation
+; Multiple approaches: venv, conda, poetry, pipenv
+; =====================================================================================
+
+[Python venv (Standard)]
+; Built-in Python virtual environment - no extra tools needed
+1|mkdir MyPythonProject && cd MyPythonProject|Create project folder|Project name|Creates your project directory
+2|python -m venv venv|Create virtual environment|None|Creates isolated Python environment in ./venv folder
+3|venv\Scripts\activate|Activate environment (Windows)|None|Activates venv - prompt shows (venv) prefix
+4|source venv/bin/activate|Activate environment (Mac/Linux)|None|Alternative activation for Unix systems
+5|pip install --upgrade pip|Upgrade pip|None|Ensures you have the latest pip version
+6|pip install <package>|Install packages|Package names|Install packages like: pip install requests flask
+7|pip freeze > requirements.txt|Save dependencies|None|Creates requirements.txt listing all installed packages
+8|deactivate|Exit virtual environment|None|Returns to system Python
+
+[Anaconda/Miniconda]
+; Data science focused - great for numpy, pandas, jupyter
+1|conda create -n myenv python=3.11|Create conda environment|Env name, Python version|Creates isolated conda environment
+2|conda activate myenv|Activate environment|None|Activates the conda environment
+3|conda install numpy pandas matplotlib|Install data science packages|Package names|Conda handles complex dependencies well
+4|conda install jupyter|Install Jupyter|None|Adds Jupyter notebooks support
+5|jupyter notebook|Start Jupyter|None|Opens Jupyter in your browser
+6|conda env export > environment.yml|Export environment|None|Creates portable environment definition
+7|conda deactivate|Exit environment|None|Returns to base conda environment
+
+[Poetry (Modern Dependency Management)]
+; Modern Python packaging and dependency management
+1|pip install poetry|Install Poetry|None|One-time global installation of Poetry
+2|poetry new my-project|Create new project|Project name|Creates project with proper structure
+3|cd my-project|Enter project directory|None|Navigate into the created project
+4|poetry add requests|Add a dependency|Package name|Adds package and updates pyproject.toml
+5|poetry add pytest --group dev|Add dev dependency|Package name|Adds development-only dependencies
+6|poetry install|Install all dependencies|None|Installs everything from pyproject.toml
+7|poetry shell|Activate environment|None|Enters the Poetry-managed virtual environment
+8|poetry run python main.py|Run without activating|Script name|Runs Python in the environment without activating
+
+[Pipenv]
+; Combines pip and virtualenv into one tool
+1|pip install pipenv|Install Pipenv|None|One-time global installation of Pipenv
+2|mkdir myproject && cd myproject|Create project folder|Project name|Creates your project directory
+3|pipenv install|Create environment|None|Creates Pipfile and virtual environment
+4|pipenv install requests flask|Install packages|Package names|Adds packages to Pipfile automatically
+5|pipenv install pytest --dev|Install dev packages|Package name|Separates dev dependencies
+6|pipenv shell|Activate environment|None|Enters the Pipenv shell
+7|pipenv run python app.py|Run without shell|Script name|Runs in environment without activating
+8|pipenv lock|Generate lockfile|None|Creates Pipfile.lock for reproducible installs
+
+[Python Fundamentals - Syntax Basics]
+; Learning path for Python syntax (reference, not project setup)
+1|# Variables and Types|x = 5, name = ""hello"", is_valid = True|None|Python uses dynamic typing - no type declarations needed
+2|# Lists|my_list = [1, 2, 3], my_list.append(4)|None|Ordered, mutable sequences - use [] syntax
+3|# Dictionaries|my_dict = {""key"": ""value""}|None|Key-value pairs - use {} syntax
+4|# Functions|def greet(name): return f""Hello {name}""|None|Use def keyword, indentation defines scope
+5|# Loops|for item in items: print(item)|None|For loops iterate over iterables directly
+6|# Conditionals|if x > 5: elif x == 5: else:|None|Colons and indentation, no braces needed
+7|# Classes|class Dog: def __init__(self, name):|None|Use class keyword, __init__ is constructor
+8|# Imports|import os, from pathlib import Path|None|Import modules or specific items from modules

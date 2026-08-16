@@ -1,0 +1,63 @@
+MACRO AUTOMATOR v7 - SPOOLS + WORKFLOWS QUICK GUIDE
+===================================================
+
+WHAT A SPOOL DOES
+A Spool is a monitor. It repeatedly checks a screen region or active window.
+When its condition becomes true, it executes the response selected in Step 2.
+
+CLICK A SAVED PATTERN DIRECTLY
+1. In Patterns, save the FindText pattern.
+2. In Spools, set Detect = Pattern Match and choose that pattern.
+3. Set When = Found.
+4. Set Do = Click Detected Pattern.
+5. Leave Target = (use detected pattern).
+6. Choose Cooldown and use 3-5 seconds to prevent rapid repeat clicks.
+7. Save Spool, click Test Trigger, then click Start.
+
+READY-MADE CLAUDE REPAIR
+Your saved pattern is named always_allow. The older saved Spool named
+Claude Always Allow Watcher was configured as Pattern Sequence -> Start Spool
+with no action target, so it could detect but could never click.
+
+Import Claude_Always_Allow_AutoClick.mas and approve replacing that Spool. It
+uses Pattern Match -> Click Detected Pattern with a four-second Cooldown.
+
+Claude_Always_Allow_Workflow_Loop.mas is the Workflow-tab alternative. It
+embeds Claude - Click Always Allow and repeatedly launches it after detection.
+
+RUN OR LOOP A WORKFLOW FROM THE FIRST TAB
+1. Build and save the workflow on the Workflow tab.
+2. In the Spool response, choose Run Workflow.
+3. Select the saved workflow from Target. Use the refresh button if needed.
+4. Choose repetition:
+   - One-Shot: run the workflow once, then stop this Spool.
+   - Cooldown: if detection remains true, run it again after the delay.
+   - Continuous: run again at every detection interval. Use carefully.
+5. Save and use Test Trigger for a complete detection + workflow test.
+
+MASTER SWITCH AND STARTUP
+The Master Enable state is now saved. Enabled Spools restart automatically on the
+next launch when Master Enable was on. Start on an individual Spool also turns
+on and saves the master switch; it no longer fails silently.
+
+IMPORT / EXPORT
+.mas is the portable Spool format. Exporting a Run Workflow Spool embeds its
+linked workflow in the same file. Importing it adds the workflow to the first
+tab and the Spool to the Spools tab.
+
+CERTIFICATION DEMO
+Import Demo_Notepad_Spool_Certification.mas. Keep Macro Automator active, then:
+- Click Test Trigger for an immediate end-to-end run, or
+- Click Start. The Window Title condition will trigger once.
+
+The embedded workflow selects the built-in Notepad tab, appends a
+[SPOOL CERTIFIED] line, and shows a success notification. This uses only the
+Macro Automator GUI and does not open or modify another application.
+
+TROUBLESHOOTING
+- Activity Log shows Started, TRIGGERED, WORKFLOW START/DONE, CLICKED, or a
+  specific failure such as workflow not found or pattern vanished.
+- A persistent copy is written to logs\spool_activity.log.
+- For a permission button, prefer Active Window or a tight Custom Region.
+- Automatically clicking an "Always allow" button bypasses manual review; use a
+  distinctive pattern and a Cooldown to reduce accidental or repeated clicks.

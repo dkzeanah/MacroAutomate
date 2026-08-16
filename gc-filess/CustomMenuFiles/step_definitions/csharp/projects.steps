@@ -1,0 +1,46 @@
+; =====================================================================================
+; C# / .NET PROJECT SETUP STEPS
+; =====================================================================================
+; Format: step|command|directions|input_needed|explanation
+; =====================================================================================
+
+[.NET Console App]
+; Basic console application
+1|dotnet new console -n MyConsoleApp|Create console project|Project name|Scaffolds a C# console application
+2|cd MyConsoleApp|Enter project directory|None|Navigate into the created project
+3|dotnet restore|Restore NuGet packages|None|Downloads any dependencies
+4|dotnet build|Build the project|None|Compiles the application
+5|dotnet run|Run the application|None|Executes the compiled application
+
+[.NET Class Library]
+; Reusable code library
+1|dotnet new classlib -n MyLibrary|Create class library|Library name|Creates a reusable library project
+2|cd MyLibrary|Enter project directory|None|Navigate into the created project
+3|dotnet build|Build the library|None|Compiles to a .dll file
+
+[.NET Solution with Console + Library]
+; Full solution structure (recommended for larger projects)
+1|mkdir MySolution && cd MySolution|Create solution folder|Solution name|Creates root directory for solution
+2|dotnet new sln -n MySolution|Create solution file|Solution name|Creates .sln file to organize projects
+3|dotnet new console -n MyApp|Create console project|App name|Creates the main application
+4|dotnet new classlib -n MyLibrary|Create class library|Library name|Creates reusable code library
+5|dotnet sln MySolution.sln add **/*.csproj|Add projects to solution|None|Wildcard adds all .csproj files found
+6|dotnet add MyApp/MyApp.csproj reference MyLibrary/MyLibrary.csproj|Add project reference|None|Links library to console app
+7|dotnet restore|Restore all packages|None|Downloads dependencies for all projects
+8|dotnet build|Build entire solution|None|Compiles all projects
+9|dotnet run --project MyApp|Run the application|Project path|Runs the console app
+
+[.NET Web API]
+; RESTful API backend
+1|dotnet new webapi -n MyApi|Create Web API project|API name|Scaffolds ASP.NET Core Web API
+2|cd MyApi|Enter project directory|None|Navigate into the created project
+3|dotnet restore|Restore packages|None|Downloads ASP.NET Core dependencies
+4|dotnet run|Start the API|None|Launches on https://localhost:5001
+5|Open https://localhost:5001/swagger|View Swagger UI|None|Interactive API documentation
+
+[.NET Blazor WebAssembly]
+; Client-side web app with C#
+1|dotnet new blazorwasm -n MyBlazorApp|Create Blazor WASM project|App name|C# running in the browser via WebAssembly
+2|cd MyBlazorApp|Enter project directory|None|Navigate into the created project
+3|dotnet run|Start development server|None|Launches Blazor app
+4|Open https://localhost:5001|View in browser|None|Your Blazor app is now running

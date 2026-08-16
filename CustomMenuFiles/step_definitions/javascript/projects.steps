@@ -1,0 +1,27 @@
+; =====================================================================================
+; JAVASCRIPT PROJECT SETUP STEPS
+; =====================================================================================
+; Format: step|command|directions|input_needed|explanation
+; Lines starting with ; are comments
+; [ProjectType] starts a new project type section
+; =====================================================================================
+
+[Vanilla JS Static Site]
+1|mkdir VanillaStatic && cd VanillaStatic|Create project folder|Folder name|Creates and enters your project directory
+2|New-Item index.html -ItemType File|Create HTML file (PowerShell)|None|PowerShell command to create empty file
+3|New-Item main.js -ItemType File|Create JS file (PowerShell)|None|Creates your main JavaScript file
+4|code .|Open in VS Code|None|Opens folder in Visual Studio Code
+5|npx serve .|Start local server|None|Uses npx to run serve without installing globally
+
+[Node + Express API]
+1|mkdir NodeApi && cd NodeApi|Create project folder|Project name|Creates your API project directory
+2|npm init -y|Initialize package.json|None|Creates default package.json with project metadata
+3|npm install express|Install Express framework|None|Adds Express.js web framework to your project
+4|New-Item index.js -ItemType File|Create entry point|None|Creates the main server file
+5|code .|Open in VS Code|None|Opens folder to add server code
+
+[React with Vite]
+1|npm create vite@latest my-react-app -- --template react|Create React project|App name|Vite scaffolds a complete React application
+2|cd my-react-app|Enter project directory|None|Navigate into the created project folder
+3|npm install|Install dependencies|None|Downloads all required packages
+4|npm run dev|Start development server|None|Launches Vite dev server with hot reload

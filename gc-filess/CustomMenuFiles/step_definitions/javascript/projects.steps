@@ -1,0 +1,79 @@
+; =====================================================================================
+; JAVASCRIPT PROJECT SETUP STEPS
+; =====================================================================================
+; Format: step|command|directions|input_needed|explanation
+; Lines starting with ; are comments
+; [ProjectType] starts a new project type section
+; Empty lines are ignored
+; =====================================================================================
+
+[Vanilla JS Static Site]
+; Pure vanilla JS - no Node, just a static site you can serve locally
+1|mkdir VanillaStatic && cd VanillaStatic|Create project folder|Folder name|Creates and enters your project directory
+2|New-Item index.html -ItemType File|Create HTML file (PowerShell)|None|PowerShell command to create empty file
+3|New-Item main.js -ItemType File|Create JS file (PowerShell)|None|Creates your main JavaScript file
+4|code .|Open in VS Code|None|Opens folder in Visual Studio Code
+5|npx serve .|Start local server|None|Uses npx to run serve without installing globally
+
+[Node + Express API]
+; Basic Node.js Express server - good for APIs and backends
+1|mkdir NodeApi && cd NodeApi|Create project folder|Project name|Creates your API project directory
+2|npm init -y|Initialize package.json|None|Creates default package.json with project metadata
+3|npm install express|Install Express framework|None|Adds Express.js web framework to your project
+4|New-Item index.js -ItemType File|Create entry point|None|Creates the main server file
+5|code .|Open in VS Code|None|Opens folder to add server code
+6|npm run dev|Start the server|None|Runs the dev script (add ""dev"": ""node index.js"" to package.json scripts)
+
+[React with Vite]
+; Modern React setup using Vite bundler - fast and lightweight
+1|npm create vite@latest my-react-app -- --template react|Create React project|App name|Vite scaffolds a complete React application
+2|cd my-react-app|Enter project directory|None|Navigate into the created project folder
+3|npm install|Install dependencies|None|Downloads all required packages from package.json
+4|npm run dev|Start development server|None|Launches Vite dev server with hot reload
+5|Open http://localhost:5173/|View in browser|None|Default Vite port is 5173, not 3000
+
+[React + TypeScript with Vite]
+; React with TypeScript for type safety
+1|npm create vite@latest my-react-ts-app -- --template react-ts|Create React+TS project|App name|Scaffolds React with TypeScript configuration
+2|cd my-react-ts-app|Enter project directory|None|Navigate into the created project folder
+3|npm install|Install dependencies|None|Downloads packages including TypeScript types
+4|npm run dev|Start development server|None|Launches dev server with TypeScript compilation
+5|Open http://localhost:5173/|View in browser|None|Your TypeScript React app is now running
+
+[Next.js App]
+; Full-stack React framework with server-side rendering
+1|npx create-next-app@latest my-next-app|Create Next.js project|App name + options|Interactive wizard asks about TypeScript, Tailwind, etc.
+2|cd my-next-app|Enter project directory|None|Navigate into the created project folder
+3|npm run dev|Start development server|None|Launches Next.js dev server
+4|Open http://localhost:3000/|View in browser|None|Next.js uses port 3000 by default
+
+[Vite + React + TypeScript + Tailwind]
+; Full modern stack with utility-first CSS
+1|npm create vite@latest my-vite-tailwind -- --template react-ts|Create Vite+React+TS|App name|Base project with TypeScript
+2|cd my-vite-tailwind|Enter project directory|None|Navigate into the project
+3|npm install|Install base dependencies|None|Downloads React and TypeScript packages
+4|npm install -D tailwindcss postcss autoprefixer|Install Tailwind|None|Adds Tailwind CSS and its dependencies
+5|npx tailwindcss init -p|Initialize Tailwind config|None|Creates tailwind.config.js and postcss.config.js
+6|Edit tailwind.config.js|Configure content paths|See explanation|Add: content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}']
+7|Edit src/index.css|Add Tailwind directives|None|Replace with: @tailwind base; @tailwind components; @tailwind utilities;
+8|npm run dev|Start development server|None|Tailwind classes now work in your components
+
+[Vanilla TypeScript + Tailwind]
+; TypeScript without React, with Tailwind styling
+1|mkdir vanilla-ts-tailwind && cd vanilla-ts-tailwind|Create project folder|Folder name|Creates your project directory
+2|npm init -y|Initialize package.json|None|Creates default package.json
+3|npm install -D typescript vite tailwindcss postcss autoprefixer|Install dev dependencies|None|All tooling as dev dependencies
+4|npx tsc --init|Create tsconfig.json|None|Initializes TypeScript configuration
+5|npx tailwindcss init -p|Initialize Tailwind|None|Creates Tailwind configuration files
+6|Create index.html and src/main.ts|Create entry files|None|Manual file creation for entry points
+7|npm run dev|Start Vite dev server|None|Add ""dev"": ""vite"" to package.json scripts first
+
+[Express + TypeScript API]
+; Type-safe backend development
+1|mkdir express-ts-api && cd express-ts-api|Create project folder|Folder name|Creates your API project directory
+2|npm init -y|Initialize package.json|None|Creates default package.json
+3|npm install express|Install Express|None|Adds Express.js framework
+4|npm install -D typescript @types/express @types/node ts-node nodemon|Install dev deps|None|TypeScript tooling and type definitions
+5|npx tsc --init|Create tsconfig.json|None|Initializes TypeScript configuration
+6|Create src/index.ts|Create entry point|None|Your main server file in TypeScript
+7|npm run dev|Start with nodemon|None|Add script: ""dev"": ""nodemon --exec ts-node src/index.ts""

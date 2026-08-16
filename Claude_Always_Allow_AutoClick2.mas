@@ -1,0 +1,28 @@
+; Corrected direct-click Spool for the saved pattern named always_allow.
+; Import this from Spools > Import .mas and confirm overwrite of the old broken Spool.
+[MASPOOL]
+format=1
+name=Claude Always Allow Watcher
+enabled=1
+region=Active Window
+regionCoords=
+detectType=Pattern Match
+target=always_allow
+interval=500
+condition=Found
+action=Click Detected Pattern
+actionTarget=(use detected pattern)
+extractOCR=0
+ocrVar=
+autoComplete=0
+completion=Timeout
+completionTarget=
+timeout=0
+mode=Cooldown
+cooldown=4
+notifTime=3
+
+[WORKFLOW]
+included=0
+
+[END]

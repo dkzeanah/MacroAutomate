@@ -218,3 +218,25 @@ __marimo__/
 # Runtime output written by the app — never commit the local database,
 # captured screenshots, or exported tracking data.
 data/
+
+# Heavy binaries, OCR models, databases, captures, backups (keep local only)
+*.zip
+*.exe
+*.dll
+*.db
+*.db-wal
+*.db-shm
+*.traineddata
+*.bak
+*.bak-*
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.pdf
+bin/
+logs/
+Screenshots/
+FindTextCaptures/
+MacroData/
+S-1-5-*

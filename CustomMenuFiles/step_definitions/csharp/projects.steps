@@ -1,0 +1,14 @@
+; =====================================================================================
+; C# / .NET PROJECT SETUP STEPS
+; =====================================================================================
+
+[.NET Console App]
+1|dotnet new console -n MyConsoleApp|Create console project|Project name|Scaffolds a C# console application
+2|cd MyConsoleApp|Enter project directory|None|Navigate into the created project
+3|dotnet build|Build the project|None|Compiles the application
+4|dotnet run|Run the application|None|Executes the compiled application
+
+[.NET Web API]
+1|dotnet new webapi -n MyApi|Create Web API project|API name|Scaffolds ASP.NET Core Web API
+2|cd MyApi|Enter project directory|None|Navigate into the created project
+3|dotnet run|Start the API|None|Launches on https://localhost:5001

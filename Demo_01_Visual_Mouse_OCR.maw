@@ -1,0 +1,41 @@
+[WORKFLOW]
+format=2
+name=Demo 01 - OCR Notepad Lab
+speed=1.0
+hotkey=
+hotstring=
+
+[STEPS]
+; Opens the built-in sandbox, waits for visible text, OCR-clicks Notepad,
+; then pastes and types only inside MacroAutomator's protected edit box.
+1|Run Program||demo:lab|1|||
+2|Activate Window||MacroAutomator Demo Lab|1|||
+3|OCR Wait|window:MacroAutomator Demo Lab|text:READY,5000|1|||
+4|OCR Click|window:MacroAutomator Demo Lab|Notepad|1|||
+5|Set Clipboard||OCR found the Notepad control and placed this text on the clipboard.|1|||
+6|Click|demo:notepadedit|1|1|||
+7|Paste|||1|||
+8|Send Keys||{Enter}|1|||
+9|Type Text||This second line was produced with the Type Text action.|1|||
+10|Send Keys||{Enter}|1|||
+
+; Captures the movable Demo Lab window instead of hard-coded screen coordinates.
+11|OCR Region|window:MacroAutomator Demo Lab|var:labOCR|1|||
+12|Grab OCR to Var|window:MacroAutomator Demo Lab|labGrab|1|||
+13|Set Variable|demoStatus|ready|1|||
+14|If Contains|labOCR|SAFE|1|||
+15|Show Notification||OCR Condition,The Demo Lab OCR variable contains SAFE.,4|1|||
+
+; Full-screen OCR visibly draws yellow word boxes and loads its lines into the OCR revolver.
+16|OCR Full Screen to Var||fullScreenOCR|1|||
+17|Load OCR Revolver||line|1|||
+18|Click|demo:notepadedit|1|1|||
+19|Send Keys||^{End}|1|||
+20|Send Keys||{Enter}|1|||
+21|Fire OCR Revolver|||1|||
+22|Send Keys||{Enter}|1|||
+23|Use Var Paste||Variable proof: $var.demoStatus|1|||
+24|Show Notification||OCR Lab Complete,OCR navigation capture variables yellow boxes and OCR revolver all ran inside the Demo Lab.,6|1|||
+25|Set Clipboard||demo:restore|1|||
+
+[END]

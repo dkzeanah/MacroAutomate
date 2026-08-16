@@ -1,0 +1,164 @@
+{
+  "schema_version": 2,
+  "identity": {
+    "first_name": "Donovan",
+    "middle_name": "",
+    "last_name": "Zeanah",
+    "preferred_name": "",
+    "email": "DKZeanah@gmail.com",
+    "phone": "(205) 799-1734",
+    "address_line_1": "",
+    "address_line_2": "",
+    "city": "",
+    "state": "",
+    "postal_code": "",
+    "country": "United States"
+  },
+  "links": {
+    "linkedin": "",
+    "github": "",
+    "portfolio": "",
+    "website": ""
+  },
+  "current_work": {
+    "employer": "Atlanta Technical College",
+    "title": "Avionics bench technician program",
+    "start_date": "2025"
+  },
+  "education": {
+    "school": "Atlanta Technical College",
+    "degree": "Year-long avionics bench technician program",
+    "field_of_study": "Avionics / aircraft electronics",
+    "graduation_date": "2026"
+  },
+  "documents": {
+    "resume_path": "sample_data/DonovanZeanahResume-2026.pdf",
+    "cover_letter_path": ""
+  },
+  "skills": [
+    "Python",
+    "C#",
+    "C",
+    "C++",
+    "HTML",
+    "CSS",
+    "JavaScript",
+    "Azure",
+    "ASP.NET",
+    "MVC",
+    "MVVM",
+    "Blazor",
+    "T-SQL",
+    "SQLite",
+    "MongoDB",
+    "Object-oriented programming",
+    "Design patterns",
+    "Repository pattern",
+    "Vertical Slice architecture",
+    "Big O notation",
+    "Arduino",
+    "ESP8266",
+    "ESP32",
+    "IoT",
+    "CAN bus",
+    "Modbus",
+    "UART",
+    "Serial communication",
+    "Windows API automation",
+    "RPA",
+    "OCR",
+    "AutoHotkey",
+    "YOLO",
+    "OpenCV",
+    "CUDA",
+    "Ubuntu",
+    "IP cameras",
+    "Live streaming",
+    "Digital media production",
+    "Electronics troubleshooting",
+    "Electrical schematics",
+    "Multimeter use",
+    "CNC operation",
+    "Unit testing",
+    "Integration testing",
+    "Git",
+    "GitHub",
+    "CI/CD"
+  ],
+  "work_history": [
+    {
+      "employer": "TheCoderSchool",
+      "title": "Programming instructor",
+      "dates": "2025-2026",
+      "highlights": [
+        "Taught children and young adults programming fundamentals in one-on-one and group settings."
+      ]
+    },
+    {
+      "employer": "Machine Metal Components",
+      "title": "CNC operation and maintenance",
+      "dates": "2024-2025",
+      "highlights": [
+        "Operated and maintained mills and laser equipment.",
+        "Performed manual machine operations using drills and mills."
+      ]
+    },
+    {
+      "employer": "Mercedes-Benz via Actalent",
+      "title": "Software development / vehicle integration testing",
+      "dates": "2023-2024",
+      "highlights": [
+        "Built an in-house fleet management application with Blazor, .NET 8, SQLite, and T-SQL.",
+        "Performed vehicle integration testing focused on main-display and UI functions.",
+        "Performed CAN-based diagnostics and troubleshooting."
+      ]
+    },
+    {
+      "employer": "Department of the Navy",
+      "title": "Mass Communication Specialist",
+      "dates": "2016-2022",
+      "highlights": [
+        "Video broadcaster and media producer at Defense Media Activity / Armed Forces Network, Yokota Air Base, Tokyo.",
+        "Produced live broadcasts, scripts, graphics, animations, storyboards, print media, and video productions."
+      ]
+    }
+  ],
+  "education_history": [
+    {
+      "institution": "Atlanta Technical College",
+      "program": "Avionics bench technician",
+      "dates": "2025-2026"
+    },
+    {
+      "institution": "Microsoft Software and Systems Academy",
+      "program": "Cloud Application Developer track",
+      "dates": "2022-2023"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "ASTM NCATT Aircraft Electronics Technician (AET) exam",
+      "year": "2026",
+      "status": "Resume states exam passed"
+    }
+  ],
+  "verified_facts": [
+    "Navy veteran with six years of honorable service.",
+    "Interested in embedded software development, computer vision, AI, electronics, and smart workshops.",
+    "Built an in-house fleet-management application using Blazor, .NET 8, SQLite, and T-SQL.",
+    "Has personal projects in OS automation, C#, Python, geodesic-dome rendering, PTZ camera control, media analysis, and Arduino systems.",
+    "Resume references a LinkedIn profile and GitHub projects but does not expose exact URLs in extracted text; verify URLs before adding them."
+  ],
+  "preferences": {
+    "remote": "",
+    "locations": [],
+    "minimum_salary": "",
+    "target_roles": [
+      "Embedded Software Developer",
+      "Computer Vision Developer",
+      "Automation Developer",
+      "Avionics / Electronics Technician"
+    ]
+  },
+  "notes": "Seeded from DonovanZeanahResume-2026.pdf. Review every field before using it. Address, exact LinkedIn URL, exact GitHub URL, work authorization, compensation, and other sensitive or missing facts were intentionally not inferred."
+}

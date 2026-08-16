@@ -1,0 +1,35 @@
+; Alternative Spool demonstrating a Workflow-tab workflow launched on detection.
+; The linked workflow is embedded so this one file imports both records.
+[MASPOOL]
+format=1
+name=Claude Always Allow - Workflow Loop
+enabled=1
+region=Active Window
+regionCoords=
+detectType=Pattern Match
+target=always_allow
+interval=500
+condition=Found
+action=Run Workflow
+actionTarget=Claude - Click Always Allow
+extractOCR=0
+ocrVar=
+autoComplete=0
+completion=Timeout
+completionTarget=
+timeout=0
+mode=Cooldown
+cooldown=4
+notifTime=3
+
+[WORKFLOW]
+included=1
+name=Claude - Click Always Allow
+speed=1
+hotkey=
+hotstring=
+
+[STEPS]
+1|Find & Click|always_allow||1|||
+
+[END]

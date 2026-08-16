@@ -1,0 +1,40 @@
+; Macro Automator portable Spool demo.
+; Import this from Spools > Import .mas. The linked workflow is embedded.
+[MASPOOL]
+format=1
+name=Demo - Certify Spool with Notepad
+enabled=1
+region=Active Window
+regionCoords=
+detectType=Window Title
+target=Macro Automator v7
+interval=750
+condition=Found
+action=Run Workflow
+actionTarget=Spool Demo - Write Certification to Notepad
+extractOCR=0
+ocrVar=
+autoComplete=0
+completion=Timeout
+completionTarget=
+timeout=0
+mode=One-Shot
+cooldown=3
+notifTime=4
+
+[WORKFLOW]
+included=1
+name=Spool Demo - Write Certification to Notepad
+speed=1
+hotkey=
+hotstring=
+
+[STEPS]
+1|OCR Click|window:Macro Automator v7|Notepad|1|||
+2|Wait||400|1|||
+3|Click|control:NotepadEdit|1|1|||
+4|Send Keys||^{End}|1|||
+5|Type Text||%0D%0A[SPOOL CERTIFIED] Detection launched a Workflow-tab workflow and wrote this line.|1|||
+6|Show Notification||Spool certified,Detection -> workflow -> Notepad worked,4|1|||
+
+[END]

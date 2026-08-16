@@ -1,0 +1,41 @@
+[WORKFLOW]
+format=2
+name=Demo 02 - Mouse FindText Controls
+speed=1.0
+hotkey=
+hotstring=
+
+[STEPS]
+; The Demo Lab creates temporary FindText patterns from its own visible controls.
+1|Run Program||demo:lab|1|||
+2|Activate Window||MacroAutomator Demo Lab|1|||
+3|Wait||300|1|||
+4|Wait for Pattern|DemoLabPattern|5000|1|||
+5|Find & Click|DemoLabPattern||1|||
+6|Find & DblClick|DemoLabPattern||1|||
+7|Find & TplClick|DemoLabPattern||1|||
+8|Find & RClick|DemoLabPattern||1|||
+9|Find & Drag|DemoLabPattern|demo:dropzone|1|||
+
+; Dynamic demo: targets follow the window when it moves and never click another application.
+10|Click|demo:single|1|1|||
+11|Double Click|demo:double||1|||
+12|Triple Click|demo:triple||1|||
+13|Right Click|demo:right||1|||
+14|Drag||demo:dragstart->demo:dropzone|1|||
+15|Hover Mouse|demo:hover||1|||
+16|Idle Mouse||1|1|||
+
+; Opens the sandbox dropdown and selects the second item using keyboard navigation.
+17|Click|demo:menu|1|1|||
+18|Menu Select||2|1|||
+
+; Calculates a relative offset between two lab controls, then proves pattern disappearance.
+19|Click|demo:relativeanchor|1|1|||
+20|Relative Click|DemoLabRelativeOffset||1|||
+21|Click|demo:gone|1|1|||
+22|Wait Until Gone|DemoLabGonePattern|5000|1|||
+23|Show Notification||Visual Actions Complete,Mouse menu relative-coordinate and FindText actions stayed inside the Demo Lab.,6|1|||
+24|Set Clipboard||demo:restore|1|||
+
+[END]
