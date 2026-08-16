@@ -39,8 +39,8 @@ global g_MouseHeatCell := 16          ; Heat grid cell size, in window pixels
 
 ; ─── Bucket state (current window + current minute) ──────────────────────────
 global g_MouseBucket := ""
-global g_MouseLastX := -99999
-global g_MouseLastY := -99999
+global g_MTLastX := -99999   ; window-relative last sample (distinct from v7 Idle Mouse globals)
+global g_MTLastY := -99999
 global g_MouseLastSampleTick := 0
 global g_MouseDwellX := 0
 global g_MouseDwellY := 0
@@ -96,9 +96,9 @@ MouseTrack_IsOn() {
 }
 
 MouseTrack_ResetPointerState() {
-    global g_MouseLastX, g_MouseLastY, g_MouseDwellStart, g_MouseBtnDown
-    g_MouseLastX := -99999
-    g_MouseLastY := -99999
+    global g_MTLastX, g_MTLastY, g_MouseDwellStart, g_MouseBtnDown
+    g_MTLastX := -99999
+    g_MTLastY := -99999
     g_MouseDwellStart := 0
     g_MouseBtnDown := Map("L", false, "R", false, "M", false)
 }
@@ -210,7 +210,7 @@ MouseTrack_FlushBucket() {
 ; ═══════════════════════════════════════════════════════════════════════════════
 
 MouseTrack_Sample() {
-    global g_MouseTrackOn, g_MouseBucket, g_MouseLastX, g_MouseLastY
+    global g_MouseTrackOn, g_MouseBucket, g_MTLastX, g_MTLastY
     global g_MouseLastSampleTick, g_MouseMinMove, g_MouseAnchorMs
     global g_MouseDwellX, g_MouseDwellY, g_MouseDwellStart
     global g_MouseDwellRadius, g_MouseDwellMinMs, g_MouseHeatCell
@@ -243,9 +243,9 @@ MouseTrack_Sample() {
 
     ; ─── Distance / idle accounting ──────────────────────────────────────────
     moved := 0
-    if (g_MouseLastX > -99999) {
-        dx := rx - g_MouseLastX
-        dy := ry - g_MouseLastY
+    if (g_MTLastX > -99999) {
+        dx := rx - g_MTLastX
+        dy := ry - g_MTLastY
         moved := Sqrt(dx * dx + dy * dy)
         b["distance"] := b["distance"] + moved
         if (moved < 1)
@@ -277,7 +277,7 @@ MouseTrack_Sample() {
 
     ; ─── Keep the sample? ────────────────────────────────────────────────────
     keep := false
-    if (g_MouseLastX <= -99999)
+    if (g_MTLastX <= -99999)
         keep := true
     else if (moved >= g_MouseMinMove)
         keep := true
@@ -291,8 +291,8 @@ MouseTrack_Sample() {
         MouseTrack_AddHeat(b, rx, ry, 1, 0, 0)
     }
 
-    g_MouseLastX := rx
-    g_MouseLastY := ry
+    g_MTLastX := rx
+    g_MTLastY := ry
 
     ; ─── Minute rollover ─────────────────────────────────────────────────────
     if (b["minute_key"] != TrackMinuteKey())

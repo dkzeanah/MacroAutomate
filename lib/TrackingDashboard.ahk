@@ -30,22 +30,22 @@ global g_TrkCbOcr := ""
 ; ═══════════════════════════════════════════════════════════════════════════════
 
 Track_InitAll() {
-    global g_SnapDoOCR, g_KeyMaskDigits
+    global g_SnapDoOCR
 
     ok := TrackDB_Init()
     if ok {
         Snap_Init()
         ; Restore persisted preferences.
         g_SnapDoOCR := (TrackDB_MetaGet("opt_snap_ocr", "0") = "1")
-        g_KeyMaskDigits := (TrackDB_MetaGet("opt_mask_digits", "0") = "1")
+        ; The key tracker keeps its never-record list in the same meta table.
+        KeyTrack_LoadExclusions()
     }
     return ok
 }
 
 Track_SaveOptions() {
-    global g_SnapDoOCR, g_KeyMaskDigits
+    global g_SnapDoOCR
     TrackDB_MetaSet("opt_snap_ocr", g_SnapDoOCR ? "1" : "0")
-    TrackDB_MetaSet("opt_mask_digits", g_KeyMaskDigits ? "1" : "0")
 }
 
 ; Named handlers (a fat-arrow cannot declare `global`, so it would shadow the
@@ -53,12 +53,6 @@ Track_SaveOptions() {
 Track_SetSnapOcr(ctrl, *) {
     global g_SnapDoOCR
     g_SnapDoOCR := ctrl.Value
-    Track_SaveOptions()
-}
-
-Track_SetMaskDigits(ctrl, *) {
-    global g_KeyMaskDigits
-    g_KeyMaskDigits := ctrl.Value
     Track_SaveOptions()
 }
 
@@ -93,7 +87,7 @@ Track_StartAll() {
     if !TrackDB_Ready() {
         if !Track_InitAll() {
             MsgBox("Tracking storage unavailable:`n`n" . g_TrackDBError
-                 . "`n`nSee lib\SQLiteDB.ahk for how to supply sqlite3.dll."
+                 . "`n`nSee lib\TrackSQLite.ahk for how to supply sqlite3.dll."
                  , "Tracking", "Iconx")
             return false
         }
@@ -155,8 +149,8 @@ Track_BuildTab(g) {
 
     g_TrkCbOcr := g.Add("CheckBox", "x700 y70 w170" . (g_SnapDoOCR ? " Checked" : ""), "OCR on snapshot")
     g_TrkCbOcr.OnEvent("Click", Track_SetSnapOcr)
-    cbMask := g.Add("CheckBox", "x700 y90 w170" . (g_KeyMaskDigits ? " Checked" : ""), "Mask digit runs")
-    cbMask.OnEvent("Click", Track_SetMaskDigits)
+    ; Keystroke logging is sensitive - give the never-record list a front door.
+    g.Add("Button", "x700 y90 w170 h24", "Key Privacy...").OnEvent("Click", (*) => Track_OpenKeyPrivacy())
 
     ; ─── Live status ─────────────────────────────────────────────────────────
     g.Add("GroupBox", "x15 y130 w860 h120", "Live Status")
@@ -219,7 +213,7 @@ Track_RefreshStatus() {
     if TrackDB_Ready() {
         db := TrackDB()
         sizeKB := Round(db.FileSize() / 1024, 1)
-        g_TrkStatusDB.Value := "Database: " . SQLiteDB.LibInfo() . "  |  "
+        g_TrkStatusDB.Value := "Database: " . TrackSQLite.LibInfo() . "  |  "
             . g_TrackDBPath . "  |  " . sizeKB . " KB"
     } else {
         g_TrkStatusDB.Value := "Database: UNAVAILABLE - " . g_TrackDBError
@@ -306,6 +300,86 @@ Track_ToggleSnap(c, *) {
 }
 
 ; ─── Tab buttons ─────────────────────────────────────────────────────────────
+
+; ═══════════════════════════════════════════════════════════════════════════════
+; KEY PRIVACY - manage the never-record window list
+; ═══════════════════════════════════════════════════════════════════════════════
+; Keystrokes are only recorded for windows that pass KeyTrack_IsExcluded(), which
+; already blocks credential-looking window names automatically. This panel lets
+; the user add their own never-record fragments on top of that.
+
+global g_KpGui := "", g_KpLV := ""
+
+Track_OpenKeyPrivacy() {
+    global g_KpGui, g_KpLV
+
+    if !TrackDB_Ready() {
+        if !TrackDB_Init() {
+            MsgBox("Tracking database unavailable.", "Key Privacy", "Iconx")
+            return
+        }
+    }
+
+    if IsObject(g_KpGui) {
+        try {
+            g_KpGui.Show()
+            Track_KpRefresh()
+            return
+        }
+    }
+
+    g := Gui("+AlwaysOnTop", "Keystroke Privacy")
+    g.SetFont("s9", "Segoe UI")
+    g.OnEvent("Close", (*) => g.Hide())
+
+    g.Add("Text", "x10 y10 w440 +Wrap"
+        , "Keystrokes are NEVER recorded for a window whose name contains any "
+        . "fragment below. Credential-style windows (password, sign in, "
+        . "1Password, Bitwarden, KeePass, LastPass...) are already blocked "
+        . "automatically.")
+
+    g_KpLV := g.Add("ListView", "x10 y70 w440 h200 Grid -Multi", ["Never record windows containing"])
+    g_KpLV.ModifyCol(1, 420)
+
+    g.Add("Button", "x10 y280 w140 h28", "Add...").OnEvent("Click", (*) => Track_KpAdd())
+    g.Add("Button", "x155 y280 w140 h28", "Remove Selected").OnEvent("Click", (*) => Track_KpRemove())
+    g.Add("Button", "x310 y280 w140 h28", "Close").OnEvent("Click", (*) => g.Hide())
+
+    g_KpGui := g
+    g.Show("w465 h325")
+    Track_KpRefresh()
+}
+
+Track_KpRefresh() {
+    global g_KpLV
+    if !IsObject(g_KpLV)
+        return
+    g_KpLV.Delete()
+    for frag in KeyTrack_Exclusions()
+        g_KpLV.Add(, frag)
+}
+
+Track_KpAdd() {
+    res := InputBox("Never record keystrokes in windows whose name contains:"
+                  , "Add Exclusion", "w400 h130")
+    if (res.Result != "OK" || Trim(res.Value) = "")
+        return
+    KeyTrack_ExcludeWindow(Trim(res.Value))
+    Track_KpRefresh()
+    ShowStatus("Exclusion added", "ok")
+}
+
+Track_KpRemove() {
+    global g_KpLV
+    row := g_KpLV.GetNext()
+    if !row {
+        ShowStatus("Select an entry first", "fail")
+        return
+    }
+    KeyTrack_UnexcludeWindow(g_KpLV.GetText(row, 1))
+    Track_KpRefresh()
+    ShowStatus("Exclusion removed", "ok")
+}
 
 Track_SnapNow() {
     id := Snap_RunCycleNow("manual")

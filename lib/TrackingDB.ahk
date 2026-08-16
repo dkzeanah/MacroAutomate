@@ -16,7 +16,7 @@
 ; Every write goes through a helper here so the trackers stay free of SQL.
 ; ═══════════════════════════════════════════════════════════════════════════════
 
-global g_TrackDB := ""                     ; SQLiteDB instance (or "" when off)
+global g_TrackDB := ""                     ; TrackSQLite instance (or "" when off)
 global g_TrackDBError := ""                ; Last initialisation error
 global g_TrackDBPath := ""                 ; Resolved database file path
 global g_TrackAppCache := Map()            ; appKey  -> app_id
@@ -45,14 +45,14 @@ TrackDB_Init(dbPath := "") {
         try DirCreate(DATA_DIR)
     }
 
-    if !SQLiteDB.Available() {
-        g_TrackDBError := SQLiteDB.loadError
+    if !TrackSQLite.Available() {
+        g_TrackDBError := TrackSQLite.loadError
         g_TrackDB := ""
         return false
     }
 
     try {
-        g_TrackDB := SQLiteDB(dbPath)
+        g_TrackDB := TrackSQLite(dbPath)
         TrackDB_ApplySchema(g_TrackDB)
         g_TrackDBError := ""
         return true

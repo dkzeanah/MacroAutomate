@@ -44,6 +44,30 @@ CoordMode("ToolTip", "Screen") ; Tooltip positioning relative to screen
 #Include OCR.ahk  ; Windows.Media.Ocr wrapper used by all OCR actions
 #Include SQLiteDB.ahk
 
+; ═══════════════════════════════════════════════════════════════════════════════
+; TRACKING SUBSYSTEM (window time / mouse / keys / snapshots / elements / research)
+; ═══════════════════════════════════════════════════════════════════════════════
+; Order matters: utilities and the DB layer first, then the trackers that use
+; them, then the UI/automation modules that use the trackers.
+;
+; NOTE: lib\TrackSQLite.ahk is the tracking subsystem's own SQLite wrapper. It is
+; deliberately NOT named SQLiteDB - that class name already belongs to the
+; SQLiteDB.ahk included above, which this script's g_DB uses. Two classes with
+; the same name in one script is a load-time error, so the tracking store keeps
+; its own connection under its own name.
+#Include lib\TrackSQLite.ahk
+#Include lib\TrackUtil.ahk
+#Include lib\TrackingDB.ahk
+#Include lib\PixelCanvas.ahk
+#Include lib\WindowTracker.ahk
+#Include lib\MouseTracker.ahk
+#Include lib\KeyTracker.ahk
+#Include lib\SnapshotEngine.ahk
+#Include lib\ElementAutomation.ahk
+#Include lib\ElementViewer.ahk
+#Include lib\ResearchPipeline.ahk
+#Include lib\TrackingDashboard.ahk
+
 
 
 ; ═══════════════════════════════════════════════════════════════════════════════
@@ -286,6 +310,10 @@ global ANALYTICS_FILE := DATA_DIR . "\analytics.ini"
 global RECORDING_FILE := DATA_DIR . "\recording.csv"
 global PREVIEW_DIR := DATA_DIR . "\previews"
 global SCREENSHOTS_DIR := DATA_DIR . "\screenshots"
+global TRACKING_DIR := DATA_DIR . "\tracking"   ; tracking subsystem output root
+
+; Cached list of registered element names (for workflow action dropdowns).
+global g_ElementNames := []
 
 ; GDI+ token for screenshot capture
 global g_GdipToken := 0
@@ -437,6 +465,9 @@ if !DirExist(SCREENSHOTS_DIR)
 ; Create notes directory
 if !DirExist(NOTES_DIR)
     DirCreate(NOTES_DIR)
+; Create tracking output directory
+if !DirExist(TRACKING_DIR)
+    DirCreate(TRACKING_DIR)
 
 
 ; Initialize GDI+ for screenshot capture
@@ -444,6 +475,13 @@ OnError(LogUnhandledError)
 g_GdipToken := Gdip_Startup()
 OnExit(ShutdownGdip)
 OnExit(SaveAllOnExit)
+; Flush open tracking buckets/sessions and close the tracking DB cleanly.
+OnExit(TrackingOnExit)
+
+TrackingOnExit(ExitReason, ExitCode) {
+    try Track_ShutdownAll()
+    return 0
+}
 
 
 ; ═══════════════════════════════════════════════════════════════════════════════
@@ -5911,7 +5949,11 @@ LiveCheck.OnEvent("Click", (c,*) => SetTimer(UpdateMousePos, c.Value ? 100 : 0))
 
 MainGui.Add("Button", "x400 y2 w50 h20 cRed", "ABORT").OnEvent("Click", AbortSequence)
 
-TabCtrl := MainGui.Add("Tab3", "x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad"])
+; NOTE: "Calendar" (tab 12) was previously missing from this list while the
+; calendar section below already called TabCtrl.UseTab(12) - which left that UI
+; attached to a tab that did not exist, so it never rendered. Declaring it here
+; restores it. "Tracking" (tab 13) is the behavior-tracking subsystem.
+TabCtrl := MainGui.Add("Tab3", "x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking"])
 
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; TAB 1: WORKFLOW
@@ -6801,6 +6843,19 @@ try RefreshCalendar()
 catch as err
     LogErrorToFile(err, "caught", "Optional appointment calendar refresh")
 
+; ═══════════════════════════════════════════════════════════════════════════════
+; TAB 13: TRACKING (window time / mouse / keys / snapshots / elements / research)
+; ═══════════════════════════════════════════════════════════════════════════════
+TabCtrl.UseTab(13)
+; Open the tracking database and restore saved options before building controls.
+try Track_InitAll()
+catch as err
+    LogErrorToFile(err, "caught", "Tracking subsystem initialization")
+try Track_BuildTab(MainGui)
+catch as err
+    LogErrorToFile(err, "caught", "Tracking tab construction")
+TabCtrl.UseTab(0)
+
 MainGui.Show("w1050 h820")
 
 ClickTimeSlot2(time) {
@@ -7201,6 +7256,121 @@ ExecuteUseVarPaste(params) {
 
 ; SHOW NOTIFICATION - Display notification (dismissable, snoozeable)
 ; Format: "ShowNotification,Title,Message[,Timeout]"
+; ═══════════════════════════════════════════════════════════════════════════════
+; TRACKING WORKFLOW ACTIONS
+; ═══════════════════════════════════════════════════════════════════════════════
+; Bridge the workflow engine to the tracking subsystem. Element targets are
+; addressed by the name given in the Snapshot Viewer (Tracking tab); research
+; actions operate on the current query context (see lib\ResearchPipeline.ahk).
+; =============================================================================
+
+; Click Element - TARGET: element name | PARAM: Left/Right/Middle[,count]
+ExecuteClickElement(target, param) {
+    hasTarget := (target != "" && target != "(none)")
+    name := hasTarget ? target : param
+    if (name = "") {
+        ShowStatus("Click Element: no element name", "fail")
+        return false
+    }
+    button := "Left", count := 1
+    ; When the name came from TARGET, PARAM may hold "Right" or "Right,2".
+    spec := hasTarget ? param : ""
+    if (spec != "") {
+        parts := StrSplit(spec, ",")
+        b := Trim(parts[1])
+        if (b != "")
+            button := b
+        if (parts.Length >= 2 && IsInteger(Trim(parts[2])))
+            count := Integer(Trim(parts[2]))
+    }
+    return Element_ClickByName(name, button, count)
+}
+
+; Wait Element - TARGET: element name | PARAM: timeout ms (default 5000)
+ExecuteWaitElement(target, param) {
+    name := (target != "" && target != "(none)") ? target : param
+    if (name = "")
+        return false
+    timeout := (Trim(param) != "" && IsInteger(Trim(param))) ? Integer(Trim(param)) : 5000
+    loc := Element_WaitByName(name, timeout)
+    if (loc = "" || !loc.Count) {
+        ShowStatus("Wait Element: '" . name . "' did not appear", "fail")
+        return false
+    }
+    ShowStatus("Element appeared: " . name, "ok")
+    return true
+}
+
+; Replay Window Mouse - TARGET: tracked window name | PARAM: [speed][,clicks]
+; Replays that window's most recent recorded mouse snapshot.
+ExecuteReplayWindowMouse(target, param) {
+    if (target = "" || target = "(none)") {
+        ShowStatus("Replay Window Mouse: no window name", "fail")
+        return false
+    }
+    winId := TrackDB_FindWinByName(target)
+    if !winId {
+        ShowStatus("No tracked window named '" . target . "'", "fail")
+        return false
+    }
+    snaps := MouseTrack_Snapshots(winId, 1)
+    if !snaps.Length {
+        ShowStatus("No mouse snapshots for '" . target . "'", "fail")
+        return false
+    }
+    speed := 1.0, doClicks := false
+    if (param != "") {
+        parts := StrSplit(param, ",")
+        if (Trim(parts[1]) != "" && IsNumber(Trim(parts[1])))
+            speed := Float(Trim(parts[1]))
+        if (parts.Length >= 2 && (Trim(parts[2]) = "1" || StrLower(Trim(parts[2])) = "clicks"))
+            doClicks := true
+    }
+    hwnd := Element_FindLiveWindow(target)
+    ; manageEsc:=false - the running sequence already owns the Escape hotkey.
+    n := MouseTrack_Replay(snaps[1]["id"], speed, hwnd, doClicks, false)
+    ShowStatus("Replayed " . n . " mouse points for '" . target . "'", "ok")
+    return n > 0
+}
+
+; Research Capture Links - PARAM: "screen" (OCR the page) or "clip" (clipboard)
+ExecuteResearchCaptureLinks(param) {
+    global g_ResQueryId
+    if !g_ResQueryId {
+        ShowStatus("Research: no active query (use Research Search first)", "fail")
+        return false
+    }
+    mode := StrLower(Trim(param))
+    n := (mode = "clip" || mode = "clipboard")
+        ? Research_CaptureLinksFromClipboard(g_ResQueryId)
+        : Research_CaptureLinksFromScreen(g_ResQueryId)
+    ShowStatus("Research: captured " . n . " links", "ok")
+    return true
+}
+
+; Names of every registered element, for the workflow action dropdowns.
+GetTrackedElementNames() {
+    names := []
+    if !TrackDB_Ready()
+        return ["(define elements in the Snapshot Viewer first)"]
+    for el in TrackDB_Elements(0)
+        names.Push(el["name"])
+    if !names.Length
+        names.Push("(define elements in the Snapshot Viewer first)")
+    return names
+}
+
+; Refresh the cached element-name list (called by the viewer after an edit).
+UpdateElementActionChoices() {
+    global g_ElementNames
+    g_ElementNames := []
+    if !TrackDB_Ready()
+        return
+    for el in TrackDB_Elements(0)
+        g_ElementNames.Push(el["name"])
+}
+
+
 ExecuteShowNotification(params) {
     global g_ExtractedData
 
@@ -10605,7 +10775,10 @@ GetWorkflowActionNames() {
         "OCR Region", "OCR Click", "OCR Wait", "OCR Full Screen to Var", "Load OCR Revolver", "Fire OCR Revolver",
         "Idle Mouse", "Hover Mouse", "Grab OCR to Var", "Use Var Paste", "Show Notification",
         "Set Variable", "Grab Clipboard", "If Contains", "If Variable", "Stop Execution", "Run Sequence",
-        "Format Clipboard", "Append to Clipboard", "Prepend to Clipboard", "Extract from Clipboard"
+        "Format Clipboard", "Append to Clipboard", "Prepend to Clipboard", "Extract from Clipboard",
+        ; ─── Tracking subsystem (see lib\ElementAutomation.ahk / ResearchPipeline.ahk)
+        "Click Element", "Hover Element", "Wait Element", "Replay Window Mouse",
+        "Research Search", "Research Capture Links", "Research Launch Next", "Research Add Insight"
     ]
 }
 
@@ -10708,6 +10881,25 @@ GetWorkflowActionSpec(action) {
             return MakeActionSpec("", "", "Text to prepend", "variables allowed", "Text to prepend=INV-", "Adds text to the beginning of the current clipboard.", false, true, false, true, "param")
         case "Extract from Clipboard":
             return MakeActionSpec("", "", "Extraction rule", "between:/field:/regex:", "Extraction rule=field:,|2", "Replaces the clipboard with extracted text. Rules: between:start|end, field:delimiter|index, or regex:pattern.", false, true, false, true, "param")
+
+        ; ─── Tracking subsystem ──────────────────────────────────────────────
+        case "Click Element":
+            return MakeActionSpec("Element", "name from Snapshot Viewer", "Button", "Left/Right/Middle[,count]", "Element=SearchBox; Button=Left", "Finds a named element on screen (by its saved FindText pattern, or by window-relative position) and clicks it.", true, false, true, true, "target")
+        case "Hover Element":
+            return MakeActionSpec("Element", "name from Snapshot Viewer", "", "", "Element=SubmitButton", "Moves the mouse onto a named element without clicking.", true, false, true, false, "target")
+        case "Wait Element":
+            return MakeActionSpec("Element", "name from Snapshot Viewer", "Timeout", "milliseconds", "Element=ResultsList; Timeout=5000", "Waits until a named element appears on screen.", true, false, true, true, "target")
+        case "Replay Window Mouse":
+            return MakeActionSpec("Window", "tracked window name", "Speed", "speed[,clicks]", "Window=Chrome; Speed=1.0,clicks", "Replays the most recent recorded mouse movement for that window, rescaled onto its current position.", true, false, true, true, "target")
+        case "Research Search":
+            return MakeActionSpec("", "", "Query", "required", "Query=best ahk libraries", "Stores the query in the database and opens a search for it in the browser.", false, true, false, true, "param")
+        case "Research Capture Links":
+            return MakeActionSpec("", "", "Source", "screen or clip", "Source=screen", "Harvests result URLs for the current query - by OCR of the page, or from the clipboard.", false, true, false, true, "param")
+        case "Research Launch Next":
+            return MakeActionSpec("", "", "", "", "", "Opens the next pending result link for the current query.", false, false, false, false)
+        case "Research Add Insight":
+            return MakeActionSpec("", "", "Insight", "required", "Insight=Supports v2 natively", "Attaches a key takeaway to the current query and marks the link done.", false, true, false, true, "param")
+
         default:
             return MakeActionSpec("Target", "optional", "Value", "optional", "", "See the action guide for details.")
     }
@@ -11287,6 +11479,15 @@ PopulateChoices() {
 
         case "Extract from Clipboard":
             choices := ["between:start|end", "field:,|1", "regex:\\d+"]
+
+        case "Click Element", "Hover Element", "Wait Element":
+            choices := GetTrackedElementNames()
+
+        case "Replay Window Mouse":
+            choices := ["1.0", "2.0  (2x speed)", "1.0,clicks  (include clicks)", "0.5  (half speed)"]
+
+        case "Research Capture Links":
+            choices := ["screen  (OCR the results page)", "clip  (from clipboard)"]
 
         case "Grab OCR to Var", "OCR Full Screen to Var":
             ; Variable and region are separate contextual fields.
@@ -14809,6 +15010,31 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
         case "Show Notification":
             return ExecuteShowNotification(param)
 
+        ; ─── Tracking-powered actions ────────────────────────────────────────
+        case "Click Element":
+            return ExecuteClickElement(target, param)
+
+        case "Hover Element":
+            return Element_HoverByName(target != "" && target != "(none)" ? target : param)
+
+        case "Wait Element":
+            return ExecuteWaitElement(target, param)
+
+        case "Replay Window Mouse":
+            return ExecuteReplayWindowMouse(target, param)
+
+        case "Research Search":
+            return Research_Search(param != "" ? param : target) != 0
+
+        case "Research Capture Links":
+            return ExecuteResearchCaptureLinks(param)
+
+        case "Research Launch Next":
+            return Research_LaunchNext() != 0
+
+        case "Research Add Insight":
+            return Research_AddInsight(param) != 0
+
         case "Set Variable":
             varName := NormalizeWorkflowVariableName(target)
             if varName = "" {
@@ -15535,6 +15761,19 @@ Escape::DefModeCancel
 #b::ShowBinSelector("")  ; Ctrl+Alt+B = Open bin selector
 ^!i::ExecuteIdleMouse("0")  ; Ctrl+Alt+I = Idle mouse indefinitely
 
+; ─── Tracking subsystem hotkeys ──────────────────────────────────────────────
+^!t::Track_ToggleAllHotkey()   ; Ctrl+Alt+T = toggle all trackers on/off
+^!+s::Snap_OpenViewer()        ; Ctrl+Alt+Shift+S = open the snapshot viewer
+^!+c::Track_SnapNow()          ; Ctrl+Alt+Shift+C = capture a snapshot cycle now
+
+; Toggle every tracker together from a hotkey, mirroring the master button.
+Track_ToggleAllHotkey() {
+    if (WinTrack_IsOn() || MouseTrack_IsOn() || KeyTrack_IsOn() || Snap_IsOn())
+        Track_StopAll()
+    else
+        Track_StartAll()
+}
+
 InitDB()            ; Open/create SQLite DB, create tables, import legacy .ini data if needed
 LoadAll()
 LoadTaskbarIndex()  ; Load saved taskbar mapping (use Index Taskbar button to update)
@@ -15566,6 +15805,14 @@ ApplyHotkeys()
 RestoreSpoolMasterState() ; Restore persisted master switch and auto-start enabled Spools
 RefreshHotstringList()  ; V5.0: Populate hotstring list
 RefreshTriggersLV()  ; V5.1: Populate triggers list
+; Tracking subsystem: resume trackers that were running at last shutdown and
+; cache element names for the workflow dropdowns. Never block startup.
+try Track_AutoStart()
+catch as err
+    LogErrorToFile(err, "caught", "Tracking auto-start")
+try UpdateElementActionChoices()
+catch as err
+    LogErrorToFile(err, "caught", "Tracking element name cache")
 
 RefreshCoordLV() {
     global g_Coordinates, CoordLV

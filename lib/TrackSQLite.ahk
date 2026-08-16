@@ -1,5 +1,5 @@
 ; ═══════════════════════════════════════════════════════════════════════════════
-; SQLiteDB.ahk - Minimal, dependency-free SQLite3 wrapper for AutoHotkey v2
+; TrackSQLite.ahk - Minimal, dependency-free SQLite3 wrapper for AutoHotkey v2
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; Used by the MacroAutomator tracking subsystem as the persistent store.
 ;
@@ -10,7 +10,7 @@
 ;   4. sqlite3.dll on the system PATH
 ;
 ; USAGE:
-;   db := SQLiteDB("C:\path\tracking.db")
+;   db := TrackSQLite("C:\path\tracking.db")
 ;   db.Exec("CREATE TABLE t(a,b)")
 ;   db.Run("INSERT INTO t VALUES(?,?)", "x", 1)
 ;   rows := db.Query("SELECT * FROM t WHERE b > ?", 0)   ; array of Maps
@@ -21,7 +21,7 @@
 ; so hot inserts (mouse/key snapshots) do not re-parse SQL on every call.
 ; ═══════════════════════════════════════════════════════════════════════════════
 
-class SQLiteDB {
+class TrackSQLite {
     ; ─── Static library state ────────────────────────────────────────────────
     static hMod := 0            ; HMODULE of the loaded sqlite library
     static pfx := ""            ; DllCall prefix, e.g. "winsqlite3\"
@@ -89,15 +89,15 @@ class SQLiteDB {
     }
 
     ; True when a SQLite implementation is available on this machine.
-    static Available() => SQLiteDB.EnsureLib()
+    static Available() => TrackSQLite.EnsureLib()
 
     ; Description of the loaded library, for status displays.
     static LibInfo() {
-        if !SQLiteDB.EnsureLib()
-            return "unavailable: " . SQLiteDB.loadError
+        if !TrackSQLite.EnsureLib()
+            return "unavailable: " . TrackSQLite.loadError
         ver := ""
-        try ver := StrGet(DllCall(SQLiteDB.pfx . "sqlite3_libversion", "Ptr"), "UTF-8")
-        return SQLiteDB.libName . (ver != "" ? " (v" . ver . ")" : "")
+        try ver := StrGet(DllCall(TrackSQLite.pfx . "sqlite3_libversion", "Ptr"), "UTF-8")
+        return TrackSQLite.libName . (ver != "" ? " (v" . ver . ")" : "")
     }
 
     ; ═══════════════════════════════════════════════════════════════════════
@@ -119,29 +119,29 @@ class SQLiteDB {
     ; ═══════════════════════════════════════════════════════════════════════
 
     __New(dbPath) {
-        if !SQLiteDB.EnsureLib()
-            throw Error("SQLite unavailable: " . SQLiteDB.loadError)
+        if !TrackSQLite.EnsureLib()
+            throw Error("SQLite unavailable: " . TrackSQLite.loadError)
 
         this.path := dbPath
-        fnBuf := SQLiteDB.Utf8(dbPath)
-        flags := SQLiteDB.OPEN_READWRITE | SQLiteDB.OPEN_CREATE | SQLiteDB.OPEN_FULLMUTEX
-        rc := DllCall(SQLiteDB.pfx . "sqlite3_open_v2"
+        fnBuf := TrackSQLite.Utf8(dbPath)
+        flags := TrackSQLite.OPEN_READWRITE | TrackSQLite.OPEN_CREATE | TrackSQLite.OPEN_FULLMUTEX
+        rc := DllCall(TrackSQLite.pfx . "sqlite3_open_v2"
             , "Ptr", fnBuf.Ptr
             , "Ptr*", &hDb := 0
             , "Int", flags
             , "Ptr", 0
             , "Int")
         this.hDb := hDb
-        if (rc != SQLiteDB.OK) {
+        if (rc != TrackSQLite.OK) {
             msg := this.ErrMsg()
             if this.hDb
-                DllCall(SQLiteDB.pfx . "sqlite3_close_v2", "Ptr", this.hDb)
+                DllCall(TrackSQLite.pfx . "sqlite3_close_v2", "Ptr", this.hDb)
             this.hDb := 0
             throw Error("Cannot open database '" . dbPath . "': " . msg)
         }
 
         ; Wait rather than fail when another handle holds the write lock.
-        DllCall(SQLiteDB.pfx . "sqlite3_busy_timeout", "Ptr", this.hDb, "Int", 5000)
+        DllCall(TrackSQLite.pfx . "sqlite3_busy_timeout", "Ptr", this.hDb, "Int", 5000)
 
         ; WAL keeps the background trackers from blocking the UI thread's reads.
         try this.Exec("PRAGMA journal_mode=WAL")
@@ -158,9 +158,9 @@ class SQLiteDB {
         if !this.hDb
             return
         for sql, st in this.stmtCache
-            try DllCall(SQLiteDB.pfx . "sqlite3_finalize", "Ptr", st)
+            try DllCall(TrackSQLite.pfx . "sqlite3_finalize", "Ptr", st)
         this.stmtCache := Map()
-        DllCall(SQLiteDB.pfx . "sqlite3_close_v2", "Ptr", this.hDb)
+        DllCall(TrackSQLite.pfx . "sqlite3_close_v2", "Ptr", this.hDb)
         this.hDb := 0
     }
 
@@ -169,7 +169,7 @@ class SQLiteDB {
     ErrMsg() {
         if !this.hDb
             return "database not open"
-        return SQLiteDB.FromUtf8(DllCall(SQLiteDB.pfx . "sqlite3_errmsg", "Ptr", this.hDb, "Ptr"))
+        return TrackSQLite.FromUtf8(DllCall(TrackSQLite.pfx . "sqlite3_errmsg", "Ptr", this.hDb, "Ptr"))
     }
 
     ; ═══════════════════════════════════════════════════════════════════════
@@ -184,20 +184,20 @@ class SQLiteDB {
 
         if cache && this.stmtCache.Has(sql) {
             st := this.stmtCache[sql]
-            DllCall(SQLiteDB.pfx . "sqlite3_reset", "Ptr", st)
-            DllCall(SQLiteDB.pfx . "sqlite3_clear_bindings", "Ptr", st)
+            DllCall(TrackSQLite.pfx . "sqlite3_reset", "Ptr", st)
+            DllCall(TrackSQLite.pfx . "sqlite3_clear_bindings", "Ptr", st)
             return st
         }
 
-        sqlBuf := SQLiteDB.Utf8(sql)
-        rc := DllCall(SQLiteDB.pfx . "sqlite3_prepare_v2"
+        sqlBuf := TrackSQLite.Utf8(sql)
+        rc := DllCall(TrackSQLite.pfx . "sqlite3_prepare_v2"
             , "Ptr", this.hDb
             , "Ptr", sqlBuf.Ptr
             , "Int", -1
             , "Ptr*", &st := 0
             , "Ptr", 0
             , "Int")
-        if (rc != SQLiteDB.OK || !st)
+        if (rc != TrackSQLite.OK || !st)
             throw Error("SQL prepare failed: " . this.ErrMsg() . "`n`nSQL: " . SubStr(sql, 1, 400))
 
         if cache
@@ -206,29 +206,29 @@ class SQLiteDB {
     }
 
     ; Bind a positional parameter. AHK types map onto SQLite storage classes:
-    ;   ""            -> NULL      (use SQLiteDB.Null() semantics via unset)
+    ;   ""            -> NULL      (use TrackSQLite.Null() semantics via unset)
     ;   Integer       -> INTEGER
     ;   Float         -> REAL
     ;   everything else -> TEXT
     _Bind(st, idx, val) {
         if (val == "" && !IsNumber(val)) {
-            DllCall(SQLiteDB.pfx . "sqlite3_bind_text", "Ptr", st, "Int", idx
+            DllCall(TrackSQLite.pfx . "sqlite3_bind_text", "Ptr", st, "Int", idx
                 , "Ptr", 0, "Int", 0, "Ptr", -1)
             return
         }
         if IsInteger(val) {
-            DllCall(SQLiteDB.pfx . "sqlite3_bind_int64", "Ptr", st, "Int", idx
+            DllCall(TrackSQLite.pfx . "sqlite3_bind_int64", "Ptr", st, "Int", idx
                 , "Int64", Integer(val))
             return
         }
         if IsFloat(val) {
-            DllCall(SQLiteDB.pfx . "sqlite3_bind_double", "Ptr", st, "Int", idx
+            DllCall(TrackSQLite.pfx . "sqlite3_bind_double", "Ptr", st, "Int", idx
                 , "Double", Float(val))
             return
         }
-        buf := SQLiteDB.Utf8(String(val))
+        buf := TrackSQLite.Utf8(String(val))
         ; SQLITE_TRANSIENT (-1) makes SQLite copy before the buffer dies.
-        DllCall(SQLiteDB.pfx . "sqlite3_bind_text", "Ptr", st, "Int", idx
+        DllCall(TrackSQLite.pfx . "sqlite3_bind_text", "Ptr", st, "Int", idx
             , "Ptr", buf.Ptr, "Int", -1, "Ptr", -1)
     }
 
@@ -240,10 +240,10 @@ class SQLiteDB {
     ; Read the current row of a stepped statement into a Map keyed by column name.
     _RowMap(st) {
         row := Map()
-        cols := DllCall(SQLiteDB.pfx . "sqlite3_column_count", "Ptr", st, "Int")
+        cols := DllCall(TrackSQLite.pfx . "sqlite3_column_count", "Ptr", st, "Int")
         Loop cols {
             i := A_Index - 1
-            name := SQLiteDB.FromUtf8(DllCall(SQLiteDB.pfx . "sqlite3_column_name"
+            name := TrackSQLite.FromUtf8(DllCall(TrackSQLite.pfx . "sqlite3_column_name"
                 , "Ptr", st, "Int", i, "Ptr"))
             row[name] := this._ColValue(st, i)
         }
@@ -251,16 +251,16 @@ class SQLiteDB {
     }
 
     _ColValue(st, i) {
-        type := DllCall(SQLiteDB.pfx . "sqlite3_column_type", "Ptr", st, "Int", i, "Int")
+        type := DllCall(TrackSQLite.pfx . "sqlite3_column_type", "Ptr", st, "Int", i, "Int")
         switch type {
             case 1:  ; SQLITE_INTEGER
-                return DllCall(SQLiteDB.pfx . "sqlite3_column_int64", "Ptr", st, "Int", i, "Int64")
+                return DllCall(TrackSQLite.pfx . "sqlite3_column_int64", "Ptr", st, "Int", i, "Int64")
             case 2:  ; SQLITE_FLOAT
-                return DllCall(SQLiteDB.pfx . "sqlite3_column_double", "Ptr", st, "Int", i, "Double")
+                return DllCall(TrackSQLite.pfx . "sqlite3_column_double", "Ptr", st, "Int", i, "Double")
             case 5:  ; SQLITE_NULL
                 return ""
             default: ; TEXT / BLOB - surfaced as text
-                return SQLiteDB.FromUtf8(DllCall(SQLiteDB.pfx . "sqlite3_column_text"
+                return TrackSQLite.FromUtf8(DllCall(TrackSQLite.pfx . "sqlite3_column_text"
                     , "Ptr", st, "Int", i, "Ptr"))
         }
     }
@@ -285,18 +285,18 @@ class SQLiteDB {
         prevCrit := A_IsCritical
         Critical("On")
         try {
-            sqlBuf := SQLiteDB.Utf8(sql)
-            rc := DllCall(SQLiteDB.pfx . "sqlite3_exec"
+            sqlBuf := TrackSQLite.Utf8(sql)
+            rc := DllCall(TrackSQLite.pfx . "sqlite3_exec"
                 , "Ptr", this.hDb
                 , "Ptr", sqlBuf.Ptr
                 , "Ptr", 0
                 , "Ptr", 0
                 , "Ptr*", &errPtr := 0
                 , "Int")
-            if (rc != SQLiteDB.OK) {
-                msg := errPtr ? SQLiteDB.FromUtf8(errPtr) : this.ErrMsg()
+            if (rc != TrackSQLite.OK) {
+                msg := errPtr ? TrackSQLite.FromUtf8(errPtr) : this.ErrMsg()
                 if errPtr
-                    DllCall(SQLiteDB.pfx . "sqlite3_free", "Ptr", errPtr)
+                    DllCall(TrackSQLite.pfx . "sqlite3_free", "Ptr", errPtr)
                 throw Error("SQL exec failed: " . msg . "`n`nSQL: " . SubStr(sql, 1, 400))
             }
             return true
@@ -313,13 +313,13 @@ class SQLiteDB {
         try {
             st := this._Prepare(sql)
             this._BindAll(st, params)
-            rc := DllCall(SQLiteDB.pfx . "sqlite3_step", "Ptr", st, "Int")
-            if (rc != SQLiteDB.DONE && rc != SQLiteDB.ROW) {
+            rc := DllCall(TrackSQLite.pfx . "sqlite3_step", "Ptr", st, "Int")
+            if (rc != TrackSQLite.DONE && rc != TrackSQLite.ROW) {
                 msg := this.ErrMsg()
-                DllCall(SQLiteDB.pfx . "sqlite3_reset", "Ptr", st)
+                DllCall(TrackSQLite.pfx . "sqlite3_reset", "Ptr", st)
                 throw Error("SQL run failed: " . msg . "`n`nSQL: " . SubStr(sql, 1, 400))
             }
-            DllCall(SQLiteDB.pfx . "sqlite3_reset", "Ptr", st)
+            DllCall(TrackSQLite.pfx . "sqlite3_reset", "Ptr", st)
             return this.Changes()
         } finally {
             Critical(prevCrit)
@@ -335,18 +335,18 @@ class SQLiteDB {
             this._BindAll(st, params)
             rows := []
             loop {
-                rc := DllCall(SQLiteDB.pfx . "sqlite3_step", "Ptr", st, "Int")
-                if (rc = SQLiteDB.ROW) {
+                rc := DllCall(TrackSQLite.pfx . "sqlite3_step", "Ptr", st, "Int")
+                if (rc = TrackSQLite.ROW) {
                     rows.Push(this._RowMap(st))
                     continue
                 }
-                if (rc = SQLiteDB.DONE)
+                if (rc = TrackSQLite.DONE)
                     break
                 msg := this.ErrMsg()
-                DllCall(SQLiteDB.pfx . "sqlite3_reset", "Ptr", st)
+                DllCall(TrackSQLite.pfx . "sqlite3_reset", "Ptr", st)
                 throw Error("SQL query failed: " . msg . "`n`nSQL: " . SubStr(sql, 1, 400))
             }
-            DllCall(SQLiteDB.pfx . "sqlite3_reset", "Ptr", st)
+            DllCall(TrackSQLite.pfx . "sqlite3_reset", "Ptr", st)
             return rows
         } finally {
             Critical(prevCrit)
@@ -361,10 +361,10 @@ class SQLiteDB {
             st := this._Prepare(sql)
             this._BindAll(st, params)
             val := ""
-            rc := DllCall(SQLiteDB.pfx . "sqlite3_step", "Ptr", st, "Int")
-            if (rc = SQLiteDB.ROW)
+            rc := DllCall(TrackSQLite.pfx . "sqlite3_step", "Ptr", st, "Int")
+            if (rc = TrackSQLite.ROW)
                 val := this._ColValue(st, 0)
-            DllCall(SQLiteDB.pfx . "sqlite3_reset", "Ptr", st)
+            DllCall(TrackSQLite.pfx . "sqlite3_reset", "Ptr", st)
             return val
         } finally {
             Critical(prevCrit)
@@ -389,9 +389,9 @@ class SQLiteDB {
         return out
     }
 
-    LastInsertId() => DllCall(SQLiteDB.pfx . "sqlite3_last_insert_rowid", "Ptr", this.hDb, "Int64")
+    LastInsertId() => DllCall(TrackSQLite.pfx . "sqlite3_last_insert_rowid", "Ptr", this.hDb, "Int64")
 
-    Changes() => DllCall(SQLiteDB.pfx . "sqlite3_changes", "Ptr", this.hDb, "Int")
+    Changes() => DllCall(TrackSQLite.pfx . "sqlite3_changes", "Ptr", this.hDb, "Int")
 
     ; ═══════════════════════════════════════════════════════════════════════
     ; TRANSACTIONS

@@ -1,6 +1,6 @@
 # Behavior Tracking Subsystem
 
-A tracking layer added to Macro Automator v4 that records how you actually use
+A tracking layer added to Macro Automator v7 that records how you actually use
 your machine and turns it into reusable automation data. Everything is stored
 in a single SQLite database (`data\tracking.db`) and surfaced through a new
 **Tracking** tab.
@@ -27,7 +27,7 @@ the workflow engine can act on them later.
 
 ## Quick start
 
-1. Launch `MacroAutomator_v4_ENHANCED.ahk` as usual.
+1. Launch `macroautomerv7.ahk` as usual.
 2. Open the **Tracking** tab (last tab).
 3. Click **Start All** — or press **Ctrl+Alt+T**.
 4. Use your computer normally for a while.
@@ -109,7 +109,15 @@ On each flush the minute's input is distilled into separate columns:
 - **clipboard** — every text copy is logged to `clip_history`, classified
   (url / email / phone / code / …) and de‑duplicated
 
-Optional **Mask digit runs** redacts sequences of 4+ digits for privacy.
+**Privacy.** This is a keystroke logger writing plaintext to a local database,
+so it is off by default and guarded three ways:
+
+- Input synthesised by this script's own macros is excluded (`InputHook` option
+  `I1`), so replaying a workflow never pollutes the history.
+- Windows whose name looks like a credential prompt (password, sign in,
+  1Password, Bitwarden, KeePass, LastPass…) are skipped automatically.
+- You can add your own never-record window fragments under
+  Tracking tab → **Key Privacy…**.
 
 **Explore it:** Tracking tab → **Key History**. Filter by window, click a minute
 to see each category in its own tab, or open the **Top Hotkeys** / **Clipboard
@@ -239,7 +247,7 @@ script:
 | `PixelCanvas.ahk` | Software ARGB canvas + PNG writer (heatmaps, traces, binary render) |
 | `WindowTracker.ahk` | Feature 1 + the shared "current window" context |
 | `MouseTracker.ahk` | Feature 2 (sample, heat, trace, replay, feature extraction) |
-| `KeyTracker.ahk` | Feature 3 (InputHook, categorisation, clipboard) |
+| `KeyTracker.ahk` | Feature 3 (InputHook, categorisation, clipboard, privacy exclusions) |
 | `SnapshotEngine.ahk` | Feature 4 capture (image → base64 → binary) |
 | `ElementViewer.ahk` | Tabbed viewer + element‑marking UI |
 | `ElementAutomation.ahk` | Locate/click elements; portable feature export |
@@ -249,3 +257,34 @@ script:
 The trackers run on timers and share one database connection; the DB layer runs
 each statement (and each transaction) under `Critical` so a 20 Hz mouse sample
 can't interrupt a window‑poll write mid‑statement.
+
+---
+
+## Repository layout
+
+```
+macroautomerv7.ahk        the main script (this is what you run)
+FindText.ahk              shared libraries kept at the root because many
+OCR.ahk                     scripts include them by bare name
+SQLiteDB.ahk
+lib/                      libraries, including the tracking subsystem
+test/tools/               standalone tools, demos and reference scripts
+test/macroautomator-history/  older MacroAutomator versions + v7 working copies
+test/variants/            duplicate library copies kept for reference
+test/data/                demo workflows (.maw/.mas) and misc data
+data/                     runtime output (git-ignored)
+```
+
+### A note on the two SQLite wrappers
+
+There are deliberately two, because they are different things:
+
+| File | Class | Used by |
+| --- | --- | --- |
+| `SQLiteDB.ahk` (root) | `SQLiteDB` | v7's own `g_DB` — unchanged |
+| `lib/TrackSQLite.ahk` | `TrackSQLite` | the tracking subsystem only |
+
+They cannot share a class name: two classes with the same name in one compiled
+script is a load-time error. The tracking store therefore keeps its own
+connection, its own file (`data\tracking.db`), and its own wrapper — and
+resolves `winsqlite3.dll` automatically so it needs no `sqlite3.dll` on disk.
