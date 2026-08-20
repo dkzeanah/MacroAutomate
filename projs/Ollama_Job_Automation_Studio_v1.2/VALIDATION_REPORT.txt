@@ -1,0 +1,36 @@
+Ollama Job Automation Studio 1.2 - Validation Report
+====================================================
+
+Completed in the build environment:
+
+PASS - Python syntax compilation for main.py, self_test.py, and all ojas modules.
+PASS - Tkinter GUI startup under a virtual display.
+PASS - Eight tabs created and selectable.
+PASS - About-this-tab pop-out opens for all eight tabs.
+PASS - Full-screen-sized 1450x900 layout keeps primary editors, tables, prompt controls,
+       ATS results, visual-reference controls, preview area, and logs mapped and visible.
+PASS - Bundled 4-page resume PDF extracts as text.
+PASS - Resume-seeded verified profile contains explicit resume facts and leaves missing URLs,
+       address, authorization, salary, and other unsupported facts blank.
+PASS - ATS-style baseline report creates eight transparent metrics.
+PASS - Safe field mapping and sensitive/manual field blocking.
+PASS - RAG text chunking.
+PASS - ComfyUI default workflow graph creation.
+PASS - ComfyUI client tested against a local mock server for connection, checkpoint discovery,
+       prompt submission, history polling, and image download.
+PASS - Built-in self_test.py completed successfully.
+
+Not possible to certify in the build environment:
+
+- Your actual Windows Ollama installation, model downloads, GPU placement, and token speed.
+- Your actual Playwright/Chrome installation and third-party application websites.
+- A live ComfyUI checkpoint generation on your GPU.
+
+Use these commands on your computer after installing dependencies:
+
+    python self_test.py
+    python self_test.py --live
+
+The --live test expects Ollama and ComfyUI to already be running. Complete one real Model Lab
+request, one real ATS scan, one local test-form autofill, and one ComfyUI generation to certify
+machine-specific integrations.

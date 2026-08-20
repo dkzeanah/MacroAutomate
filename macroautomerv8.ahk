@@ -2,10 +2,14 @@
 ; █▀▄▀█ ▄▀█ █▀▀ █▀█ █▀█   ▄▀█ █ █ ▀█▀ █▀█ █▀▄▀█ ▄▀█ ▀█▀ █▀█ █▀█
 ; █ ▀ █ █▀█ █▄▄ █▀▄ █▄█   █▀█ █▄█  █  █▄█ █ ▀ █ █▀█  █  █▄█ █▀▄
 ; ═══════════════════════════════════════════════════════════════════════════════
-; VERSION: 7.0 MERGED EDITION
+; VERSION: 8.0 GUIDED ACTION BUILDER
 ; Stable v6.1 COMPLETE base plus the usable v6.9 workflow, scheduler,
 ; patient-management, template, and .maw exchange features.
-; v2.9.6 → v4.0 → v5.0 | LINES: 12,000+ | FUNCTIONS: 380+
+; v2.9.6 → v4.0 → v5.0 → v7.0 → v8.0 | LINES: 20,000+ | FUNCTIONS: 420+
+; v8.0: guided per-action forms (pick, never type), window pickers on every
+; window action, category-filtered action list, and first-class looping with
+; Loop Start/End/Break, Popup Detect (screen change detection with loop-top
+; memory) and Wait for Window / Wait Window Closed.
 ; ═══════════════════════════════════════════════════════════════════════════════
 ;
 ; V5.0 ENHANCEMENTS:
@@ -155,6 +159,10 @@ global g_CurrentSequenceSpeed := 1.0  ; Speed multiplier (1.0 = normal)
 global g_WorkflowVariables := Map()   ; Variables created during a workflow run
 global g_SkipNextAction := false      ; Set by one-step conditional actions
 global g_SequenceCallStack := []      ; Prevent recursive Run Sequence loops
+global g_LoopBreakRequested := false  ; Set by Loop Break / Popup Detect to leave a loop
+global g_ActionFormGui := ""          ; The guided Action Form dialog, when open
+global g_FormPickMap := Map()         ; Button hwnd -> {combo, mode, gui} for form picker helpers
+global g_FormFieldMap := Map()        ; Field key -> control refs inside the Action Form
 global g_CoordManagerGui := 0
 global g_CoordManagerNameEdit := 0
 global g_SimulationTooltipIndex := 1  ; For stacking tooltips (1-20)
@@ -469,8 +477,6 @@ if !DirExist(NOTES_DIR)
 if !DirExist(TRACKING_DIR)
     DirCreate(TRACKING_DIR)
 
-SetupTrayMenu()
-
 
 ; Initialize GDI+ for screenshot capture
 OnError(LogUnhandledError)
@@ -479,53 +485,6 @@ OnExit(ShutdownGdip)
 OnExit(SaveAllOnExit)
 ; Flush open tracking buckets/sessions and close the tracking DB cleanly.
 OnExit(TrackingOnExit)
-
-
-
-
-
-SetupTrayMenu2() {
-    A_TrayMenu.Delete()
-    A_TrayMenu.Add("Open GlobalCoder", (*) => ShowMainFeaturesGUI())
-    A_TrayMenu.Add("Browse Library", (*) => ShowCustomMenu())
-    A_TrayMenu.Add()
-
-    projectMenu := Menu()
-    projectMenu.Add("Create New Project", (*) => ShowNewProjectWizard())
-    projectMenu.Add("Recent Projects", (*) => ShowRecentProjects())
-    projectMenu.Add("Learning Center", (*) => ShowLearningCenter())
-    projectMenu.Add("Project Settings", (*) => ShowProjectSettings())
-    A_TrayMenu.Add("Projects", projectMenu)
-
-    knowledgeMenu := Menu()
-    knowledgeMenu.Add("Add Knowledge", (*) => ShowAddKnowledgeGUI())
-    knowledgeMenu.Add("Search Knowledge", (*) => ShowKnowledgeSearch())
-    knowledgeMenu.Add("Review a Gap", (*) => ActivityMonitor.PromptForGap())
-    knowledgeMenu.Add("Knowledge Test", (*) => ShowKnowledgeTest())
-    A_TrayMenu.Add("Knowledge Web", knowledgeMenu)
-
-    automationMenu := Menu()
-    automationMenu.Add("Instruction Language", (*) => ShowInstructionLanguageConsole())
-    automationMenu.Add("Command Reference", (*) => ShowInstructionReference())
-    automationMenu.Add("Find in Knowledge and Files", (*) => FindInFiles())
-    A_TrayMenu.Add("Automation", automationMenu)
-
-    A_TrayMenu.Add()
-    A_TrayMenu.Add("Settings", (*) => ShowSettingsGUI())
-    A_TrayMenu.Add("Hotstrings", (*) => ShowHotstringsGUI())
-    A_TrayMenu.Add("Query History", (*) => ShowQueryLog())
-    A_TrayMenu.Add("Open Script Folder", (*) => Run("explorer.exe " . QuoteArgument(A_ScriptDir)))
-    A_TrayMenu.Add()
-    A_TrayMenu.Add("Reload", (*) => Reload())
-    A_TrayMenu.Add("Exit", (*) => ExitApp())
-    A_TrayMenu.Default := "Open GlobalCoder"
-
-    ; AutoHotkey v2 equivalent of: Menu, Tray, Icon, Shell32.dll, 14, 1
-    ; The final true freezes the loaded globe icon so later tray updates keep it.
-    try TraySetIcon(A_WinDir "\System32\Shell32.dll", 14, true)
-    A_IconTip := "GlobalCoder v7 - portable project and knowledge manager"
-    OnMessage(0x0404, TrayIconCallback)
-}
 
 TrackingOnExit(ExitReason, ExitCode) {
     try Track_ShutdownAll()
@@ -2212,41 +2171,19 @@ LoopOptInt(opt, key, default) {
 }
 
 ; If an interrupting window (a Save dialog, a confirmation prompt, ...) is open,
-; bring it to the front, dispatch it, and WAIT for that exact dialog to close so
-; the loop does not keep re-detecting the same (still-closing) window and spin on
-; "handling popup". Returns true only if a popup was found and is now gone;
-; returns false when there is no popup, so the loop proceeds to search.
+; bring it to the front and dispatch it. Returns true if it was found+handled.
 ;   popupDo values:
 ;     enter            press Enter (the usual default button) - the default
 ;     send:<keys>      send AutoHotkey keys to it, e.g. send:!s for Alt+S
 ;     pattern:<name>   find & click a saved FindText pattern (a Save button image)
 HandleLoopPopup(popupTitle, popupDo) {
-    hwnd := WinExist(popupTitle)
-    if popupTitle = "" || !hwnd
+    if popupTitle = "" || !WinExist(popupTitle)
         return false
 
-    idHwnd := "ahk_id " . hwnd
-    try WinActivate(idHwnd)
-    try WinWaitActive(idHwnd, , 1)
+    try WinActivate(popupTitle)
+    try WinWaitActive(popupTitle, , 1)
     ShowStatus("Find & Click Loop: handling popup '" . popupTitle . "'", "info")
 
-    DispatchPopupAction(popupDo)
-
-    ; Wait for THIS dialog to actually close before returning to the loop.
-    if WinWaitClose(idHwnd, , 4)
-        return true
-
-    ; It didn't close - fall back to Enter (the default button) once more.
-    if WinExist(idHwnd) {
-        try WinActivate(idHwnd)
-        Send("{Enter}")
-        WinWaitClose(idHwnd, , 3)
-    }
-    return true
-}
-
-; Perform one popup-dismiss action (see HandleLoopPopup for the vocabulary).
-DispatchPopupAction(popupDo) {
     action := Trim(popupDo)
     if action = "" || StrLower(action) = "enter" {
         Send("{Enter}")
@@ -2262,6 +2199,7 @@ DispatchPopupAction(popupDo) {
         ; Bare value given: treat it as literal keys to send.
         Send(action)
     }
+    return true
 }
 
 ; Check if a qualifier pattern is visible on screen
@@ -2891,8 +2829,6 @@ ExecuteTaskbarActivate(param) {
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; TRAY MENU
 ; =============================================================================
-SetupTrayMenu() {
-
 
 ;A_TrayMenu.Delete()
 A_TrayMenu.Add("Show/Hide", TrayShowHide)
@@ -2901,54 +2837,44 @@ A_TrayMenu.Add("Definition Mode Help", (*) => MsgBoxTop("CAPSLOCK toggles Defini
 A_TrayMenu.Add()
 A_TrayMenu.Add("Always On Top", TrayToggleOnTop)
 A_TrayMenu.Add()
+A_TrayMenu.Add("⚙ Pin to Taskbar (Always Show)", OpenTrayPinningSettings)
+A_TrayMenu.Add()
 A_TrayMenu.Add("ABORT", AbortSequence)
 A_TrayMenu.Add("Reload", (*) => Reload())
 A_TrayMenu.Add("Exit", (*) => ExitApp())
 A_TrayMenu.Default := "Show/Hide"
-A_IconTip := "Macro Automator v2.9.6"
+A_IconHidden := false   ; never auto-hide the tray icon
+A_IconTip := "Macro Automator v8 - Guided Action Builder"
+try SetTrayIcon()
 
-try TraySetIcon(A_WinDir "\System32\Shell32.dll", 14, true)
-    A_IconTip := "MacroAutomate v7"
-    OnMessage(0x0404, TrayIconCallback)
+; Same proven approach as globalcoder-v7 (which uses Shell32.dll index 14, the
+; globe): load an icon straight out of a system DLL. Index 43 is the bright
+; YELLOW LIGHTBULB - unique and instantly visible among the tray's usual
+; white/blue icons, and checked at runtime so older Windows builds that lack it
+; simply keep the default icon instead of showing nothing.
+SetTrayIcon() {
+    iconPath := A_WinDir . "\System32\Shell32.dll"
+    hIcon := 0
+    n := DllCall("shell32\ExtractIconExW", "Str", iconPath, "Int", 43, "Ptr", 0, "Ptr*", &hIcon, "Int", 1, "Int")
+    if n > 0 && hIcon {
+        DllCall("DestroyIcon", "UPtr", hIcon)
+        try TraySetIcon(iconPath, 43, true)   ; freeze so later updates keep it
+    }
+}
 
-  ;  A_TrayMenu.Delete()
-  ;  A_TrayMenu.Add("Open GlobalCoder", (*) => ShowMainFeaturesGUI())
-  ;  A_TrayMenu.Add("Browse Library", (*) => ShowCustomMenu())
-  ;  A_TrayMenu.Add()
-
-   ; projectMenu := Menu()
-    ;projectMenu.Add("Create New Project", (*) => ShowNewProjectWizard())
-    ;projectMenu.Add("Recent Projects", (*) => ShowRecentProjects())
-    ;projectMenu.Add("Learning Center", (*) => ShowLearningCenter())
-    ;projectMenu.Add("Project Settings", (*) => ShowProjectSettings())
-    ;A_TrayMenu.Add("Projects", projectMenu)
-
-    ;knowledgeMenu := Menu()
-    ;knowledgeMenu.Add("Add Knowledge", (*) => ShowAddKnowledgeGUI())
-    ;knowledgeMenu.Add("Search Knowledge", (*) => ShowKnowledgeSearch())
-    ;knowledgeMenu.Add("Review a Gap", (*) => ActivityMonitor.PromptForGap())
-    ;knowledgeMenu.Add("Knowledge Test", (*) => ShowKnowledgeTest())
-    ;A_TrayMenu.Add("Knowledge Web", knowledgeMenu)
-
-    ;automationMenu := Menu()
-    ;automationMenu.Add("Instruction Language", (*) => ShowInstructionLanguageConsole())
-    ;automationMenu.Add("Command Reference", (*) => ShowInstructionReference())
-    ;automationMenu.Add("Find in Knowledge and Files", (*) => FindInFiles())
-    ;A_TrayMenu.Add("Automation", automationMenu)
-
-    ;A_TrayMenu.Add()
-    ;A_TrayMenu.Add("Settings", (*) => ShowSettingsGUI())
-    ;A_TrayMenu.Add("Hotstrings", (*) => ShowHotstringsGUI())
-    ;A_TrayMenu.Add("Query History", (*) => ShowQueryLog())
-    ;A_TrayMenu.Add("Open Script Folder", (*) => Run("explorer.exe " . QuoteArgument(A_ScriptDir)))
-    ;A_TrayMenu.Add()
-    ;A_TrayMenu.Add("Reload", (*) => Reload())
-    ;A_TrayMenu.Add("Exit", (*) => ExitApp())
-    ;A_TrayMenu.Default := "Open GlobalCoder"
-
-    ; AutoHotkey v2 equivalent of: Menu, Tray, Icon, Shell32.dll, 14, 1
-    ; The final true freezes the loaded globe icon so later tray updates keep it.
-    
+; Opens the Windows page where this app can be pinned into the visible corner
+; of the taskbar instead of the hidden-arrow overflow menu.
+OpenTrayPinningSettings(*) {
+    ver := StrSplit(A_OSVersion, ".")
+    build := ver.Length >= 3 ? Integer(ver[3]) : 0
+    if build >= 22000 {
+        ; Windows 11: Settings > Personalization > Taskbar > Other system tray icons
+        try Run("ms-settings:taskbar")
+    } else {
+        ; Windows 10: classic "Notification Area Icons" list
+        try Run("rundll32.exe shell32.dll,Options_RunDLL 5")
+    }
+    MsgBoxTop("Find `"Macro Automator v8`" in the list and switch it ON.`n`nWindows decides which icons sit in the corner vs the hidden-arrow menu. Once ON here, the yellow lightbulb icon stays front and center permanently.", "Pin the bulb to the taskbar")
 }
 
 TrayShowHide(*) {
@@ -3852,39 +3778,13 @@ SpoolDetectScreenChange(spoolName, region) {
     return false
 }
 
-; Execute spool action. A spool may carry a single action, or a CHAIN of
-; actions (action = "Chain"), run in order - e.g. Click Detected Pattern then
-; Send Keys {Enter}. The steps are encoded in actionTarget (see SerializeSpoolChain).
+; Execute spool action
 ExecuteSpoolAction(spool, spoolName := "") {
-    if spool.Has("action") && spool["action"] = "Chain" {
-        chain := ParseSpoolChain(spool.Has("actionTarget") ? spool["actionTarget"] : "")
-        if chain.Length = 0 {
-            SpoolLogAdd("FAILED: " . spoolName . " - response chain is empty")
-            return false
-        }
-        for idx, stepInfo in chain {
-            if idx > 1
-                Sleep(200)   ; brief settle so e.g. a click registers before Enter
-            SpoolLogAdd("CHAIN " . idx . "/" . chain.Length . ": " . stepInfo["action"]
-                . (stepInfo["target"] != "" ? " -> " . stepInfo["target"] : ""))
-            if !ExecuteSpoolStep(spool, stepInfo["action"], stepInfo["target"], spoolName) {
-                SpoolLogAdd("CHAIN STOPPED at step " . idx . " (" . stepInfo["action"] . " failed)")
-                return false
-            }
-        }
-        return true
-    }
-    return ExecuteSpoolStep(spool, spool["action"], spool.Has("actionTarget") ? spool["actionTarget"] : "", spoolName)
-}
-
-; Run one spool response action. Kept separate from ExecuteSpoolAction so both a
-; single action and each link of a chain share exactly the same behavior.
-ExecuteSpoolStep(spool, action, actionTarget, spoolName := "") {
     global g_Sequences, g_SpoolVariables, g_SpoolWorkflowActive
 
-    switch action {
+    switch spool["action"] {
         case "Run Workflow":
-            workflowName := Trim(actionTarget)
+            workflowName := Trim(spool["actionTarget"])
             if !g_Sequences.Has(workflowName) {
                 SpoolLogAdd("FAILED: " . spoolName . " - workflow not found: " . workflowName)
                 ShowStatus("Spool workflow not found: " . workflowName, "fail")
@@ -3911,7 +3811,7 @@ ExecuteSpoolStep(spool, action, actionTarget, spoolName := "") {
                 SpoolLogAdd("FAILED: " . spoolName . " - direct click requires Pattern Match + Found")
                 return false
             }
-            patternName := Trim(actionTarget)
+            patternName := Trim(spool["actionTarget"])
             if patternName = "" || patternName = "(use detected pattern)"
                 patternName := spool["target"]
             region := GetSpoolRegion(spool)
@@ -3925,33 +3825,17 @@ ExecuteSpoolStep(spool, action, actionTarget, spoolName := "") {
                 SpoolLogAdd("CLICKED: " . patternName . " at " . clickX . "," . clickY)
             return clicked
 
-        case "Send Keys":
-            if Trim(actionTarget) = "" {
-                SpoolLogAdd("FAILED: " . spoolName . " - Send Keys has no keys")
-                return false
-            }
-            try Send(actionTarget)
-            catch as e {
-                SpoolLogAdd("FAILED: " . spoolName . " - Send Keys error: " . e.Message)
-                return false
-            }
-            return true
-
-        case "Wait":
-            Sleep((Trim(actionTarget) != "" && IsNumber(actionTarget)) ? Integer(actionTarget) : 500)
-            return true
-
         case "Show Notification":
             ; Pass spool name for cooldown tracking
-            ShowSpoolNotification(actionTarget, spool, spoolName)
+            ShowSpoolNotification(spool["actionTarget"], spool, spoolName)
             return true
 
         case "Start Spool":
-            StartSpool(actionTarget)
+            StartSpool(spool["actionTarget"])
             return true
 
         case "Stop Spool":
-            StopSpool(actionTarget)
+            StopSpool(spool["actionTarget"])
             return true
 
         case "Extract OCR":
@@ -3960,8 +3844,8 @@ ExecuteSpoolStep(spool, action, actionTarget, spoolName := "") {
 
         case "Set Variable":
             ; Parse "varName=value"
-            if InStr(actionTarget, "=") {
-                parts := StrSplit(actionTarget, "=", , 2)
+            if InStr(spool["actionTarget"], "=") {
+                parts := StrSplit(spool["actionTarget"], "=", , 2)
                 g_SpoolVariables[parts[1]] := parts[2]
                 RefreshOCRVarsLV()
                 return true
@@ -3969,66 +3853,17 @@ ExecuteSpoolStep(spool, action, actionTarget, spoolName := "") {
             return false
 
         case "Key Chord":
-            return ExecuteKeyChord(actionTarget)
+            return ExecuteKeyChord(spool["actionTarget"])
 
         case "Run Program":
             try {
-                Run(actionTarget)
+                Run(spool["actionTarget"])
                 return true
             }
             return false
     }
-    SpoolLogAdd("FAILED: " . spoolName . " - unknown action: " . action)
+    SpoolLogAdd("FAILED: " . spoolName . " - unknown action: " . spool["action"])
     return false
-}
-
-; ── Spool response chain (de)serialization ───────────────────────────────────
-; A chain is an array of Map("action", ..., "target", ...). It is stored inside
-; the spool's actionTarget TEXT field as one "action|target" per line, so it
-; needs no new database column and rides through .mas export/import untouched
-; (MawEncode escapes | and newlines).
-SerializeSpoolChain(chain) {
-    lines := []
-    for stepInfo in chain
-        lines.Push(stepInfo["action"] . "|" . stepInfo["target"])
-    out := ""
-    for i, lineStr in lines
-        out .= (i > 1 ? "`n" : "") . lineStr
-    return out
-}
-
-ParseSpoolChain(serialized) {
-    chain := []
-    if Trim(serialized) = ""
-        return chain
-    for lineStr in StrSplit(serialized, "`n", "`r") {
-        if Trim(lineStr) = ""
-            continue
-        p := InStr(lineStr, "|")
-        if p {
-            chain.Push(Map("action", Trim(SubStr(lineStr, 1, p - 1)), "target", SubStr(lineStr, p + 1)))
-        } else {
-            chain.Push(Map("action", Trim(lineStr), "target", ""))
-        }
-    }
-    return chain
-}
-
-; Actions that can be chained as a spool response.
-GetSpoolChainActionList() {
-    return ["Click Detected Pattern", "Send Keys", "Key Chord", "Wait",
-            "Run Workflow", "Show Notification", "Set Variable", "Run Program",
-            "Start Spool", "Stop Spool"]
-}
-
-; Common keypresses offered as a dropdown for Send Keys / Key Chord targets.
-GetSpoolKeyChoices() {
-    return ["{Enter}", "{Tab}", "{Escape}", "{Space}", "{Backspace}", "{Delete}",
-            "{Up}", "{Down}", "{Left}", "{Right}", "{Home}", "{End}",
-            "{PgUp}", "{PgDn}", "{F1}", "{F2}", "{F5}", "{F10}",
-            "^c  (Ctrl+C)", "^v  (Ctrl+V)", "^x  (Ctrl+X)", "^a  (Ctrl+A)",
-            "^s  (Ctrl+S)", "^z  (Ctrl+Z)", "!{F4}  (Alt+F4)", "!s  (Alt+S)",
-            "{Enter 2}  (Enter twice)", "+{Tab}  (Shift+Tab)"]
 }
 
 SpoolSetRuntimeStatus(name, status) {
@@ -5308,12 +5143,6 @@ BuildSpoolFromForm(&spool, &errorMessage) {
         "cooldown", SpoolInteger(SpoolCooldownEdit.Value, 5, 1),
         "notifTime", SpoolInteger(SpoolNotifTimeEdit.Value, 5, 1)
     )
-    ; If a multi-step response chain was built, it takes over as the action.
-    global g_CurrentSpoolChain
-    if IsSet(g_CurrentSpoolChain) && g_CurrentSpoolChain.Length > 0 {
-        spool["action"] := "Chain"
-        spool["actionTarget"] := SerializeSpoolChain(g_CurrentSpoolChain)
-    }
     return ValidateSpoolDefinition(spool, &errorMessage)
 }
 
@@ -5342,25 +5171,6 @@ ValidateSpoolDefinition(spool, &errorMessage, requireExistingWorkflow := true) {
         && (spool["detectType"] != "Pattern Match" || spool["condition"] != "Found") {
         errorMessage := "Click Detected Pattern requires Detect = Pattern Match and When = Found."
         return false
-    }
-    if spool["action"] = "Chain" {
-        chain := ParseSpoolChain(spool["actionTarget"])
-        if chain.Length = 0 {
-            errorMessage := "The response chain is empty. Add at least one step in Chain…"
-            return false
-        }
-        for stepInfo in chain {
-            if stepInfo["action"] = "Click Detected Pattern"
-                && (spool["detectType"] != "Pattern Match" || spool["condition"] != "Found") {
-                errorMessage := "A 'Click Detected Pattern' step requires Detect = Pattern Match and When = Found."
-                return false
-            }
-            if stepInfo["action"] = "Run Workflow" && requireExistingWorkflow
-                && !g_Sequences.Has(Trim(stepInfo["target"])) {
-                errorMessage := "A chained workflow does not exist: " . stepInfo["target"]
-                return false
-            }
-        }
     }
     return true
 }
@@ -5394,9 +5204,6 @@ ClearSpoolForm(*) {
     SpoolCooldownEdit.Value := "5"
     SpoolNotifTimeEdit.Value := "5"
     try SpoolSeqHelp.Value := ""
-    global g_CurrentSpoolChain
-    g_CurrentSpoolChain := []
-    RefreshSpoolChainSummary()
 }
 
 TestSpoolOnce(*) {
@@ -5663,249 +5470,9 @@ OnSpoolActionChange(*) {
             ; Default notification messages
             SpoolActionTargetCombo.Add(["Pattern detected!", "Action required", "Check this now"])
             try SpoolActionHelp.Value := "Shows a timed notification when detection succeeds."
-
-        case "Send Keys", "Key Chord":
-            SpoolActionTargetCombo.Add(GetSpoolKeyChoices())
-            try SpoolActionHelp.Value := SpoolActionDD.Text = "Send Keys"
-                ? "Sends keystrokes, e.g. {Enter}. Pick from the list or type AHK Send syntax."
-                : "Key chord: modifier,key,count (e.g. ^,c,1). Or use Send Keys for simple keys."
         default:
             try SpoolActionHelp.Value := "Runs this response whenever the detection condition succeeds."
     }
-}
-
-; Strip a "  (description)" hint from a key-choice label so only the sendable
-; keys remain, e.g. "^c  (Ctrl+C)" -> "^c".
-CleanKeyChoice(label) {
-    p := InStr(label, "  (")
-    if p
-        label := SubStr(label, 1, p - 1)
-    return Trim(label)
-}
-
-; Refresh the one-line summary of the current response chain shown under the
-; Do/Target row, and reflect whether a chain is active.
-RefreshSpoolChainSummary() {
-    global g_CurrentSpoolChain, SpoolActionHelp
-    if !IsSet(g_CurrentSpoolChain) || g_CurrentSpoolChain.Length = 0 {
-        try SpoolActionHelp.Value := "Single response above, or click Chain… to run several actions in order."
-        return
-    }
-    parts := []
-    for stepInfo in g_CurrentSpoolChain {
-        label := stepInfo["action"]
-        if Trim(stepInfo["target"]) != "" && stepInfo["action"] != "Click Detected Pattern"
-            label .= " " . stepInfo["target"]
-        parts.Push(label)
-    }
-    summary := ""
-    for i, p in parts
-        summary .= (i > 1 ? "  →  " : "") . p
-    try SpoolActionHelp.Value := "Chain (" . g_CurrentSpoolChain.Length . "): " . summary
-}
-
-; ── Response Chain editor ─────────────────────────────────────────────────────
-; A small popup for building an ordered list of response actions. Each step has
-; an Action and a Target; when the action is Send Keys or Key Chord the Target
-; becomes a dropdown of common keypresses. Commits into g_CurrentSpoolChain.
-ShowSpoolChainEditor(*) {
-    global MainGui, g_CurrentSpoolChain, g_SpoolChainWorking, g_SpoolChainGui
-    global g_SpoolChainLV, g_SpoolChainActionDD, g_SpoolChainTargetCombo
-
-    ; Work on a copy; seed from the current single Do/Target if the chain is empty.
-    g_SpoolChainWorking := []
-    if IsSet(g_CurrentSpoolChain) && g_CurrentSpoolChain.Length > 0 {
-        for stepInfo in g_CurrentSpoolChain
-            g_SpoolChainWorking.Push(Map("action", stepInfo["action"], "target", stepInfo["target"]))
-    } else {
-        global SpoolActionDD, SpoolActionTargetCombo
-        seedAction := SpoolActionDD.Text
-        seedTarget := Trim(SpoolActionTargetCombo.Text)
-        if seedAction != "" && seedAction != "Chain"
-            g_SpoolChainWorking.Push(Map("action", seedAction, "target", seedTarget))
-    }
-
-    g_SpoolChainGui := Gui("+AlwaysOnTop +ToolWindow +Owner" . MainGui.Hwnd, "Response Chain - runs top to bottom on trigger")
-    g_SpoolChainGui.SetFont("s9", "Segoe UI")
-
-    g_SpoolChainGui.Add("Text", "x10 y8 w520", "These actions run in order every time the spool's detection succeeds (e.g. Click Detected Pattern, then Send Keys {Enter}).")
-
-    g_SpoolChainLV := g_SpoolChainGui.Add("ListView", "x10 y32 w400 h160 Grid NoSortHdr", ["#", "Action", "Target"])
-    g_SpoolChainLV.ModifyCol(1, 28)
-    g_SpoolChainLV.ModifyCol(2, 170)
-    g_SpoolChainLV.ModifyCol(3, 190)
-    g_SpoolChainLV.OnEvent("ItemSelect", SpoolChainOnSelect)
-
-    g_SpoolChainGui.Add("Button", "x418 y32 w100 h24", "▲ Move Up").OnEvent("Click", SpoolChainMoveUp)
-    g_SpoolChainGui.Add("Button", "x418 y60 w100 h24", "▼ Move Down").OnEvent("Click", SpoolChainMoveDown)
-    g_SpoolChainGui.Add("Button", "x418 y88 w100 h24", "✎ Update").OnEvent("Click", SpoolChainUpdateSelected)
-    g_SpoolChainGui.Add("Button", "x418 y116 w100 h24", "✖ Remove").OnEvent("Click", SpoolChainRemove)
-
-    g_SpoolChainGui.Add("Text", "x10 y202", "Action:")
-    g_SpoolChainActionDD := g_SpoolChainGui.Add("DropDownList", "x60 y199 w170", GetSpoolChainActionList())
-    g_SpoolChainActionDD.Choose(1)
-    g_SpoolChainActionDD.OnEvent("Change", SpoolChainActionChanged)
-
-    g_SpoolChainGui.Add("Text", "x240 y202", "Target:")
-    g_SpoolChainTargetCombo := g_SpoolChainGui.Add("ComboBox", "x285 y199 w233 vChainTarget")
-
-    g_SpoolChainGui.Add("Button", "x10 y230 w130 h26 Default", "➕ Add step").OnEvent("Click", SpoolChainAdd)
-    g_SpoolChainGui.Add("Text", "x150 y235 w370 cGray", "Tip: pick Send Keys, then choose {Enter} to press Enter after a click.")
-
-    g_SpoolChainGui.Add("Button", "x330 y270 w90 h28 cGreen", "OK").OnEvent("Click", SpoolChainCommit)
-    g_SpoolChainGui.Add("Button", "x428 y270 w90 h28", "Cancel").OnEvent("Click", (*) => g_SpoolChainGui.Destroy())
-
-    SpoolChainActionChanged()   ; seed the Target dropdown for the first action
-    SpoolChainRefreshLV()
-    g_SpoolChainGui.Show("w530 h310")
-}
-
-SpoolChainRefreshLV() {
-    global g_SpoolChainLV, g_SpoolChainWorking
-    g_SpoolChainLV.Delete()
-    for i, stepInfo in g_SpoolChainWorking
-        g_SpoolChainLV.Add(, i, stepInfo["action"], stepInfo["target"])
-}
-
-; Populate the Target combo appropriately for the chosen action.
-SpoolChainActionChanged(*) {
-    global g_SpoolChainActionDD, g_SpoolChainTargetCombo, g_Patterns, g_Sequences, g_Spools
-    g_SpoolChainTargetCombo.Delete()
-    g_SpoolChainTargetCombo.Text := ""
-    switch g_SpoolChainActionDD.Text {
-        case "Send Keys", "Key Chord":
-            g_SpoolChainTargetCombo.Add(GetSpoolKeyChoices())
-        case "Click Detected Pattern":
-            items := ["(use detected pattern)"]
-            for name, _ in g_Patterns
-                items.Push(name)
-            g_SpoolChainTargetCombo.Add(items)
-            g_SpoolChainTargetCombo.Text := "(use detected pattern)"
-        case "Run Workflow":
-            items := []
-            for name, _ in g_Sequences
-                items.Push(name)
-            if items.Length > 0
-                g_SpoolChainTargetCombo.Add(items)
-        case "Start Spool", "Stop Spool":
-            items := []
-            for name, _ in g_Spools
-                items.Push(name)
-            if items.Length > 0
-                g_SpoolChainTargetCombo.Add(items)
-        case "Wait":
-            g_SpoolChainTargetCombo.Add(["250", "500", "1000", "2000"])
-            g_SpoolChainTargetCombo.Text := "500"
-        case "Set Variable":
-            g_SpoolChainTargetCombo.Text := "name=value"
-    }
-}
-
-SpoolChainBuildStep() {
-    global g_SpoolChainActionDD, g_SpoolChainTargetCombo
-    action := g_SpoolChainActionDD.Text
-    target := Trim(g_SpoolChainTargetCombo.Text)
-    if action = "Send Keys" || action = "Key Chord"
-        target := CleanKeyChoice(target)
-    return Map("action", action, "target", target)
-}
-
-SpoolChainAdd(*) {
-    global g_SpoolChainWorking
-    g_SpoolChainWorking.Push(SpoolChainBuildStep())
-    SpoolChainRefreshLV()
-}
-
-SpoolChainSelectedIndex() {
-    global g_SpoolChainLV
-    return g_SpoolChainLV.GetNext(0, "Focused")
-}
-
-SpoolChainOnSelect(LV, row, *) {
-    global g_SpoolChainWorking, g_SpoolChainActionDD, g_SpoolChainTargetCombo
-    if row < 1 || row > g_SpoolChainWorking.Length
-        return
-    stepInfo := g_SpoolChainWorking[row]
-    Loop g_SpoolChainActionDD.GetItemCount() {
-        if g_SpoolChainActionDD.GetText(A_Index) = stepInfo["action"] {
-            g_SpoolChainActionDD.Choose(A_Index)
-            break
-        }
-    }
-    SpoolChainActionChanged()
-    g_SpoolChainTargetCombo.Text := stepInfo["target"]
-}
-
-SpoolChainUpdateSelected(*) {
-    global g_SpoolChainWorking
-    row := SpoolChainSelectedIndex()
-    if row < 1 || row > g_SpoolChainWorking.Length {
-        ShowStatus("Select a step to update", "info")
-        return
-    }
-    g_SpoolChainWorking[row] := SpoolChainBuildStep()
-    SpoolChainRefreshLV()
-}
-
-SpoolChainRemove(*) {
-    global g_SpoolChainWorking, g_SpoolChainLV
-    row := SpoolChainSelectedIndex()
-    if row < 1 || row > g_SpoolChainWorking.Length
-        return
-    g_SpoolChainWorking.RemoveAt(row)
-    SpoolChainRefreshLV()
-    if g_SpoolChainWorking.Length > 0
-        g_SpoolChainLV.Modify(Min(row, g_SpoolChainWorking.Length), "Select Focus")
-}
-
-SpoolChainMoveUp(*) {
-    global g_SpoolChainWorking, g_SpoolChainLV
-    row := SpoolChainSelectedIndex()
-    if row <= 1
-        return
-    tmp := g_SpoolChainWorking[row]
-    g_SpoolChainWorking[row] := g_SpoolChainWorking[row - 1]
-    g_SpoolChainWorking[row - 1] := tmp
-    SpoolChainRefreshLV()
-    g_SpoolChainLV.Modify(row - 1, "Select Focus")
-}
-
-SpoolChainMoveDown(*) {
-    global g_SpoolChainWorking, g_SpoolChainLV
-    row := SpoolChainSelectedIndex()
-    if row < 1 || row >= g_SpoolChainWorking.Length
-        return
-    tmp := g_SpoolChainWorking[row]
-    g_SpoolChainWorking[row] := g_SpoolChainWorking[row + 1]
-    g_SpoolChainWorking[row + 1] := tmp
-    SpoolChainRefreshLV()
-    g_SpoolChainLV.Modify(row + 1, "Select Focus")
-}
-
-SpoolChainCommit(*) {
-    global g_CurrentSpoolChain, g_SpoolChainWorking, g_SpoolChainGui
-    ; A single step is not really a "chain" - store it as the normal single
-    ; action so nothing changes for simple responses.
-    g_CurrentSpoolChain := []
-    for stepInfo in g_SpoolChainWorking
-        g_CurrentSpoolChain.Push(Map("action", stepInfo["action"], "target", stepInfo["target"]))
-
-    if g_CurrentSpoolChain.Length = 1 {
-        global SpoolActionDD, SpoolActionTargetCombo
-        only := g_CurrentSpoolChain[1]
-        Loop SpoolActionDD.GetItemCount() {
-            if SpoolActionDD.GetText(A_Index) = only["action"] {
-                SpoolActionDD.Choose(A_Index)
-                break
-            }
-        }
-        OnSpoolActionChange()
-        SpoolActionTargetCombo.Text := only["target"]
-        g_CurrentSpoolChain := []   ; treat as single action
-    }
-    RefreshSpoolChainSummary()
-    g_SpoolChainGui.Destroy()
-    ShowStatus("Response chain updated", "ok")
 }
 
 RefreshSpoolWorkflowChoices() {
@@ -6136,35 +5703,17 @@ EditSpoolByName(name) {
     SpoolCooldownEdit.Value := spool.Has("cooldown") ? spool["cooldown"] : 5
     OnSpoolModeChange()  ; Update help text
 
-    ; Set action (or load a multi-step response chain)
-    global g_CurrentSpoolChain
-    isChain := spool.Has("action") && spool["action"] = "Chain"
-    if isChain {
-        g_CurrentSpoolChain := ParseSpoolChain(spool.Has("actionTarget") ? spool["actionTarget"] : "")
-        ; Seed the single Do control from the chain's first step for context.
-        firstAction := g_CurrentSpoolChain.Length > 0 ? g_CurrentSpoolChain[1]["action"] : "Show Notification"
-        SpoolActionDD.Choose(1)
-        Loop SpoolActionDD.GetItemCount() {
-            if SpoolActionDD.GetText(A_Index) = firstAction {
-                SpoolActionDD.Choose(A_Index)
-                break
-            }
+    ; Set action
+    actions := ["Show Notification", "Run Workflow", "Click Detected Pattern", "Start Spool", "Stop Spool", "Extract OCR", "Set Variable", "Key Chord", "Run Program"]
+    for i, a in actions {
+        if a = spool["action"] {
+            SpoolActionDD.Choose(i)
+            break
         }
-        OnSpoolActionChange()
-        SpoolActionTargetCombo.Text := ""
-    } else {
-        g_CurrentSpoolChain := []
-        actions := ["Show Notification", "Run Workflow", "Click Detected Pattern", "Send Keys", "Start Spool", "Stop Spool", "Extract OCR", "Set Variable", "Key Chord", "Run Program"]
-        for i, a in actions {
-            if a = spool["action"] {
-                SpoolActionDD.Choose(i)
-                break
-            }
-        }
-        OnSpoolActionChange()  ; Populate action target dropdown
-        SpoolActionTargetCombo.Text := spool["actionTarget"]
     }
-    RefreshSpoolChainSummary()
+
+    OnSpoolActionChange()  ; Populate action target dropdown
+    SpoolActionTargetCombo.Text := spool["actionTarget"]
     SpoolNotifTimeEdit.Value := spool.Has("notifTime") ? spool["notifTime"] : 5
 
     SpoolExtractOCRChk.Value := spool["extractOCR"]
@@ -6669,7 +6218,7 @@ LoadAll() {
 ; MAIN GUI
 ; =============================================================================
 
-MainGui := Gui("+Resize +MinSize900x820", "Macro Automator v7 - Workflow Automator")
+MainGui := Gui("+Resize +MinSize900x820", "Macro Automator v8 - Workflow Automator")
 MainGui.SetFont("s9", "Segoe UI")
 MainGui.OnEvent("Close", (*) => (MainGui.Hide(), g_GuiVisible := false))
 MainGui.OnEvent("Size", GuiResize)
@@ -6728,13 +6277,18 @@ SeqErrorLogBtn.OnEvent("Click", OpenErrorLog)
 MainGui.Add("Text", "x30 y103 w820 cGray", "Give the workflow a name first. Named workflows autosave after each edit. Hotkey example: ^!s   Hotstring example: ::seq")
 
 ; STEP 2 - one contextual action at a time
-MainGui.Add("GroupBox", "x15 y135 w860 h160", "2. Configure and Add One Action")
+MainGui.Add("GroupBox", "x15 y135 w860 h160", "2. Pick an Action, then Add Step (guided form - no typing needed)")
 MainGui.Add("Text", "x30 y158", "Action:")
 ActionDD := MainGui.Add("DropDownList", "x85 y155 w180 vActionType", GetWorkflowActionNames())
 ActionDD.Choose(1)
 ActionDD.OnEvent("Change", OnActionChange)
 MainGui.Add("Button", "x275 y154 w85 h24 cGreen", "Templates").OnEvent("Click", ShowTemplateLibrary)
-MainGui.Add("Button", "x370 y154 w105 h24", "Position Tools").OnEvent("Click", ShowCoordinateManager)
+MainGui.Add("Button", "x370 y154 w95 h24", "Pos. Tools").OnEvent("Click", ShowCoordinateManager)
+MainGui.Add("Text", "x472 y158 w55", "Category:")
+ActionCategoryDD := MainGui.Add("DropDownList", "x530 y155 w115 vActionCategory", GetActionCategoryNames())
+ActionCategoryDD.Choose(1)
+ActionCategoryDD.OnEvent("Change", OnCategoryChange)
+ActionCategoryDD.ToolTip := "Narrow the action list to one kind of task (grandma-friendly)."
 
 TargetFieldLabel := MainGui.Add("Text", "x30 y188 w90", "Position:")
 TargetFieldHint := MainGui.Add("Text", "x120 y188 w165 cGray", "(required)")
@@ -6746,7 +6300,7 @@ ParamCombo := MainGui.Add("ComboBox", "x300 y205 w265 vActionParam")
 ParamCombo.OnEvent("Focus", UpdateLiveParamHints)
 ParamCombo.OnEvent("Change", OnParamChange)
 ParamEdit := ParamCombo
-MainGui.Add("Button", "x575 y204 w65 h24 Default", "Add Step").OnEvent("Click", AddStep)
+MainGui.Add("Button", "x575 y204 w65 h24 Default cGreen", "Add Step ▸").OnEvent("Click", AddStep)
 OCRRegionBtn := MainGui.Add("Button", "x575 y232 w65 h22", "OCR Area")
 OCRRegionBtn.OnEvent("Click", SelectOCRRegionForWorkflow)
 ; Sits in the same clear strip as OCR Area (they are shown for different actions,
@@ -6754,6 +6308,12 @@ OCRRegionBtn.OnEvent("Click", SelectOCRRegionForWorkflow)
 PickWindowBtn := MainGui.Add("Button", "x568 y232 w80 h22", "Pick Window")
 PickWindowBtn.OnEvent("Click", PickWindow)
 PickWindowBtn.Visible := false
+; Bypasses the guided form: adds the step straight from the Target/Param fields
+; below. Shown for the actions that have no OCR-Area / Pick-Window button here.
+QuickAddBtn := MainGui.Add("Button", "x575 y232 w65 h22", "⚡ Quick Add")
+QuickAddBtn.OnEvent("Click", QuickAddStep)
+QuickAddBtn.Visible := false
+QuickAddBtn.ToolTip := "Skip the guided form and add the step from the Target/Param fields (power users)."
 
 ChoicesLabel := MainGui.Add("Text", "x30 y243", "Suggestions:")
 ChoicesDD := MainGui.Add("DropDownList", "x105 y240 w350 vChoices")
@@ -7050,10 +6610,6 @@ MainGui.Add("Text", "x465 y500 w380 cGray", "OCR Revolver: paste captured text i
 ; =============================================================================
 TabCtrl.UseTab(4)
 
-; Working copy of the current spool's response chain (array of {action,target}).
-; Empty = the single Do/Target action is used (legacy behavior).
-g_CurrentSpoolChain := []
-
 ; --- SPOOL MANAGER HEADER ---
 MainGui.Add("GroupBox", "x15 y50 w860 h85", "Spool Manager - Detect -> Respond -> Repeat")
 MainGui.Add("Text", "x25 y68 w820", "Spools monitor the screen, then click the detected pattern or launch a saved Workflow-tab workflow.")
@@ -7121,16 +6677,14 @@ MainGui.Add("Text", "x280 y391 w140 cGray vSpoolModeHelp", "(re-check after dela
 MainGui.Add("GroupBox", "x25 y280 w405 h85", "2. Response when detected")
 MainGui.Add("Text", "x35 y298", "Do:")
 SpoolActionDD := MainGui.Add("DropDownList", "x55 yp-3 w165 vSpoolAction",
-    ["Show Notification", "Run Workflow", "Click Detected Pattern", "Send Keys", "Start Spool", "Stop Spool", "Extract OCR", "Set Variable", "Key Chord", "Run Program"])
+    ["Show Notification", "Run Workflow", "Click Detected Pattern", "Start Spool", "Stop Spool", "Extract OCR", "Set Variable", "Key Chord", "Run Program"])
 SpoolActionDD.Choose(1)
 SpoolActionDD.OnEvent("Change", OnSpoolActionChange)
 
 MainGui.Add("Text", "x225 y298", "Target:")
 SpoolActionTargetCombo := MainGui.Add("ComboBox", "x265 yp-3 w125 vSpoolActionTarget")
 MainGui.Add("Button", "x395 y295 w28 h22", "↻").OnEvent("Click", (*) => OnSpoolActionChange())
-SpoolActionHelp := MainGui.Add("Text", "x35 y320 w300 cGray vSpoolActionHelp", "Select a response; use Chain… to run several actions in order.")
-SpoolChainBtn := MainGui.Add("Button", "x338 y317 w88 h21", "⛓ Chain…")
-SpoolChainBtn.OnEvent("Click", ShowSpoolChainEditor)
+SpoolActionHelp := MainGui.Add("Text", "x35 y320 w385 cGray vSpoolActionHelp", "Select a response; workflows come directly from the first tab.")
 
 ; Notification timeout (shows when action is Show Notification)
 MainGui.Add("Text", "x330 y343 vSpoolNotifLabel", "Notice sec:")
@@ -7604,6 +7158,12 @@ try Track_BuildTab(MainGui)
 catch as err
     LogErrorToFile(err, "caught", "Tracking tab construction")
 TabCtrl.UseTab(0)
+
+; Initialize the workflow tab for the first action (button visibility, hints,
+; choices and smart defaults) instead of waiting for the first user change.
+try OnActionChange()
+catch as err
+    LogErrorToFile(err, "caught", "Workflow tab initial layout")
 
 MainGui.Show("w1050 h820")
 
@@ -11513,23 +11073,75 @@ TryParseDemoClipboard() {
 
 GetWorkflowActionNames() {
     return [
+        ; ─── Mouse ───────────────────────────────────────────────
         "Click", "Double Click", "Triple Click", "Right Click",
-        "Drag", "Relative Click", "Menu Select",
+        "Drag", "Relative Click", "Menu Select", "Scroll", "Idle Mouse", "Hover Mouse",
+        ; ─── Keyboard ────────────────────────────────────────────
+        "Send Keys", "Type Text", "Key Chord", "Paste",
+        ; ─── Windows ─────────────────────────────────────────────
+        "Activate Window", "Taskbar Activate", "Run Program",
+        "Wait for Window", "Wait Window Closed",
+        ; ─── Patterns (FindText images) ──────────────────────────
         "Find & Click", "Find & DblClick", "Find & TplClick", "Find & RClick", "Find & Drag",
-        "Find & Click Loop",
         "Wait for Pattern", "Wait Until Gone",
-        "Send Keys", "Type Text", "Key Chord", "Paste", "Set Clipboard",
-        "Wait", "Activate Window", "Taskbar Activate", "Run Program",
-        "Insert Field", "Insert Date", "Scroll",
+        ; ─── Looping (its own action family) ─────────────────────
+        "Loop Start", "Loop End", "Loop Break",
+        "Find & Click Loop", "Popup Detect",
+        ; ─── OCR & Vision ────────────────────────────────────────
+        "OCR Region", "OCR Click", "OCR Wait", "Grab OCR to Var", "OCR Full Screen to Var",
+        "Load OCR Revolver", "Fire OCR Revolver",
+        ; ─── Clipboard & Text ────────────────────────────────────
+        "Set Clipboard", "Insert Field", "Insert Date",
         "Parse Clipboard", "Load Revolver", "Fire Revolver", "Fire Revolver+Enter",
-        "OCR Region", "OCR Click", "OCR Wait", "OCR Full Screen to Var", "Load OCR Revolver", "Fire OCR Revolver",
-        "Idle Mouse", "Hover Mouse", "Grab OCR to Var", "Use Var Paste", "Show Notification",
-        "Set Variable", "Grab Clipboard", "If Contains", "If Variable", "Stop Execution", "Run Sequence",
         "Format Clipboard", "Append to Clipboard", "Prepend to Clipboard", "Extract from Clipboard",
+        ; ─── Variables & Logic ───────────────────────────────────
+        "Set Variable", "Grab Clipboard", "If Contains", "If Variable",
+        "Use Var Paste", "Stop Execution", "Run Sequence",
         ; ─── Tracking subsystem (see lib\ElementAutomation.ahk / ResearchPipeline.ahk)
         "Click Element", "Hover Element", "Wait Element", "Replay Window Mouse",
-        "Research Search", "Research Capture Links", "Research Launch Next", "Research Add Insight"
+        "Research Search", "Research Capture Links", "Research Launch Next", "Research Add Insight",
+        ; ─── Timing & Notices ────────────────────────────────────
+        "Wait", "Show Notification"
     ]
+}
+
+; Which category each action belongs to (powers the Category filter dropdown).
+GetActionCategory(action) {
+    switch action {
+        case "Click", "Double Click", "Triple Click", "Right Click", "Drag", "Relative Click",
+             "Menu Select", "Scroll", "Idle Mouse", "Hover Mouse":
+            return "Mouse"
+        case "Send Keys", "Type Text", "Key Chord", "Paste":
+            return "Keyboard"
+        case "Activate Window", "Taskbar Activate", "Run Program", "Wait for Window", "Wait Window Closed":
+            return "Windows"
+        case "Find & Click", "Find & DblClick", "Find & TplClick", "Find & RClick", "Find & Drag",
+             "Wait for Pattern", "Wait Until Gone":
+            return "Patterns"
+        case "Loop Start", "Loop End", "Loop Break", "Find & Click Loop", "Popup Detect":
+            return "Looping"
+        case "OCR Region", "OCR Click", "OCR Wait", "Grab OCR to Var", "OCR Full Screen to Var",
+             "Load OCR Revolver", "Fire OCR Revolver":
+            return "OCR"
+        case "Set Clipboard", "Insert Field", "Insert Date", "Parse Clipboard", "Load Revolver",
+             "Fire Revolver", "Fire Revolver+Enter", "Format Clipboard", "Append to Clipboard",
+             "Prepend to Clipboard", "Extract from Clipboard":
+            return "Clipboard & Text"
+        case "Set Variable", "Grab Clipboard", "If Contains", "If Variable",
+             "Use Var Paste", "Stop Execution", "Run Sequence":
+            return "Variables & Logic"
+        case "Click Element", "Hover Element", "Wait Element", "Replay Window Mouse",
+             "Research Search", "Research Capture Links", "Research Launch Next", "Research Add Insight":
+            return "Tracking"
+        case "Wait", "Show Notification":
+            return "Timing & Notices"
+    }
+    return "Mouse"
+}
+
+GetActionCategoryNames() {
+    return ["(All)", "Mouse", "Keyboard", "Windows", "Patterns", "Looping", "OCR",
+            "Clipboard & Text", "Variables & Logic", "Tracking", "Timing & Notices"]
 }
 
 MakeActionSpec(targetLabel, targetHint, paramLabel, paramHint, example, helpText,
@@ -11651,6 +11263,51 @@ GetWorkflowActionSpec(action) {
         case "Extract from Clipboard":
             return MakeActionSpec("", "", "Extraction rule", "between:/field:/regex:", "Extraction rule=field:,|2", "Replaces the clipboard with extracted text. Rules: between:start|end, field:delimiter|index, or regex:pattern.", false, true, false, true, "param")
 
+        ; ─── Looping family ──────────────────────────────────────────────────
+        case "Loop Start":
+            return MakeActionSpec("", "", "Loop settings", "key=value; key=value",
+                "count=5; var=i",
+                "Opens a loop body. Every step between this and Loop End repeats."
+                . "`n  count=5       how many times (or count=forever - ESC stops)"
+                . "`n  var=i         the loop counter variable name"
+                . "`nInside the loop, $var.<name> = current pass (1, 2, 3...), and"
+                . "`n$var.loopCount = the total. Variables set inside the loop are"
+                . "`nremembered from one pass to the next (loop memory).",
+                false, false, false, true, "param")
+        case "Loop End":
+            return MakeActionSpec("", "", "", "", "No fields", "Closes the loop body opened by Loop Start. The steps in between run again until the count is reached.", false, false, false, false)
+        case "Loop Break":
+            return MakeActionSpec("", "", "", "", "No fields", "Stops the current loop early and continues with the step after its Loop End.", false, false, false, false)
+        case "Popup Detect":
+            return MakeActionSpec("", "", "Detect settings", "key=value; key=value",
+                "win=; region=0,0,800,600; sensitivity=medium; on=var; mode=now; timeout=5000; var=popupChanged",
+                "Remembers what a window or screen region looks like at the top of a"
+                . " loop, then flags when it changes drastically - e.g. a popup opened."
+                . "`n  win=Title         watch a whole window (pick from the list)"
+                . "`n  region=x,y,w,h    or watch a rectangle (drag to select)"
+                . "`n  sensitivity=high|medium|low   how much change counts"
+                . "`n  on=var|skip|break|stop        what to do when a change is seen:"
+                . "     just set $var.name, skip the next step, break the loop, or stop"
+                . "`n  mode=now|wait     check once, or wait up to timeout for a change"
+                . "`n  var=popupChanged  the variable that receives 1 (changed) or 0",
+                false, false, false, true, "param")
+
+        ; ─── Window waiting ──────────────────────────────────────────────────
+        case "Wait for Window":
+            return MakeActionSpec("", "", "Window settings", "key=value; key=value",
+                "title=Save As; timeout=5000",
+                "Waits until a window appears (for example a popup dialog)."
+                . "`n  title=Title     window to wait for (pick from the list)"
+                . "`n  timeout=5000    give up after this many milliseconds",
+                false, false, false, true, "param")
+        case "Wait Window Closed":
+            return MakeActionSpec("", "", "Window settings", "key=value; key=value",
+                "title=Save As; timeout=5000",
+                "Waits until a window disappears (a loading box, a popup...)."
+                . "`n  title=Title     window to wait on (pick from the list)"
+                . "`n  timeout=5000    give up after this many milliseconds",
+                false, false, false, true, "param")
+
         ; ─── Tracking subsystem ──────────────────────────────────────────────
         case "Click Element":
             return MakeActionSpec("Element", "name from Snapshot Viewer", "Button", "Left/Right/Middle[,count]", "Element=SearchBox; Button=Left", "Finds a named element on screen (by its saved FindText pattern, or by window-relative position) and clicks it.", true, false, true, true, "target")
@@ -11683,7 +11340,7 @@ ToggleAdvancedStepFields(*) {
 
 ApplyActionFieldLayout(*) {
     global ActionDD, TargetFieldLabel, TargetFieldHint, TargetDD
-    global ParamFieldLabel, ParamFieldHint, ParamCombo, ChoicesLabel, ChoicesDD, UseChoiceBtn, RefreshChoicesBtn, OCRRegionBtn, PickWindowBtn
+    global ParamFieldLabel, ParamFieldHint, ParamCombo, ChoicesLabel, ChoicesDD, UseChoiceBtn, RefreshChoicesBtn, OCRRegionBtn, PickWindowBtn, QuickAddBtn
 
     action := ActionDD.Text
     spec := GetWorkflowActionSpec(action)
@@ -11700,22 +11357,44 @@ ApplyActionFieldLayout(*) {
     hasSuggestions := spec["choiceField"] != ""
     for ctrl in [ChoicesLabel, ChoicesDD, UseChoiceBtn, RefreshChoicesBtn]
         ctrl.Visible := hasSuggestions
-    OCRRegionBtn.Visible := action = "OCR Region" || action = "OCR Click" || action = "OCR Wait" || action = "Grab OCR to Var"
-    PickWindowBtn.Visible := IsWindowAction(action)
+    isOCR := action = "OCR Region" || action = "OCR Click" || action = "OCR Wait" || action = "Grab OCR to Var"
+    OCRRegionBtn.Visible := isOCR
+    PickWindowBtn.Visible := IsWindowAction(action) && !isOCR
+    QuickAddBtn.Visible := !isOCR && !IsWindowAction(action)
     TargetDD.ToolTip := spec["targetHint"]
     ParamCombo.ToolTip := spec["paramHint"]
 }
 
 ; Actions where a window title is a primary field, so they get the dedicated
 ; "Pick Window" button. (OCR actions also target a window via "window:Title",
-; but they already have the OCR Area button in this slot, so their live window
-; list is offered through the Suggestions dropdown instead - see PopulateChoices.)
+; but they already have the OCR Area button in this slot - their window picker
+; lives in the guided Add Step form instead. See PopulateChoices.)
 IsWindowAction(action) {
     switch action {
-        case "Activate Window", "Find & Click Loop":
+        case "Activate Window", "Find & Click Loop", "Replay Window Mouse",
+             "Wait for Window", "Wait Window Closed", "Popup Detect":
             return true
     }
     return false
+}
+
+; Category filter: narrow the action dropdown to one kind of task.
+OnCategoryChange(*) {
+    global ActionCategoryDD, ActionDD
+    RefreshActionList()
+    OnActionChange()
+}
+
+RefreshActionList() {
+    global ActionCategoryDD, ActionDD
+    cat := ActionCategoryDD.Text
+    filtered := []
+    for name in GetWorkflowActionNames()
+        if cat = "(All)" || GetActionCategory(name) = cat
+            filtered.Push(name)
+    ActionDD.Delete()
+    ActionDD.Add(filtered)
+    ActionDD.Choose(1)
 }
 
 ; ── Pick Window: a live dropdown of every open window ─────────────────────────
@@ -11766,10 +11445,16 @@ InsertWindowIntoField(title) {
     switch action {
         case "Activate Window":
             ParamCombo.Text := title
-        case "OCR Region", "OCR Click", "OCR Wait":
+        case "OCR Region", "OCR Click", "OCR Wait", "Grab OCR to Var":
             TargetDD.Text := "window:" . title
         case "Find & Click Loop":
             ParamCombo.Text := UpsertLoopOption(ParamCombo.Text, "win", title)
+        case "Popup Detect":
+            ParamCombo.Text := UpsertLoopOption(ParamCombo.Text, "win", title)
+        case "Wait for Window", "Wait Window Closed":
+            ParamCombo.Text := UpsertLoopOption(ParamCombo.Text, "title", title)
+        case "Replay Window Mouse":
+            TargetDD.Text := title
         default:
             ParamCombo.Text := title
     }
@@ -11799,6 +11484,1067 @@ UpsertLoopOption(optionsStr, key, value) {
     for i, p in parts
         out .= (i > 1 ? "; " : "") . p
     return out
+}
+
+; ═══════════════════════════════════════════════════════════════════════════════
+; GUIDED ACTION FORM
+; ═══════════════════════════════════════════════════════════════════════════════
+; Every action gets a structured form of dropdowns, pickers and live window
+; lists, so a workflow step is built by choosing - never by hand-writing
+; parameter syntax. Each value control is still an editable ComboBox (max
+; flexibility), and the Expert row can override the composed strings entirely.
+
+FormField(key, label, kind, items := "", default := "", hint := "", required := false, w := 0) {
+    return Map("key", key, "label", label, "kind", kind, "items", items,
+               "default", default, "hint", hint, "required", required, "w", w)
+}
+
+ArrHas(arr, val) {
+    for v in arr
+        if v = val
+            return true
+    return false
+}
+
+GetSavedCoordChoices() {
+    global g_Coordinates
+    choices := ["demo:notepadedit", "demo:single", "demo:double", "demo:triple", "demo:right", "demo:hover"]
+    for name, coord in g_Coordinates
+        choices.Push(name . " (" . coord["x"] . "," . coord["y"] . ")")
+    return choices
+}
+
+GetSavedDragChoices() {
+    global g_Coordinates
+    choices := []
+    for name, coord in g_Coordinates {
+        if coord.Has("endX")
+            choices.Push(name . " (" . coord["x"] . "," . coord["y"] . "->" . coord["endX"] . "," . coord["endY"] . ")")
+    }
+    return choices
+}
+
+GetSavedPatternChoices() {
+    global g_Patterns
+    choices := []
+    for name, _ in g_Patterns
+        choices.Push(name)
+    return choices
+}
+
+GetSequenceVarChoices() {
+    global g_ExtractedData
+    choices := GetSequenceVariables()
+    for name, _ in g_ExtractedData {
+        if !ArrHas(choices, name)
+            choices.Push(name)
+    }
+    return choices
+}
+
+; First word of a "value (description)" choice.
+ChoiceValue(text) {
+    return Trim(StrSplit(text, " ")[1])
+}
+
+; The structured form layout for one action. Fields render top-to-bottom, two
+; narrow fields per row; a field with w>0 takes a whole row.
+GetActionFormSpec(action) {
+    switch action {
+        ; ─── Mouse ───────────────────────────────────────────────────────────
+        case "Click":
+            return Map("fields", [
+                    FormField("pos", "Click where", "coordpick", GetSavedCoordChoices(), "", "Saved position, demo:key, or x,y", true),
+                    FormField("count", "Click count", "combo", ["1", "2", "3", "4", "5"], "1")],
+                "targetFmt", "{pos}", "paramFmt", "{count}",
+                "help", "Clicks once at the position. Pick a saved point, a Demo Lab control, or press the pin to capture a point on screen. Click count of 2 = double click.")
+        case "Double Click", "Triple Click", "Right Click":
+            return Map("fields", [
+                    FormField("pos", "Where", "coordpick", GetSavedCoordChoices(), "", "Saved position, demo:key, or x,y", true)],
+                "targetFmt", "{pos}", "paramFmt", "",
+                "help", "Performs " . action . " at the position. Pick from the list or capture a point with the pin button.")
+        case "Drag":
+            return Map("fields", [
+                    FormField("saved", "Saved drag", "combo", GetSavedDragChoices(), "", "Pick a captured drag (leave empty to use Raw)", false),
+                    FormField("raw", "Raw drag", "dragpick", "", "", "x1,y1->x2,y2 - or press the pin and click start, then end", false)],
+                "composer", "drag", "paramFmt", "",
+                "help", "Press-and-drag between two points. Use a captured drag from the list, or press the pin and click the start point, then the end point.")
+        case "Relative Click":
+            return Map("fields", [
+                    FormField("pos", "Saved offset", "combo", GetRelativeCoordChoices(), "", "Captured with the Rel. button in Position Tools", true)],
+                "targetFmt", "{pos}", "paramFmt", "",
+                "help", "Clicks at a position relative to the current mouse location.")
+        case "Menu Select":
+            return Map("fields", [
+                    FormField("downs", "Down presses", "combo", ["1", "2", "3", "4", "5", "6", "7", "8"], "3", "How many times to move down the menu")],
+                "targetFmt", "", "paramFmt", "{downs}",
+                "help", "Moves down through the open menu that many times, then presses Enter.")
+        case "Scroll":
+            return Map("fields", [
+                    FormField("amount", "Scroll amount", "combo", ["-10", "-5", "-3", "-1", "1", "3", "5", "10"], "-3", "Negative = down, positive = up")],
+                "targetFmt", "", "paramFmt", "{amount}",
+                "help", "Scrolls the wheel under the mouse. Negative scrolls down, positive scrolls up.")
+        case "Idle Mouse":
+            return Map("fields", [
+                    FormField("seconds", "Seconds", "combo", ["5", "15", "30", "60", "0 (until stopped)"], "30", "0 = keep going until you stop it")],
+                "targetFmt", "", "paramFmt", "{seconds}",
+                "help", "Gently moves the mouse so the computer does not lock or sleep.")
+        case "Hover Mouse":
+            return Map("fields", [
+                    FormField("pos", "Move to", "coordpick", GetSavedCoordChoices(), "", "Saved position, demo:key, or x,y", true)],
+                "targetFmt", "{pos}", "paramFmt", "",
+                "help", "Moves the mouse to the position without clicking.")
+
+        ; ─── Keyboard ────────────────────────────────────────────────────────
+        case "Send Keys":
+            return Map("fields", [
+                    FormField("keys", "Keys to send", "combo", ["^c", "^v", "^x", "^a", "^s", "^z", "{Enter}", "{Tab}", "{Escape}", "{Space}", "{Up}", "{Down}", "{Left}", "{Right}", "{F5}", "!{Tab}", "!{F4}"], "^c", "^=Ctrl +=Shift !=Alt #=Win {Key}=special", true)],
+                "targetFmt", "", "paramFmt", "{keys}",
+                "help", "Sends keyboard input. Pick a common shortcut or type any AutoHotkey key combination.")
+        case "Type Text":
+            return Map("fields", [
+                    FormField("text", "Text to type", "combo", "", "", "Supports $var.name substitutions", true, 530)],
+                "targetFmt", "", "paramFmt", "{text}",
+                "help", "Types the text character by character - slower than Send Keys but more reliable for real text.")
+        case "Key Chord":
+            return Map("fields", [
+                    FormField("modifier", "Modifier", "combo", ["#", "^", "!", "+", "^+", "!+"], "#", "#=Win ^=Ctrl !=Alt +=Shift", true),
+                    FormField("key", "Key", "combo", ["1", "2", "3", "4", "5", "c", "v", "a", "s", "{Tab}", "{Enter}"], "1", "", true),
+                    FormField("count", "Times", "combo", ["1", "2", "3", "4", "5"], "1")],
+                "targetFmt", "", "paramFmt", "{modifier},{key},{count}",
+                "help", "Sends a modifier + key combination the requested number of times.")
+        case "Paste":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Pastes the current clipboard contents (Ctrl+V).")
+
+        ; ─── Windows ─────────────────────────────────────────────────────────
+        case "Activate Window":
+            return Map("fields", [
+                    FormField("window", "Window", "window", GetWindowTitlesFull(), "", "Pick from the live list, refresh, or type part of a title", true)],
+                "targetFmt", "", "paramFmt", "{window}",
+                "help", "Brings the chosen window to the front. Use the refresh button if the window just opened.")
+        case "Taskbar Activate":
+            return Map("fields", [
+                    FormField("position", "Taskbar position", "combo", ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], "1", "", true),
+                    FormField("count", "Times", "combo", ["1", "2", "3"], "1")],
+                "targetFmt", "", "paramFmt", "{position},{count}",
+                "help", "Activates the app pinned at that taskbar slot (Win+number).")
+        case "Run Program":
+            return Map("fields", [
+                    FormField("program", "Program / command", "combo", GetCommonPrograms(), "notepad.exe", "exe, document, URL, or demo:lab", true)],
+                "targetFmt", "", "paramFmt", "{program}",
+                "help", "Starts an executable, opens a document or URL, or runs a command.")
+        case "Wait for Window":
+            return Map("fields", [
+                    FormField("title", "Wait for this window", "window", GetWindowTitlesFull(), "", "A popup or dialog that is about to appear", true),
+                    FormField("timeout", "Give up after (ms)", "combo", ["1000", "3000", "5000", "10000", "30000"], "5000")],
+                "composer", "loopkv", "paramFmt", "title={title}; timeout={timeout}",
+                "help", "Pauses until the chosen window appears - perfect for popup dialogs. Continues the moment it shows up.")
+        case "Wait Window Closed":
+            return Map("fields", [
+                    FormField("title", "Wait until this closes", "window", GetWindowTitlesFull(), "", "A loading box or popup that should disappear", true),
+                    FormField("timeout", "Give up after (ms)", "combo", ["1000", "3000", "5000", "10000", "30000"], "5000")],
+                "composer", "loopkv", "paramFmt", "title={title}; timeout={timeout}",
+                "help", "Pauses until the chosen window disappears - for example after a save finishes.")
+
+        ; ─── Patterns ────────────────────────────────────────────────────────
+        case "Find & Click", "Find & DblClick", "Find & TplClick", "Find & RClick":
+            return Map("fields", [
+                    FormField("pattern", "Pattern to find", "pattern", GetSavedPatternChoices(), "", "A picture captured in the Patterns tab", true)],
+                "targetFmt", "{pattern}", "paramFmt", "",
+                "help", "Searches the screen for the captured picture and performs " . action . " on it.")
+        case "Find & Drag":
+            return Map("fields", [
+                    FormField("pattern", "Pattern to grab", "pattern", GetSavedPatternChoices(), "", "A picture captured in the Patterns tab", true),
+                    FormField("destination", "Drag to", "pointpick", "", "", "endX,endY - press the pin to capture the end point", true)],
+                "targetFmt", "{pattern}", "paramFmt", "{destination}",
+                "help", "Finds the picture on screen and drags it to the destination point.")
+        case "Wait for Pattern":
+            return Map("fields", [
+                    FormField("pattern", "Wait until this appears", "pattern", GetSavedPatternChoices(), "", "", true),
+                    FormField("timeout", "Give up after (ms)", "combo", ["1000", "3000", "5000", "10000", "30000"], "5000")],
+                "targetFmt", "{pattern}", "paramFmt", "{timeout}",
+                "help", "Pauses until the picture appears on screen, or until the timeout.")
+        case "Wait Until Gone":
+            return Map("fields", [
+                    FormField("pattern", "Wait until this disappears", "pattern", GetSavedPatternChoices(), "", "", true),
+                    FormField("timeout", "Give up after (ms)", "combo", ["1000", "3000", "5000", "10000", "30000"], "5000")],
+                "targetFmt", "{pattern}", "paramFmt", "{timeout}",
+                "help", "Pauses until the picture is no longer on screen, or until the timeout.")
+
+        ; ─── Looping ─────────────────────────────────────────────────────────
+        case "Loop Start":
+            return Map("fields", [
+                    FormField("repeats", "Repeat this many times", "combo", ["2", "3", "5", "10", "25", "100", "forever"], "5", "forever = until ESC or Loop Break", true),
+                    FormField("var", "Counter variable", "combo", ["i", "n", "loopIndex", "item"], "i", "Inside the loop this is $var.i = 1, 2, 3...")],
+                "composer", "loopkv", "paramFmt", "count={repeats}; var={var}",
+                "help", "Opens a loop. Every step between this and Loop End repeats."
+                . "`n$var.<name> = the current pass (1, 2, 3...), $var.loopCount = the total."
+                . "`nEverything the loop remembers (variables, Popup Detect memory) stays from one pass to the next.")
+        case "Loop End":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Closes the loop body opened by Loop Start. The steps in between run again until the count is reached.")
+        case "Loop Break":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Stops the current loop early and continues with the step after its Loop End.")
+        case "Find & Click Loop":
+            return Map("fields", [
+                    FormField("pattern", "Pattern to click", "pattern", GetSavedPatternChoices(), "", "One item in the list", true),
+                    FormField("win", "Work inside this window", "window", GetWindowTitlesFull(), "", "Lock the search & scrolling to one window (recommended)"),
+                    FormField("scroll", "Scroll per round", "combo", ["-10", "-5", "-3", "-1", "1", "3", "5"], "-3", "Negative = scroll down"),
+                    FormField("settle", "Pause after click (ms)", "combo", ["300", "600", "1000", "2000"], "600"),
+                    FormField("maxClicks", "Stop after this many clicks", "combo", ["10", "25", "50", "90", "200"], "90"),
+                    FormField("maxScrolls", "Empty scrolls = end of list", "combo", ["3", "6", "10"], "6"),
+                    FormField("button", "Mouse button", "combo", ["Left", "Right"], "Left"),
+                    FormField("clicks", "Clicks per find", "combo", ["1", "2", "3"], "1"),
+                    FormField("top", "Jump to top first", "combo", ["", "home", "5", "10"], "", "(empty) = start where it is; home = Ctrl+Home; a number = wheel-ups"),
+                    FormField("popup", "Handle popup with this title", "window", GetWindowTitlesFull(), "", "If this dialog appears mid-run, handle it and resume"),
+                    FormField("popupDo", "Popup action", "combo", ["enter", "send:!s", "pattern:SaveBtn"], "enter", "enter / send:keys / pattern:name"),
+                    FormField("tol", "Match tolerance", "combo", ["", "0.05", "0.1", "0.2"], "", "(empty) = default")],
+                "composer", "loopkv",
+                "paramFmt", "win={win}; scroll={scroll}; settle={settle}; maxClicks={maxClicks}; maxScrolls={maxScrolls}; button={button}; clicks={clicks}; top={top}; popup={popup}; popupDo={popupDo}; tol={tol}",
+                "help", "Clicks the pattern, scrolls down, and repeats until the list is exhausted or the click limit is reached. ESC aborts.")
+        case "Popup Detect":
+            return Map("fields", [
+                    FormField("win", "Watch this window", "window", GetWindowTitlesFull(), "", "Whole window - leave empty to watch a rectangle instead"),
+                    FormField("region", "Or watch this rectangle", "region", ["0,0,800,600", "0,0," . A_ScreenWidth . "," . A_ScreenHeight], "", "Drag the frame button to select it"),
+                    FormField("sensitivity", "Sensitivity", "combo", ["high (tiny change)", "medium (recommended)", "low (big change only)"], "medium (recommended)"),
+                    FormField("mode", "When to check", "combo", ["now (check once)", "wait (wait for a change)"], "now (check once)"),
+                    FormField("on", "If changed, then...", "combo", ["var (just remember)", "skip (skip next step)", "break (leave the loop)", "stop (stop workflow)"], "var (just remember)"),
+                    FormField("timeout", "Timeout when waiting (ms)", "combo", ["1000", "3000", "5000", "10000", "30000"], "5000"),
+                    FormField("var", "Result variable", "combo", ["popupChanged", "popup"], "popupChanged", "Set to 1 when changed, 0 when not")],
+                "composer", "popupdetect",
+                "paramFmt", "win={win}; region={region}; sensitivity={sensitivity}; on={on}; mode={mode}; timeout={timeout}; var={var}",
+                "help", "Remembers what the window/rectangle looks like at the top of the loop,"
+                . " then flags when it changes drastically - a popup opening, a dialog appearing."
+                . "`nThe memory is kept on the step, so each pass of the loop compares against the"
+                . " same starting state. Use with Loop Start/End for popup-aware workflows.")
+
+        ; ─── OCR ─────────────────────────────────────────────────────────────
+        case "OCR Region":
+            return Map("fields", [
+                    FormField("win", "Read this window", "window", GetWindowTitlesFull(), "", "Leave empty to use a rectangle instead"),
+                    FormField("region", "Or read this rectangle", "region", ["0,0," . A_ScreenWidth . "," . A_ScreenHeight], "", "Drag the frame button to select it"),
+                    FormField("output", "Put the text into", "combo", ["copy (clipboard)", "var:ocrText", "var:newVar", "split:tab", "split:line"], "copy (clipboard)")],
+                "composer", "ocr", "paramFmt", "{output}",
+                "help", "Reads the text inside the window or rectangle and copies it to the clipboard or stores it in a variable.")
+        case "OCR Click":
+            return Map("fields", [
+                    FormField("win", "Search this window", "window", GetWindowTitlesFull(), "", "Leave empty to use a rectangle instead"),
+                    FormField("region", "Or search this rectangle", "region", ["0,0," . A_ScreenWidth . "," . A_ScreenHeight], "", "Drag the frame button to select it"),
+                    FormField("text", "Click the text that says", "combo", "", "", "For example: Submit, OK, Save...", true)],
+                "composer", "ocr", "paramFmt", "{text}",
+                "help", "Reads the area, finds the text you typed, and clicks its center.")
+        case "OCR Wait":
+            return Map("fields", [
+                    FormField("win", "Watch this window", "window", GetWindowTitlesFull(), "", "Leave empty to use a rectangle instead"),
+                    FormField("region", "Or watch this rectangle", "region", ["0,0," . A_ScreenWidth . "," . A_ScreenHeight], "", "Drag the frame button to select it"),
+                    FormField("condition", "Wait for", "combo", ["text:READY,5000", "5000", "text:Submit,10000"], "5000", "text:WORD,ms = wait for that word; plain number = any text")],
+                "composer", "ocr", "paramFmt", "{condition}",
+                "help", "Waits until the area shows text - optionally a specific word - or until the timeout.")
+        case "Grab OCR to Var":
+            return Map("fields", [
+                    FormField("win", "Read this window", "window", GetWindowTitlesFull(), "", "Leave empty to use a rectangle instead"),
+                    FormField("region", "Or read this rectangle", "whregion", ["0,0," . A_ScreenWidth . "," . A_ScreenHeight], "", "Drag the frame button to select it"),
+                    FormField("var", "Store in variable", "combo", GetSequenceVarChoices(), "ocrText", "Then use $var.<name> in later steps", true)],
+                "composer", "ocrawh", "paramFmt", "{var}",
+                "help", "Reads the text and stores it in a workflow variable for later steps.")
+        case "OCR Full Screen to Var":
+            return Map("fields", [
+                    FormField("var", "Store in variable", "combo", GetSequenceVarChoices(), "fullScreenOCR", "", true)],
+                "targetFmt", "", "paramFmt", "{var}",
+                "help", "Reads the whole screen and stores every recognized word in the variable.")
+        case "Load OCR Revolver":
+            return Map("fields", [
+                    FormField("split", "Split the text by", "combo", ["tab", "line", "count", "char"], "tab")],
+                "targetFmt", "", "paramFmt", "{split}",
+                "help", "Splits the latest OCR text into pieces and loads them into the revolver, one per paste.")
+        case "Fire OCR Revolver":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Pastes the next piece from the OCR revolver.")
+
+        ; ─── Clipboard & Text ────────────────────────────────────────────────
+        case "Set Clipboard":
+            return Map("fields", [
+                    FormField("text", "Clipboard text", "combo", GetSequenceVarChoices(), "", "Use $var.name or plain text", true)],
+                "targetFmt", "", "paramFmt", "{text}",
+                "help", "Puts the text into the clipboard. Workflow variables like $var.name are expanded.")
+        case "Insert Field":
+            return Map("fields", [
+                    FormField("field", "Field to insert", "combo", GetExtractedFieldNames(), "", "From the clipboard extraction tab", true)],
+                "targetFmt", "", "paramFmt", "{field}",
+                "help", "Types one of the named fields extracted from the clipboard.")
+        case "Insert Date":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Types today's date.")
+        case "Parse Clipboard":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Runs the clipboard extraction rules and stores the found fields.")
+        case "Load Revolver":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Loads the clipboard fields into the paste revolver.")
+        case "Fire Revolver":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Pastes the next revolver value.")
+        case "Fire Revolver+Enter":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Pastes the next revolver value and presses Enter.")
+        case "Format Clipboard":
+            return Map("fields", [
+                    FormField("format", "Format", "combo", ["uppercase", "lowercase", "titlecase", "trim", "invoice", "receipt", "date_iso", "[{clip}]"], "uppercase")],
+                "targetFmt", "", "paramFmt", "{format}",
+                "help", "Transforms the clipboard text with a preset, or a custom template containing {clip}.")
+        case "Append to Clipboard":
+            return Map("fields", [
+                    FormField("text", "Text to append", "combo", GetSequenceVarChoices(), "", "", true)],
+                "targetFmt", "", "paramFmt", "{text}",
+                "help", "Adds the text to the end of the current clipboard contents.")
+        case "Prepend to Clipboard":
+            return Map("fields", [
+                    FormField("text", "Text to prepend", "combo", GetSequenceVarChoices(), "", "", true)],
+                "targetFmt", "", "paramFmt", "{text}",
+                "help", "Adds the text to the beginning of the current clipboard contents.")
+        case "Extract from Clipboard":
+            return Map("fields", [
+                    FormField("rule", "Extraction rule", "combo", ["between:start|end", "field:,|1", "regex:\\d+"], "between:start|end")],
+                "targetFmt", "", "paramFmt", "{rule}",
+                "help", "Keeps only part of the clipboard. between:start|end, field:delimiter|index, or regex:pattern.")
+
+        ; ─── Variables & Logic ───────────────────────────────────────────────
+        case "Set Variable":
+            return Map("fields", [
+                    FormField("var", "Variable name", "combo", GetSequenceVarChoices(), "counter", "Letters, numbers and _ only", true),
+                    FormField("value", "Value", "combo", "", "", "Text or $var.other", true)],
+                "targetFmt", "{var}", "paramFmt", "{value}",
+                "help", "Creates or replaces a workflow variable. Use it later as $var.<name>.")
+        case "Grab Clipboard":
+            return Map("fields", [
+                    FormField("var", "Store clipboard in", "combo", GetSequenceVarChoices(), "clipboardText", "", true)],
+                "targetFmt", "{var}", "paramFmt", "",
+                "help", "Stores the current clipboard text in a workflow variable.")
+        case "If Contains":
+            return Map("fields", [
+                    FormField("var", "Look inside variable", "combo", GetSequenceVarChoices(), "", "", true),
+                    FormField("text", "Must contain", "combo", "", "", "Not case-sensitive", true)],
+                "targetFmt", "{var}", "paramFmt", "{text}",
+                "help", "Runs the next enabled step only when the variable contains this text; otherwise that one step is skipped.")
+        case "If Variable":
+            return Map("fields", [
+                    FormField("var", "Compare variable", "combo", GetSequenceVarChoices(), "", "", true),
+                    FormField("op", "Is...", "combo", ["=", "!=", ">", "<", ">=", "<="], "=", "", true),
+                    FormField("value", "This value", "combo", "", "", "", true)],
+                "composer", "ifvar", "paramFmt", "",
+                "help", "Compares a variable with a value. If the comparison is false, the next enabled step is skipped.")
+        case "Use Var Paste":
+            return Map("fields", [
+                    FormField("text", "Text to paste", "combo", GetSequenceVarChoices(), "", "Variables like $var.name are expanded", true)],
+                "targetFmt", "", "paramFmt", "{text}",
+                "help", "Expands workflow variables and pastes the result.")
+        case "Stop Execution":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Stops the current workflow immediately.")
+        case "Run Sequence":
+            return Map("fields", [
+                    FormField("seq", "Workflow to run", "combo", GetSavedSequenceNames(), "", "", true)],
+                "targetFmt", "", "paramFmt", "{seq}",
+                "help", "Runs another saved workflow as part of this one. Variables carry over; recursive calls are blocked.")
+
+        ; ─── Tracking ────────────────────────────────────────────────────────
+        case "Click Element":
+            return Map("fields", [
+                    FormField("element", "Element", "combo", GetTrackedElementNames(), "", "From the Snapshot Viewer", true),
+                    FormField("button", "Button", "combo", ["Left", "Right", "Middle", "Left,2"], "Left")],
+                "targetFmt", "{element}", "paramFmt", "{button}",
+                "help", "Finds a named element on screen and clicks it.")
+        case "Hover Element":
+            return Map("fields", [
+                    FormField("element", "Element", "combo", GetTrackedElementNames(), "", "From the Snapshot Viewer", true)],
+                "targetFmt", "{element}", "paramFmt", "",
+                "help", "Moves the mouse onto a named element without clicking.")
+        case "Wait Element":
+            return Map("fields", [
+                    FormField("element", "Element", "combo", GetTrackedElementNames(), "", "From the Snapshot Viewer", true),
+                    FormField("timeout", "Give up after (ms)", "combo", ["1000", "3000", "5000", "10000"], "5000")],
+                "targetFmt", "{element}", "paramFmt", "{timeout}",
+                "help", "Waits until a named element appears on screen.")
+        case "Replay Window Mouse":
+            return Map("fields", [
+                    FormField("window", "Tracked window", "window", GetWindowTitlesFull(), "", "A window with recorded mouse movement", true),
+                    FormField("speed", "Speed", "combo", ["1.0", "0.5", "2.0", "1.0,clicks"], "1.0")],
+                "targetFmt", "{window}", "paramFmt", "{speed}",
+                "help", "Replays the most recent recorded mouse movement for that window.")
+        case "Research Search":
+            return Map("fields", [
+                    FormField("query", "Search for", "combo", "", "", "", true)],
+                "targetFmt", "", "paramFmt", "{query}",
+                "help", "Stores the query in the research database and searches for it in the browser.")
+        case "Research Capture Links":
+            return Map("fields", [
+                    FormField("source", "Take links from", "combo", ["screen", "clip"], "screen")],
+                "targetFmt", "", "paramFmt", "{source}",
+                "help", "Harvests result links for the current query - by reading the page, or from the clipboard.")
+        case "Research Launch Next":
+            return Map("fields", [],
+                "targetFmt", "", "paramFmt", "",
+                "help", "Opens the next pending result link for the current query.")
+        case "Research Add Insight":
+            return Map("fields", [
+                    FormField("insight", "Key takeaway", "combo", "", "", "", true)],
+                "targetFmt", "", "paramFmt", "{insight}",
+                "help", "Attaches a key takeaway to the current query and marks the link done.")
+
+        ; ─── Timing & Notices ────────────────────────────────────────────────
+        case "Wait":
+            return Map("fields", [
+                    FormField("ms", "Pause for (ms)", "combo", ["100", "200", "500", "1000", "2000", "3000", "5000", "10000"], "1000", "1000 = 1 second")],
+                "targetFmt", "", "paramFmt", "{ms}",
+                "help", "Pauses the workflow for the chosen time.")
+        case "Show Notification":
+            return Map("fields", [
+                    FormField("title", "Title", "combo", "", "Done", "", true),
+                    FormField("message", "Message", "combo", GetSequenceVarChoices(), "", "Variables like $var.name are expanded", true),
+                    FormField("seconds", "Show for (seconds)", "combo", ["1", "2", "3", "5", "10"], "3")],
+                "composer", "notify", "paramFmt", "",
+                "help", "Shows a desktop notification.")
+    }
+
+    ; Unknown/legacy action: generic fields, still fully editable.
+    return Map("fields", [
+            FormField("target", "Target", "combo", "", "", "", false, 530),
+            FormField("param", "Parameter", "combo", "", "", "", false, 530)],
+        "targetFmt", "{target}", "paramFmt", "{param}",
+        "help", "This action has no guided form yet - the two fields are passed through as-is.")
+}
+
+GetRelativeCoordChoices() {
+    global g_Coordinates
+    choices := []
+    for name, coord in g_Coordinates {
+        if coord.Has("relative") && coord["relative"]
+            choices.Push(name . " (+" . coord["x"] . ",+" . coord["y"] . ")")
+    }
+    return choices
+}
+
+GetExtractedFieldNames() {
+    global g_ExtractedData
+    names := []
+    for name, _ in g_ExtractedData
+        names.Push(name)
+    return names
+}
+
+GetSavedSequenceNames() {
+    global g_Sequences
+    names := []
+    for name, _ in g_Sequences
+        names.Push(name)
+    return names
+}
+
+; Replace {key} placeholders with collected values (empty when missing).
+FillTemplate(tmpl, values) {
+    if tmpl = ""
+        return ""
+    out := tmpl
+    for key, val in values {
+        out := StrReplace(out, "{" . key . "}", val = "" ? "" : String(val))
+    }
+    out := RegExReplace(out, "\{\w+\}", "")   ; drop any placeholder without a value
+    return out
+}
+
+; "key={key}; key={key}" template: drop pairs whose value is empty.
+FillKvTemplate(tmpl, values) {
+    if tmpl = ""
+        return ""
+    parts := []
+    for seg in StrSplit(tmpl, ";") {
+        seg := Trim(seg)
+        if seg = ""
+            continue
+        if !RegExMatch(seg, "\{(\w+)\}", &m)
+            continue
+        val := values.Has(m[1]) ? String(values[m[1]]) : ""
+        if Trim(val) = ""
+            continue
+        parts.Push(StrReplace(seg, "{" . m[1] . "}", val))
+    }
+    out := ""
+    for i, p in parts
+        out .= (i > 1 ? "; " : "") . p
+    return out
+}
+
+; Compose the final target/param strings from collected form values.
+ComposeFormValues(spec, values) {
+    target := "", param := ""
+    if spec.Has("composer") {
+        switch spec["composer"] {
+            case "drag":
+                if Trim(String(values.Has("saved") ? values["saved"] : "")) != ""
+                    target := CleanCoordChoice(values["saved"])
+                else if Trim(String(values.Has("raw") ? values["raw"] : "")) != ""
+                    param := values["raw"]
+            case "ocr":
+                if Trim(String(values.Has("win") ? values["win"] : "")) != ""
+                    target := "window:" . values["win"]
+                else if Trim(String(values.Has("region") ? values["region"] : "")) != ""
+                    target := values["region"]
+                for k in ["output", "text", "condition"]
+                    if values.Has(k) && Trim(String(values[k])) != "" {
+                        param := values[k]
+                        break
+                    }
+            case "ocrawh":
+                if Trim(String(values.Has("win") ? values["win"] : "")) != ""
+                    target := "window:" . values["win"]
+                else if Trim(String(values.Has("region") ? values["region"] : "")) != ""
+                    target := values["region"]
+                param := values.Has("var") ? values["var"] : ""
+            case "ifvar":
+                target := values.Has("var") ? values["var"] : ""
+                op := values.Has("op") ? values["op"] : ""
+                val := values.Has("value") ? values["value"] : ""
+                if op != ""
+                    param := op . "," . val
+            case "notify":
+                title := values.Has("title") ? values["title"] : ""
+                message := values.Has("message") ? values["message"] : ""
+                seconds := values.Has("seconds") ? ChoiceValue(values["seconds"]) : "3"
+                param := title . "," . message . "," . seconds
+            case "popupdetect":
+                cleaned := Map()
+                for k, v in values {
+                    if k = "sensitivity" || k = "on" || k = "mode"
+                        cleaned[k] := ChoiceValue(v)
+                    else
+                        cleaned[k] := v
+                }
+                param := FillKvTemplate(spec["paramFmt"], cleaned)
+            case "loopkv":
+                target := values.Has("pattern") ? values["pattern"] : ""
+                param := FillKvTemplate(spec["paramFmt"], values)
+        }
+    } else {
+        target := FillTemplate(spec.Has("targetFmt") ? spec["targetFmt"] : "", values)
+        param := FillTemplate(spec.Has("paramFmt") ? spec["paramFmt"] : "", values)
+    }
+    if target != "" && (values.Has("pos") || values.Has("saved")) {
+        target := CleanCoordChoice(target)
+    }
+    return Map("target", target, "param", param)
+}
+
+; "name (x,y)" -> "name"
+CleanCoordChoice(text) {
+    p := InStr(text, " (")
+    if p
+        return Trim(SubStr(text, 1, p - 1))
+    return Trim(text)
+}
+
+; Turn an existing step's target/param back into form values (for editing).
+ParseFormValues(action, target, param) {
+    spec := GetActionFormSpec(action)
+    values := Map()
+    for f in spec["fields"]
+        values[f["key"]] := f["default"]
+
+    if spec.Has("composer") {
+        switch spec["composer"] {
+            case "drag":
+                if Trim(target) != ""
+                    values["saved"] := target
+                else
+                    values["raw"] := param
+            case "ocr":
+                if SubStr(Trim(target), 1, 7) = "window:"
+                    values["win"] := SubStr(Trim(target), 8)
+                else if Trim(target) != ""
+                    values["region"] := Trim(target)
+                if values.Has("output") && param != ""
+                    values["output"] := param
+                else if values.Has("text") && param != ""
+                    values["text"] := param
+                else if values.Has("condition") && param != ""
+                    values["condition"] := param
+            case "ocrawh":
+                if SubStr(Trim(target), 1, 7) = "window:"
+                    values["win"] := SubStr(Trim(target), 8)
+                else if Trim(target) != ""
+                    values["region"] := Trim(target)
+                if param != ""
+                    values["var"] := StrSplit(param, ",")[1]
+            case "ifvar":
+                if Trim(target) != ""
+                    values["var"] := Trim(target)
+                p := StrSplit(param, ",")
+                if p.Length >= 1 && Trim(p[1]) != ""
+                    values["op"] := Trim(p[1])
+                if p.Length >= 2
+                    values["value"] := Trim(p[2])
+            case "notify":
+                p := StrSplit(param, ",")
+                if p.Length >= 1
+                    values["title"] := p[1]
+                if p.Length >= 2 {
+                    if IsNumber(Trim(p[p.Length])) {
+                        values["seconds"] := Trim(p[p.Length])
+                        msg := ""
+                        Loop p.Length - 2
+                            msg .= (A_Index > 1 ? "," : "") . p[A_Index + 1]
+                        values["message"] := msg
+                    } else {
+                        values["message"] := Trim(SubStr(param, InStr(param, ",") + 1))
+                    }
+                }
+            case "popupdetect", "loopkv":
+                opt := ParseLoopOptions(param)
+                for k, v in opt {
+                    if values.Has(k)
+                        values[k] := v
+                }
+                if spec["composer"] = "loopkv" && Trim(target) != "" && values.Has("pattern")
+                    values["pattern"] := Trim(target)
+        }
+        return values
+    }
+
+    targetFmt := spec.Has("targetFmt") ? spec["targetFmt"] : ""
+    paramFmt := spec.Has("paramFmt") ? spec["paramFmt"] : ""
+    if targetFmt != "" && Trim(target) != "" {
+        if RegExMatch(targetFmt, "\{(\w+)\}", &m)
+            values[m[1]] := Trim(target)
+    }
+    if paramFmt != "" && Trim(param) != "" {
+        if InStr(paramFmt, "{modifier},{key},{count}") || InStr(paramFmt, "{position},{count}") {
+            p := StrSplit(param, ",")
+            if p.Length >= 1 && values.Has("modifier")
+                values["modifier"] := Trim(p[1])
+            if p.Length >= 2 && values.Has("key")
+                values["key"] := Trim(p[2])
+            if p.Length >= 3 && values.Has("count")
+                values["count"] := Trim(p[3])
+        } else if RegExMatch(paramFmt, "\{(\w+)\}", &m) {
+            values[m[1]] := Trim(param)
+        }
+    }
+    return values
+}
+
+; ── On-screen capture helpers for the form's pin / frame buttons ──────────────
+CapturePointOnScreen(formGui) {
+    formGui.Hide()
+    Sleep(150)
+    ToolTip("Click the target point...`nESC cancels")
+    cancelled := false
+    Hotkey("Escape", (*) => (cancelled := true), "On")
+    while !GetKeyState("LButton", "P") && !cancelled
+        Sleep(10)
+    if cancelled {
+        ToolTip()
+        Hotkey("Escape", "Off")
+        formGui.Show()
+        return ""
+    }
+    MouseGetPos(&x, &y)
+    ToolTip()
+    Hotkey("Escape", "Off")
+    formGui.Show()
+    return x . "," . y
+}
+
+CaptureDragOnScreen(formGui) {
+    formGui.Hide()
+    Sleep(150)
+    ToolTip("Click the DRAG START point...`nESC cancels")
+    cancelled := false
+    Hotkey("Escape", (*) => (cancelled := true), "On")
+    while !GetKeyState("LButton", "P") && !cancelled
+        Sleep(10)
+    if cancelled {
+        ToolTip()
+        Hotkey("Escape", "Off")
+        formGui.Show()
+        return ""
+    }
+    MouseGetPos(&x1, &y1)
+    while GetKeyState("LButton", "P")
+        Sleep(10)
+    ToolTip("Now click the DRAG END point...")
+    while !GetKeyState("LButton", "P") && !cancelled
+        Sleep(10)
+    if cancelled {
+        ToolTip()
+        Hotkey("Escape", "Off")
+        formGui.Show()
+        return ""
+    }
+    MouseGetPos(&x2, &y2)
+    ToolTip()
+    Hotkey("Escape", "Off")
+    formGui.Show()
+    return x1 . "," . y1 . "->" . x2 . "," . y2
+}
+
+CaptureRegionOnScreen(formGui, whFormat := false) {
+    formGui.Hide()
+    Sleep(150)
+    ToolTip("Drag a box around the region`nESC cancels")
+    cancelled := false
+    x2 := 0, y2 := 0
+    Hotkey("Escape", (*) => (cancelled := true), "On")
+    while !GetKeyState("LButton", "P") && !cancelled
+        Sleep(10)
+    if cancelled {
+        ToolTip()
+        Hotkey("Escape", "Off")
+        formGui.Show()
+        return ""
+    }
+    MouseGetPos(&x1, &y1)
+    selBox := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x20", "SelBox")
+    selBox.BackColor := "00FF00"
+    while GetKeyState("LButton", "P") && !cancelled {
+        MouseGetPos(&x2, &y2)
+        boxX := Min(x1, x2), boxY := Min(y1, y2)
+        boxW := Max(Abs(x2 - x1), 10), boxH := Max(Abs(y2 - y1), 10)
+        try selBox.Show("x" . boxX . " y" . boxY . " w" . boxW . " h" . boxH . " NoActivate")
+        WinSetTransparent(180, selBox)
+        Sleep(16)
+    }
+    ToolTip()
+    Hotkey("Escape", "Off")
+    try selBox.Destroy()
+    if cancelled || Abs(x2 - x1) < 10 || Abs(y2 - y1) < 10 {
+        formGui.Show()
+        return ""
+    }
+    finalX1 := Min(x1, x2), finalY1 := Min(y1, y2)
+    finalX2 := Max(x1, x2), finalY2 := Max(y1, y2)
+    formGui.Show()
+    if whFormat
+        return finalX1 . "," . finalY1 . "," . (finalX2 - finalX1) . "," . (finalY2 - finalY1)
+    return finalX1 . "," . finalY1 . "," . finalX2 . "," . finalY2
+}
+
+; ── Window picker helpers (form-local versions) ───────────────────────────────
+PickWindowFromMenu(formGui) {
+    global g_PickWindowMap, g_FormPickedWindow
+    g_PickWindowMap := Map()
+    g_FormPickedWindow := ""
+    m := Menu()
+    count := 0
+    for hwnd in WinGetList() {
+        title := ""
+        try title := WinGetTitle(hwnd)
+        if (title = "" || title = "Program Manager")
+            continue
+        exe := ""
+        try exe := WinGetProcessName(hwnd)
+        label := StrLen(title) > 60 ? SubStr(title, 1, 57) . "..." : title
+        if exe != ""
+            label .= "   [" . exe . "]"
+        base := label, n := 1
+        while g_PickWindowMap.Has(label) {
+            n += 1
+            label := base . " (" . n . ")"
+        }
+        g_PickWindowMap[label] := title
+        m.Add(label, MenuPickWindowForm)
+        count += 1
+    }
+    if count = 0 {
+        MsgBoxTop("No open windows found to pick from.", "Pick Window")
+        return ""
+    }
+    m.Show()
+    return g_FormPickedWindow
+}
+
+MenuPickWindowForm(itemName, itemPos, myMenu) {
+    global g_PickWindowMap, g_FormPickedWindow
+    g_FormPickedWindow := (IsSet(g_PickWindowMap) && g_PickWindowMap.Has(itemName)) ? g_PickWindowMap[itemName] : itemName
+}
+
+; ── Form field rendering ──────────────────────────────────────────────────────
+AddFormField(formGui, f, x, y, w, values) {
+    global g_FormPickMap, g_FormFieldMap
+    key := f["key"]
+    kind := f["kind"]
+    label := f["label"] . (f["required"] ? " *" : "")
+    if f["hint"] != ""
+        label .= "  (" . f["hint"] . ")"
+    if StrLen(label) > 60
+        label := SubStr(label, 1, 58) . ".."
+    formGui.Add("Text", "x" . x . " y" . y . " w" . w . " c555555", label)
+
+    ctrl := ""
+    if kind = "edit" {
+        ctrl := formGui.Add("Edit", "x" . x . " y" . (y + 15) . " w" . w)
+        ctrl.Value := values.Has(key) ? String(values[key]) : ""
+        g_FormFieldMap[key] := ctrl
+        return
+    }
+
+    ctrlW := w
+    btnW := 0
+    switch kind {
+        case "window": btnW := 70
+        case "coordpick", "pointpick", "dragpick", "region", "whregion", "pattern": btnW := 28
+        default: btnW := 0
+    }
+    if btnW > 0
+        ctrlW := w - btnW - 6
+
+    if kind = "dropdown" || kind = "combo" || btnW > 0 {
+        ctrl := formGui.Add("ComboBox", "x" . x . " y" . (y + 15) . " w" . ctrlW)
+        items := IsObject(f["items"]) ? f["items"] : (f["items"] != "" ? [f["items"]] : [])
+        if items.Length > 0
+            ctrl.Add(items)
+        ctrl.Text := values.Has(key) ? String(values[key]) : ""
+    } else if kind = "check" {
+        ctrl := formGui.Add("CheckBox", "x" . x . " y" . (y + 15) . " w" . w, "")
+    }
+    g_FormFieldMap[key] := ctrl
+
+    if btnW > 0 {
+        bx := x + ctrlW + 6
+        switch kind {
+            case "window":
+                btn1 := formGui.Add("Button", "x" . bx . " y" . (y + 14) . " w26 h22", "↻")
+                btn2 := formGui.Add("Button", "x" . (bx + 30) . " y" . (y + 14) . " w40 h22", "▾ List")
+                btn1.OnEvent("Click", FormPickHelper)
+                btn2.OnEvent("Click", FormPickHelper)
+                g_FormPickMap[btn1.Hwnd] := Map("combo", ctrl, "mode", "winrefresh", "gui", formGui)
+                g_FormPickMap[btn2.Hwnd] := Map("combo", ctrl, "mode", "winpick", "gui", formGui)
+            case "coordpick", "pointpick":
+                btn := formGui.Add("Button", "x" . bx . " y" . (y + 14) . " w28 h22", "📍")
+                btn.OnEvent("Click", FormPickHelper)
+                g_FormPickMap[btn.Hwnd] := Map("combo", ctrl, "mode", "point", "gui", formGui)
+            case "dragpick":
+                btn := formGui.Add("Button", "x" . bx . " y" . (y + 14) . " w28 h22", "📍")
+                btn.OnEvent("Click", FormPickHelper)
+                g_FormPickMap[btn.Hwnd] := Map("combo", ctrl, "mode", "drag", "gui", formGui)
+            case "region":
+                btn := formGui.Add("Button", "x" . bx . " y" . (y + 14) . " w28 h22", "▭")
+                btn.OnEvent("Click", FormPickHelper)
+                g_FormPickMap[btn.Hwnd] := Map("combo", ctrl, "mode", "region", "gui", formGui)
+            case "whregion":
+                btn := formGui.Add("Button", "x" . bx . " y" . (y + 14) . " w28 h22", "▭")
+                btn.OnEvent("Click", FormPickHelper)
+                g_FormPickMap[btn.Hwnd] := Map("combo", ctrl, "mode", "whregion", "gui", formGui)
+            case "pattern":
+                btn := formGui.Add("Button", "x" . bx . " y" . (y + 14) . " w28 h22", "↻")
+                btn.OnEvent("Click", FormPickHelper)
+                g_FormPickMap[btn.Hwnd] := Map("combo", ctrl, "mode", "patternrefresh", "gui", formGui)
+        }
+    }
+}
+
+FormPickHelper(btn, *) {
+    global g_FormPickMap
+    if !g_FormPickMap.Has(btn.Hwnd)
+        return
+    info := g_FormPickMap[btn.Hwnd]
+    combo := info["combo"]
+    switch info["mode"] {
+        case "winrefresh":
+            combo.Delete()
+            combo.Add(GetWindowTitlesFull())
+            ShowStatus("Window list refreshed", "ok")
+        case "winpick":
+            title := PickWindowFromMenu(info["gui"])
+            if title != ""
+                combo.Text := title
+        case "point":
+            pt := CapturePointOnScreen(info["gui"])
+            if pt != ""
+                combo.Text := pt
+        case "drag":
+            pts := CaptureDragOnScreen(info["gui"])
+            if pts != ""
+                combo.Text := pts
+        case "region":
+            region := CaptureRegionOnScreen(info["gui"], false)
+            if region != ""
+                combo.Text := region
+        case "whregion":
+            region := CaptureRegionOnScreen(info["gui"], true)
+            if region != ""
+                combo.Text := region
+        case "patternrefresh":
+            combo.Delete()
+            combo.Add(GetSavedPatternChoices())
+            ShowStatus("Pattern list refreshed", "ok")
+    }
+}
+
+; ── The guided form dialog ────────────────────────────────────────────────────
+ShowActionForm(editRow := 0) {
+    global MainGui, ActionDD, TargetDD, ParamCombo, g_CurrentSequenceSteps
+    global g_ActionFormGui, g_FormPickMap, g_FormFieldMap
+    global g_FormCurrentAction, g_FormCurrentSpec
+
+    action := ActionDD.Text
+    if action = "" {
+        ShowStatus("Please select an action first", "fail")
+        return
+    }
+    spec := GetActionFormSpec(action)
+
+    target := TargetDD.Text
+    param := ParamCombo.Text
+    titleText := "Add Step"
+    if editRow > 0 && editRow <= g_CurrentSequenceSteps.Length {
+        step := g_CurrentSequenceSteps[editRow]
+        target := step["target"]
+        param := step["param"]
+        titleText := "Edit Step " . editRow
+    }
+    values := ParseFormValues(action, target, param)
+
+    formGui := Gui("+AlwaysOnTop +Owner" . MainGui.Hwnd, titleText . ": " . action)
+    formGui.SetFont("s9", "Segoe UI")
+    g_ActionFormGui := formGui
+    g_FormPickMap := Map()
+    g_FormFieldMap := Map()
+    g_FormCurrentAction := action
+    g_FormCurrentSpec := spec
+
+    formGui.Add("Text", "x10 y10 w540 cBlue", action . "   -   " . GetActionCategory(action))
+    formGui.Add("Text", "x10 y+4 w540 cGray", "Pick from the lists, or type your own value - nothing has to be written from scratch.")
+
+    ; Pack narrow fields two-per-row; wide fields get their own row.
+    rows := []
+    pending := ""
+    for f in spec["fields"] {
+        if pending != "" {
+            rows.Push([pending, f])
+            pending := ""
+        } else if f["w"] = 0 {
+            pending := f
+        } else {
+            rows.Push([f, ""])
+        }
+    }
+    if pending != ""
+        rows.Push([pending, ""])
+
+    y := 52
+    for row in rows {
+        f1 := row[1], f2 := row[2]
+        if f2 != "" {
+            AddFormField(formGui, f1, 10, y, 255, values)
+            AddFormField(formGui, f2, 285, y, 255, values)
+        } else {
+            AddFormField(formGui, f1, 10, y, 530, values)
+        }
+        y += 38
+    }
+
+    ; What-this-does panel
+    y += 2
+    helpText := spec.Has("help") ? spec["help"] : ""
+    formGui.Add("GroupBox", "x10 y" . y . " w530 h66", "What this does")
+    formGui.Add("Edit", "x20 y" . (y + 16) . " w510 h40 ReadOnly Multi VScroll", helpText)
+    y += 72
+
+    ; Expert override row (max flexibility)
+    formGui.Add("CheckBox", "x10 y" . (y + 2) . " vFormExpert", "Expert: use raw Target/Param instead")
+    formGui.Add("Text", "x240 y" . (y + 4) . " w45", "Target:")
+    formGui.Add("Edit", "x282 y" . (y + 1) . " w105 vFormExpTarget")
+    formGui.Add("Text", "x395 y" . (y + 4) . " w45", "Param:")
+    formGui.Add("Edit", "x432 y" . (y + 1) . " w108 vFormExpParam")
+    y += 26
+
+    submitLabel := editRow > 0 ? "✓ Save Changes" : "✓ Insert Step"
+    formGui.Add("Button", "x10 y" . y . " w150 h28 Default cGreen", submitLabel).OnEvent("Click", (*) => FormSubmit(formGui, editRow, false))
+    formGui.Add("Button", "x170 y" . y . " w90 h28", "Cancel").OnEvent("Click", (*) => formGui.Destroy())
+    if editRow > 0
+        formGui.Add("Button", "x270 y" . y . " w110 h28", "🛡 Failsafe...").OnEvent("Click", (*) => FormSubmit(formGui, editRow, true))
+
+    formGui.Show()
+}
+
+FormSubmit(formGui, editRow, openFailsafe := false) {
+    global g_FormFieldMap, g_FormCurrentSpec, g_FormCurrentAction
+    global ActionDD, TargetDD, ParamCombo, g_CurrentSequenceSteps
+
+    action := g_FormCurrentAction
+    spec := g_FormCurrentSpec
+
+    values := Map()
+    for f in spec["fields"] {
+        key := f["key"]
+        val := ""
+        if g_FormFieldMap.Has(key)
+            val := g_FormFieldMap[key].Value
+        values[key] := val
+    }
+
+    missing := ""
+    for f in spec["fields"] {
+        if f["required"] && Trim(String(values[f["key"]])) = "" {
+            missing := missing = "" ? f["label"] : missing . ", " . f["label"]
+        }
+    }
+    if missing != "" {
+        MsgBoxTop("Please fill in: " . missing, action)
+        return
+    }
+
+    ; Expert override wins when used.
+    expTarget := "", expParam := "", expOn := false
+    try expOn := formGui["FormExpert"].Value = 1
+    try expTarget := formGui["FormExpTarget"].Value
+    try expParam := formGui["FormExpParam"].Value
+    if expOn && (Trim(expTarget) != "" || Trim(expParam) != "") {
+        target := expTarget
+        param := expParam
+    } else {
+        composed := ComposeFormValues(spec, values)
+        target := composed["target"]
+        param := composed["param"]
+    }
+
+    errors := ValidateStepParameters(action, target, param)
+    if errors.Length > 0 {
+        errText := ""
+        for e in errors
+            errText .= "• " . e . "`n"
+        MsgBoxTop(errText, "Check these first")
+        return
+    }
+
+    formGui.Destroy()
+
+    if editRow > 0 {
+        if editRow <= g_CurrentSequenceSteps.Length {
+            g_CurrentSequenceSteps[editRow]["target"] := target
+            g_CurrentSequenceSteps[editRow]["param"] := param
+        }
+        RefreshStepsLV()
+        ShowStatus("Step " . editRow . " updated", "ok")
+        ScheduleWorkflowAutosave()
+        if openFailsafe
+            EditStepFailsafeByRow(editRow)
+    } else {
+        TargetDD.Text := target
+        ParamCombo.Text := param
+        AddStepFromFields()
+    }
 }
 
 OnActionChange(*) {
@@ -11885,6 +12631,15 @@ OnActionChange(*) {
         ; only the ones you need. Delete any you don't want to change.
         if ParamCombo.Text = ""
             ParamCombo.Text := "win=; scroll=-3; settle=600; maxClicks=90; maxScrolls=6; button=Left; clicks=1; top=; focus=; popup=; popupDo=enter; scrollSettle=; tol="
+    } else if action = "Loop Start" {
+        if ParamCombo.Text = ""
+            ParamCombo.Text := "count=5; var=i"
+    } else if action = "Popup Detect" {
+        if ParamCombo.Text = ""
+            ParamCombo.Text := "win=; region=0,0,800,600; sensitivity=medium; on=var; mode=now; timeout=5000; var=popupChanged"
+    } else if action = "Wait for Window" || action = "Wait Window Closed" {
+        if ParamCombo.Text = ""
+            ParamCombo.Text := "title=; timeout=5000"
     }
 
     ; Pattern actions - show patterns in Choices
@@ -12059,6 +12814,10 @@ UseChoice(*) {
             ; Field name goes to Param
             ParamCombo.Text := selected
             ShowStatus("Copied to Param (Field)", "ok")
+
+        case "Loop Start", "Popup Detect", "Wait for Window", "Wait Window Closed":
+            ParamCombo.Text := selected
+            ShowStatus("Copied to Param", "ok")
 
         default:
             ; Default to Param
@@ -12450,6 +13209,25 @@ PopulateChoices() {
         case "Menu Select":
             choices := ["File>Save", "File>Open", "Edit>Copy", "Edit>Paste", "View>Zoom"]
 
+        case "Loop Start":
+            choices := ["count=5; var=i", "count=3; var=i", "count=10; var=n", "count=forever; var=i"]
+
+        case "Popup Detect":
+            choices := [
+                "win=; region=0,0,800,600; sensitivity=medium; on=var; mode=now; timeout=5000; var=popupChanged",
+                "sensitivity=high; on=break; var=popupChanged",
+                "sensitivity=high; on=skip; var=popupChanged"
+            ]
+
+        case "Wait for Window", "Wait Window Closed":
+            choices := []
+            for winTitle in GetWindowTitlesFull()
+                choices.Push("title=" . winTitle . "; timeout=5000")
+            choices.Push("title=; timeout=5000")
+
+        case "Loop End", "Loop Break":
+            choices := []
+
         default:
             choices := []
     }
@@ -12561,6 +13339,21 @@ UpdateParamSuggestions() {
 
         case "Run Program":
             suggestions := GetCommonPrograms()
+
+        case "Loop Start":
+            suggestions := ["count=5; var=i", "count=3; var=i", "count=10; var=n", "count=forever; var=i"]
+
+        case "Popup Detect":
+            suggestions := [
+                "win=; region=0,0,800,600; sensitivity=medium; on=var; mode=now; timeout=5000; var=popupChanged",
+                "sensitivity=high; on=break; var=popupChanged"
+            ]
+
+        case "Wait for Window", "Wait Window Closed":
+            suggestions := []
+            for winTitle in GetWindowTitlesFull()
+                suggestions.Push("title=" . winTitle . "; timeout=5000")
+            suggestions.Push("title=; timeout=5000")
 
         case "Insert Field":
             for name, _ in g_ExtractedData
@@ -13687,7 +14480,28 @@ DismissOCRHighlight(*) {
     return false
 }
 
+; The Add Step button now opens the guided form; everything is chosen from
+; lists/pickers there. QuickAddStep bypasses it for power users who typed
+; directly into the Target/Param fields.
 AddStep(*) {
+    global ActionDD
+    if ActionDD.Text = "" {
+        ShowStatus("Please select an action", "fail")
+        return
+    }
+    ShowActionForm(0)
+}
+
+QuickAddStep(*) {
+    global ActionDD
+    if ActionDD.Text = "" {
+        ShowStatus("Please select an action", "fail")
+        return
+    }
+    AddStepFromFields()
+}
+
+AddStepFromFields(*) {
     global g_CurrentSequenceSteps, ActionDD, TargetDD, ParamEdit, ParamCombo, QualPatternDD, QualWindowEdit, FailsafeCloseCheck
     ; Validate action is selected
     if ActionDD.Text = "" {
@@ -13771,72 +14585,52 @@ StepDown(*) {
     ScheduleWorkflowAutosave()
 }
 
+; Editing now reuses the same guided form as adding: select the step's action
+; in the editor, open the form pre-filled with the step's values.
 EditStep(*) {
-    global g_CurrentSequenceSteps, StepsLV, g_Coordinates, g_Patterns, g_ExtractedData, g_TaskbarApps
+    global g_CurrentSequenceSteps, StepsLV
     row := StepsLV.GetNext(0, "Focused")
     if row = 0 || row > g_CurrentSequenceSteps.Length
         return
 
-    step := g_CurrentSequenceSteps[row]
-    action := step["action"]
-    target := step["target"]
-    param := step["param"]
+    SelectActionByName(g_CurrentSequenceSteps[row]["action"])
+    ShowActionForm(row)
+}
 
-    ; Create smart edit dialog
-    editGui := Gui("+AlwaysOnTop", "Edit Step " . row . ": " . action)
-    editGui.SetFont("s9", "Segoe UI")
-
-    ; Action type (read-only display)
-    editGui.Add("Text", "w400", "Action: " . action)
-    editGui.Add("Text", "", "(To change action, delete and re-add step)")
-
-    ; Target section (if applicable)
-    editGui.Add("GroupBox", "y+15 w420 h75 Section", "Target")
-    editGui.Add("Text", "xs+10 ys+20", "Current:")
-    editGui.Add("Edit", "x+5 w300 ReadOnly", target)
-
-    ; Target dropdown for changing
-    editGui.Add("Text", "xs+10 y+8", "Change to:")
-    targetChoices := ["(none)"]
-
-    ; Build target choices based on action
-    if InStr(action, "Find &") || InStr(action, "Pattern") {
-        for name, _ in g_Patterns
-            targetChoices.Push("[P] " . name)
-    } else if action = "Relative Click" {
-        for name, c in g_Coordinates
-            if c["type"] = "Relative"
-                targetChoices.Push(name)
-    } else {
-        for name, _ in g_Coordinates
-            targetChoices.Push(name)
+SelectActionByName(name) {
+    global ActionDD, ActionCategoryDD
+    ; Make sure the category filter is not hiding this action.
+    if ActionCategoryDD.Text != "(All)" && GetActionCategory(name) != ActionCategoryDD.Text {
+        catItems := ControlGetItems(ActionCategoryDD)
+        for i, item in catItems {
+            if item = "(All)" {
+                ActionCategoryDD.Choose(i)
+                break
+            }
+        }
     }
-
-    editTargetDD := editGui.Add("ComboBox", "x+5 w300 vNewTarget", targetChoices)
-    editTargetDD.Choose(1)
-
-    ; Parameter section with templates
-    editGui.Add("GroupBox", "xs y+20 w420 h130", "Parameter")
-    editGui.Add("Text", "xp+10 yp+20", "Current value:")
-    editParamEdit := editGui.Add("Edit", "w390 h22 vNewParam", param)
-
-    ; Get action-specific suggestions
-    editGui.Add("Text", "y+10", "Suggestions for " . action . ":")
-    suggestions := GetActionParamSuggestions(action)
-    editSuggestDD := editGui.Add("DropDownList", "w300 vSuggestion", suggestions)
-    editGui.Add("Button", "x+5 w80 h22", "Use").OnEvent("Click", (*) => (editParamEdit.Value := CleanSuggestion(editSuggestDD.Text)))
-
-    ; Quick templates/info
-    editGui.Add("Text", "xs+10 y+8 w400 cGray", GetActionParamHelp(action))
-
-    ; Failsafe button
-    editGui.Add("Button", "xs y+20 w120 h26", "🛡 Edit Failsafe...").OnEvent("Click", (*) => (editGui.Destroy(), EditStepFailsafeByRow(row)))
-
-    ; Save/Cancel buttons
-    editGui.Add("Button", "x+120 w80 h26", "Save").OnEvent("Click", (*) => SaveEditedStep(editGui, row))
-    editGui.Add("Button", "x+10 w80 h26", "Cancel").OnEvent("Click", (*) => editGui.Destroy())
-
-    editGui.Show()
+    RefreshActionList()
+    found := false
+    items := ControlGetItems(ActionDD)
+    for i, item in items {
+        if item = name {
+            ActionDD.Choose(i)
+            found := true
+            break
+        }
+    }
+    if !found {
+        ; A legacy/custom step: still let the generic form edit it.
+        ActionDD.Add([name])
+        items := ControlGetItems(ActionDD)
+        for i, item in items {
+            if item = name {
+                ActionDD.Choose(i)
+                break
+            }
+        }
+    }
+    OnActionChange()
 }
 
 ; Get param suggestions based on action type
@@ -14280,7 +15074,7 @@ ShowMawWriter(*) {
     hotkeyEdit := writer.Add("Edit", "x470 y32 w100", SeqHotkeyEdit.Value)
     writer.Add("Text", "x585 y35", "Hotstring:")
     hotstringEdit := writer.Add("Edit", "x650 y32 w110", SeqHotstringEdit.Value)
-    writer.Add("Text", "x25 y62 w850 cGray", "This builder writes every action supported by v7. The .maw file remains separate until you import it or send it to the editor.")
+    writer.Add("Text", "x25 y62 w850 cGray", "This builder writes every action supported by v8. The .maw file remains separate until you import it or send it to the editor.")
 
     writer.Add("GroupBox", "x12 y95 w895 h170", "2. Add or Update a Step")
     writer.Add("Text", "x25 y120", "Action:")
@@ -15417,11 +16211,14 @@ SubstituteWorkflowVariables(text) {
 
 ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
     global g_Settings, g_IsPaused, g_AbortSequence, g_DebugMode, g_StepThroughMode, g_StepThroughWaiting, g_StepThroughContinue
-    global g_WorkflowVariables, g_SkipNextAction, g_SequenceCallStack
+    global g_WorkflowVariables, g_SkipNextAction, g_SequenceCallStack, g_SpoolVariables
+    global g_LoopBreakRequested, g_ActiveLoopDepth
     g_AbortSequence := false
     g_WorkflowVariables := Map()
     g_SkipNextAction := false
     g_SequenceCallStack := []
+    g_LoopBreakRequested := false
+    g_ActiveLoopDepth := 0
 
     ; Enable ESC to abort and Tab for step-through
     try Hotkey("Escape", AbortSequenceHandler, "On")
@@ -15443,7 +16240,13 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
 
     ShowStatus("Running " . total . " steps @ " . speedText . modeText, "wait")
 
-    for i, s in enabled {
+    ; ── Loop support: Loop Start / Loop End / Loop Break are handled here so
+    ; the body in between re-runs. Each stack entry remembers where the body
+    ; starts, how many passes remain (-1 = forever) and the counter variable.
+    loopStack := []
+
+    i := 1
+    while i <= total {
         if g_AbortSequence {
             ShowStatus("ABORTED by ESC", "fail")
             try Hotkey("Escape", "Off")
@@ -15465,10 +16268,12 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
 
         if g_SkipNextAction {
             g_SkipNextAction := false
-            ShowStatus("[" . i . "/" . total . "] Skipped by previous condition: " . s["action"], "info")
+            ShowStatus("[" . i . "/" . total . "] Skipped by previous condition: " . enabled[i]["action"], "info")
+            i++
             continue
         }
 
+        s := enabled[i]
         ShowStatus("[" . i . "/" . total . "] " . s["action"] . " @ " . speedText . modeText, "wait")
 
         ; Check if notifications are muted for this step
@@ -15484,24 +16289,101 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
             ShowNotificationBasic("Executing", stepInfo, 0, "info", "", i)
         }
 
-        success := ExecuteActionVerified(s["action"], s["target"], s["param"], s, speedMultiplier)
+        jumpTo := 0   ; >0 = jump to this enabled index instead of i+1 (loop back)
 
-        ; Show step result notification
-        if success {
-            if g_DebugMode && !stepMuted {
-                ShowNotificationBasic("Step " . i . " Success", s["action"] . " completed", 0, "success", "", i)
+        if s["action"] = "Loop Start" {
+            opt := ParseLoopOptions(s["param"])
+            countText := LoopOptStr(opt, "count", "5")
+            loopVar := LoopOptStr(opt, "var", "i")
+            lower := StrLower(countText)
+            repeat := (lower = "forever" || lower = "infinite") ? -1
+                    : (IsNumber(countText) ? Max(Integer(countText), 1) : 5)
+            loopStack.Push(Map("start", i + 1, "remaining", repeat, "total", repeat, "var", loopVar))
+            g_ActiveLoopDepth := loopStack.Length
+            if loopVar != "" {
+                g_WorkflowVariables[loopVar] := 1
+                g_SpoolVariables[loopVar] := 1
+                g_WorkflowVariables["loopCount"] := repeat = -1 ? "forever" : repeat
+                g_SpoolVariables["loopCount"] := repeat = -1 ? "forever" : repeat
+            }
+            ShowStatus("Loop started: " . (repeat = -1 ? "forever (ESC to stop)" : repeat . " passes")
+                . "  -  $var." . loopVar . " = 1, memory kept between passes", "info")
+        } else if s["action"] = "Loop End" {
+            if loopStack.Length > 0 {
+                top := loopStack[loopStack.Length]
+                if g_LoopBreakRequested {
+                    g_LoopBreakRequested := false
+                    loopStack.Pop()
+                    ShowStatus("Loop left early", "info")
+                } else if top["remaining"] = -1 {
+                    WorkflowLoopIncrement(top)
+                    jumpTo := top["start"]
+                } else {
+                    top["remaining"] -= 1
+                    if top["remaining"] > 0 {
+                        WorkflowLoopIncrement(top)
+                        jumpTo := top["start"]
+                    } else {
+                        loopStack.Pop()
+                        ShowStatus("Loop finished after " . top["total"] . " passes", "ok")
+                    }
+                }
+                g_ActiveLoopDepth := loopStack.Length
+            }
+        } else if s["action"] = "Loop Break" {
+            ShowStatus("Loop Break: leaving the current loop", "info")
+            if loopStack.Length > 0 {
+                loopStack.Pop()
+                g_ActiveLoopDepth := loopStack.Length
+            }
+            j := i + 1
+            while j <= total {
+                if enabled[j]["action"] = "Loop End" {
+                    i := j
+                    break
+                }
+                j++
             }
         } else {
-            if !stepMuted {
-                ShowNotificationBasic("Step " . i . " Failed", s["action"] . "`nTarget: " . s["target"], 0, "error", "", i)
+            success := ExecuteActionVerified(s["action"], s["target"], s["param"], s, speedMultiplier)
+
+            ; Popup Detect (and friends) may request a break: leave the current
+            ; loop now and skip the rest of the body by jumping to its Loop End.
+            if success && g_LoopBreakRequested && loopStack.Length > 0 {
+                g_LoopBreakRequested := false
+                loopStack.Pop()
+                g_ActiveLoopDepth := loopStack.Length
+                ShowStatus("Popup detected - leaving the loop early", "info")
+                j := i + 1
+                found := 0
+                while j <= total {
+                    if enabled[j]["action"] = "Loop End" {
+                        found := j
+                        break
+                    }
+                    j++
+                }
+                if found > 0
+                    i := found
             }
-            if !g_AbortSequence {
-                result := MsgBoxTop("Step " . i . " failed: " . s["action"] . "`nTarget: " . s["target"] . "`n`nContinue?", "Failed", "YesNo")
-                if result = "No" {
-                    try Hotkey("Escape", "Off")
-                    if g_StepThroughMode
-                        try Hotkey("Tab", "Off")
-                    return
+
+            ; Show step result notification
+            if success {
+                if g_DebugMode && !stepMuted {
+                    ShowNotificationBasic("Step " . i . " Success", s["action"] . " completed", 0, "success", "", i)
+                }
+            } else {
+                if !stepMuted {
+                    ShowNotificationBasic("Step " . i . " Failed", s["action"] . "`nTarget: " . s["target"], 0, "error", "", i)
+                }
+                if !g_AbortSequence {
+                    result := MsgBoxTop("Step " . i . " failed: " . s["action"] . "`nTarget: " . s["target"] . "`n`nContinue?", "Failed", "YesNo")
+                    if result = "No" {
+                        try Hotkey("Escape", "Off")
+                        if g_StepThroughMode
+                            try Hotkey("Tab", "Off")
+                        return
+                    }
                 }
             }
         }
@@ -15525,10 +16407,18 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
                 try Hotkey("Tab", "Off")
                 return
             }
-        } else {
+        } else if jumpTo = 0 {
             Sleep(adjustedDelay)
         }
+
+        if jumpTo > 0 && jumpTo <= total
+            i := jumpTo
+        else
+            i++
     }
+
+    if loopStack.Length > 0
+        ShowStatus("Finished with " . loopStack.Length . " unclosed loop(s) - check Loop Start/Loop End pairing", "info")
 
     ; Disable hotkeys
     try Hotkey("Escape", "Off")
@@ -15539,6 +16429,19 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
     ShowNotificationBasic("Sequence Complete", total . " steps executed successfully", 0, "success")
     Sleep(500)
     ToolTip()
+}
+
+; Bump the loop counter variable for the next pass ($var.<name> = 2, 3, ...).
+WorkflowLoopIncrement(top) {
+    global g_WorkflowVariables, g_SpoolVariables
+    varName := top["var"]
+    if varName = ""
+        return
+    n := 1
+    if g_WorkflowVariables.Has(varName) && IsNumber(g_WorkflowVariables[varName])
+        n := Integer(g_WorkflowVariables[varName]) + 1
+    g_WorkflowVariables[varName] := n
+    g_SpoolVariables[varName] := n
 }
 
 StepThroughAdvance(*) {
@@ -15892,6 +16795,27 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
         case "Show Notification":
             return ExecuteShowNotification(param)
 
+        ; ─── Looping family (jump control lives in ExecuteSequenceVerified) ──
+        case "Loop Start":
+            ; Direct single-step test: just seed the counter variables.
+            opt := ParseLoopOptions(param)
+            varName := LoopOptStr(opt, "var", "i")
+            if varName != "" {
+                g_WorkflowVariables[varName] := 1
+                g_SpoolVariables[varName] := 1
+            }
+            return true
+        case "Loop End", "Loop Break":
+            return true
+
+        ; ─── Window waiting / popup detection ────────────────────────────────
+        case "Wait for Window":
+            return ExecuteWaitForWindow(param, false)
+        case "Wait Window Closed":
+            return ExecuteWaitForWindow(param, true)
+        case "Popup Detect":
+            return ExecutePopupDetect(target, param, stepData)
+
         ; ─── Tracking-powered actions ────────────────────────────────────────
         case "Click Element":
             return ExecuteClickElement(target, param)
@@ -16006,6 +16930,197 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
     }
 
     return false
+}
+
+; ─── Wait for Window / Wait Window Closed ─────────────────────────────────────
+; param: "title=Save As; timeout=5000" (key=value pairs, see ParseLoopOptions)
+ExecuteWaitForWindow(param, waitGone) {
+    global g_AbortSequence
+    opt := ParseLoopOptions(param)
+    title := LoopOptStr(opt, "title", "")
+    if title = "" {
+        ShowStatus((waitGone ? "Wait Window Closed" : "Wait for Window") . " needs a window title", "fail")
+        return false
+    }
+    timeout := LoopOptInt(opt, "timeout", 5000)
+    start := A_TickCount
+    while !g_AbortSequence {
+        exists := WinExist(title) != 0
+        if (waitGone ? !exists : exists) {
+            ShowStatus(waitGone ? "Window closed: " . title : "Window found: " . title, "ok")
+            return true
+        }
+        if A_TickCount - start > timeout {
+            ShowStatus("Timed out waiting for window: " . title, "fail")
+            return false
+        }
+        Sleep(150)
+    }
+    return false
+}
+
+; ─── Popup Detect: region/window change detection with loop-top memory ────────
+; param: "win=Title; region=x,y,w,h; sensitivity=high|medium|low|strict;
+;         on=var|skip|break|stop; mode=now|wait; timeout=ms; var=popupChanged"
+; The baseline snapshot is remembered on the step object itself, so inside a
+; loop every pass compares against the state captured at the top of the loop.
+ExecutePopupDetect(target, param, stepData := "") {
+    global g_AbortSequence, g_WorkflowVariables, g_SpoolVariables
+    global g_SkipNextAction, g_LoopBreakRequested, g_ActiveLoopDepth
+
+    opt := ParseLoopOptions(param)
+    mode := LoopOptStr(opt, "mode", "now")
+    onAction := LoopOptStr(opt, "on", "var")
+    varName := LoopOptStr(opt, "var", "popupChanged")
+    sens := StrLower(LoopOptStr(opt, "sensitivity", "medium"))
+    thresholds := Map("high", 0.02, "medium", 0.05, "low", 0.15, "strict", 0.25)
+    threshold := thresholds.Has(sens) ? thresholds[sens] : 0.05
+
+    ; Resolve the watched area: a whole window (win=) or a rectangle (region=).
+    x1 := 0, y1 := 0, x2 := 0, y2 := 0
+    if opt.Has("win") && Trim(opt["win"]) != "" {
+        hwnd := FindWorkflowWindow(Trim(opt["win"]))
+        if !hwnd {
+            ShowStatus("Popup Detect: window not found - " . opt["win"], "fail")
+            return false
+        }
+        try WinGetPos(&x1, &y1, &w, &h, "ahk_id " . hwnd)
+        x2 := x1 + w
+        y2 := y1 + h
+    } else {
+        regionSource := opt.Has("region") && Trim(opt["region"]) != "" ? opt["region"] : target
+        region := ParseRegionCoords(regionSource)
+        if !region {
+            ShowStatus("Popup Detect needs a window or a screen region", "fail")
+            return false
+        }
+        x1 := region["x1"], y1 := region["y1"], x2 := region["x2"], y2 := region["y2"]
+    }
+    if x2 <= x1 || y2 <= y1 {
+        ShowStatus("Popup Detect: watched area is empty", "fail")
+        return false
+    }
+
+    ; Loop-top memory: first pass captures the baseline; later passes compare.
+    baseline := (IsObject(stepData) && stepData.Has("popupBaseline")) ? stepData["popupBaseline"] : ""
+    timeout := LoopOptInt(opt, "timeout", 5000)
+    start := A_TickCount
+    changed := false
+    changedFrac := 0.0
+
+    while true {
+        if g_AbortSequence
+            return false
+        capture := SampleRegionPixels(x1, y1, x2 - x1, y2 - y1, 8)
+        if baseline = "" {
+            baseline := capture
+            if IsObject(stepData)
+                stepData["popupBaseline"] := baseline
+            ShowStatus("Popup Detect: remembered the starting state", "info")
+        } else {
+            changedFrac := ComparePixelSamples(baseline, capture)
+            changed := changedFrac >= threshold
+            ; Track slow drift only while the area is still "clean", so the
+            ; baseline keeps meaning the state without a popup.
+            if !changed && IsObject(stepData)
+                stepData["popupBaseline"] := capture
+        }
+        if mode = "wait" && !changed {
+            if A_TickCount - start > timeout
+                break
+            Sleep(200)
+            continue
+        }
+        break
+    }
+
+    if varName != "" {
+        g_WorkflowVariables[varName] := changed ? 1 : 0
+        g_SpoolVariables[varName] := changed ? 1 : 0
+    }
+
+    if changed {
+        ShowStatus("Popup Detect: CHANGE detected (" . Round(changedFrac * 100, 1) . "% of the area)", "info")
+        switch onAction {
+            case "skip":
+                g_SkipNextAction := true
+            case "break":
+                if g_ActiveLoopDepth > 0
+                    g_LoopBreakRequested := true
+                else
+                    g_SkipNextAction := true
+            case "stop":
+                g_AbortSequence := true
+                ShowStatus("Workflow stopped by Popup Detect", "info")
+            default:
+                ; "var" (default): just remember the result.
+        }
+        return true
+    }
+
+    ShowStatus("Popup Detect: no change", "info")
+    return true
+}
+
+; ─── Screen sampling for change detection ─────────────────────────────────────
+; Captures the region and keeps one average byte per sampled pixel. Fast and
+; small enough to store on the step as the remembered baseline.
+SampleRegionPixels(x, y, w, h, step := 8) {
+    x := Max(0, x), y := Max(0, y)
+    w := Min(w, A_ScreenWidth - x), h := Min(h, A_ScreenHeight - y)
+    if w < 4 || h < 4
+        return Buffer(2, 0)
+    hdc := GetDC()
+    chdc := CreateCompatibleDC()
+    hbm := CreateDIBSection(w, h, chdc, 32, &pvBits)
+    old := SelectObject(chdc, hbm)
+    BitBlt(chdc, 0, 0, w, h, hdc, x, y)
+    SelectObject(chdc, old)
+    stride := w * 4
+    cols := (w + step - 1) // step
+    rows := (h + step - 1) // step
+    buf := Buffer(cols * rows + 2, 0)
+    NumPut("UShort", cols, buf, 0)
+    NumPut("UShort", rows, buf, 2)
+    idx := 2
+    row := 0
+    while row < rows {
+        py := row * step * stride
+        col := 0
+        while col < cols {
+            off := py + col * step * 4
+            b := NumGet(pvBits, off, "UChar")
+            g := NumGet(pvBits, off + 1, "UChar")
+            r := NumGet(pvBits, off + 2, "UChar")
+            NumPut("UChar", (r + g + b) // 3, buf, idx)
+            idx++
+            col++
+        }
+        row++
+    }
+    DeleteObject(hbm)
+    DeleteDC(chdc)
+    ReleaseDC(hdc)
+    return buf
+}
+
+; Fraction of sampled pixels that differ noticeably between two snapshots.
+ComparePixelSamples(bufA, bufB) {
+    if bufA.Size != bufB.Size || bufA.Size < 2
+        return 1.0
+    total := bufA.Size - 2
+    if total <= 0
+        return 0.0
+    diff := 0
+    i := 2
+    while i < bufA.Size {
+        a := NumGet(bufA, i, "UChar")
+        b := NumGet(bufB, i, "UChar")
+        if Abs(a - b) > 24
+            diff++
+        i++
+    }
+    return diff / total
 }
 
 NormalizeWorkflowVariableName(name) {
@@ -17706,6 +18821,28 @@ GetSequenceVariables() {
             }
         }
 
+        ; Loop Start seeds its counter variable ($var.i etc.) and $var.loopCount.
+        if action = "Loop Start" {
+            opt := ParseLoopOptions(param)
+            loopVar := LoopOptStr(opt, "var", "i")
+            for v in [loopVar, "loopCount"] {
+                if v != "" && RegExMatch(v, "^[A-Za-z_][A-Za-z0-9_]*$") && !varSet.Has(v) {
+                    vars.Push(v)
+                    varSet[v] := true
+                }
+            }
+        }
+
+        ; Popup Detect sets a result variable.
+        if action = "Popup Detect" {
+            opt := ParseLoopOptions(param)
+            popupVar := LoopOptStr(opt, "var", "popupChanged")
+            if popupVar != "" && RegExMatch(popupVar, "^[A-Za-z_][A-Za-z0-9_]*$") && !varSet.Has(popupVar) {
+                vars.Push(popupVar)
+                varSet[popupVar] := true
+            }
+        }
+
         ; Check OCR Region creating variables with var:name
         if action = "OCR Region" && InStr(param, "var:") {
             varName := Trim(SubStr(param, InStr(param, "var:") + 4))
@@ -17792,7 +18929,9 @@ ValidateStepParameters(action, target, param) {
                 errors.Push("Destination must be endX,endY")
 
         case "OCR Region", "OCR Click", "OCR Wait":
-            if target != "" {
+            ; Dynamic targets (window:/demo:/control:, full, screen) are valid.
+            if target != "" && !InStr(target, "window:") && !InStr(target, "demo:")
+                    && !InStr(target, "control:") && target != "full" && target != "screen" {
                 parts := StrSplit(target, ",")
                 if parts.Length != 4
                     errors.Push("OCR area must contain exactly four comma-separated numbers")
@@ -17803,6 +18942,31 @@ ValidateStepParameters(action, target, param) {
                             break
                         }
                 }
+            }
+
+        case "Loop Start":
+            if param != "" {
+                opt := ParseLoopOptions(param)
+                countText := LoopOptStr(opt, "count", "5")
+                lower := StrLower(countText)
+                if !(lower = "forever" || lower = "infinite" || IsNumber(countText))
+                    errors.Push("Loop count must be a number or 'forever'")
+            }
+
+        case "Popup Detect":
+            if param != "" {
+                opt := ParseLoopOptions(param)
+                hasWin := opt.Has("win") && Trim(opt["win"]) != ""
+                hasRegion := opt.Has("region") && Trim(opt["region"]) != ""
+                if !hasWin && !hasRegion
+                    errors.Push("Popup Detect needs a window or a region to watch")
+            }
+
+        case "Wait for Window", "Wait Window Closed":
+            if param != "" {
+                opt := ParseLoopOptions(param)
+                if !opt.Has("title") || Trim(opt["title"]) = ""
+                    errors.Push("A window title is required (pick one from the list)")
             }
 
         case "Wait":
@@ -17953,6 +19117,15 @@ InitializeActionTemplates() {
         Map("action", "Show Notification", "target", "", "param", "Debug,Starting workflow...", "pattern", "", "window", ""),
         Map("action", "Wait", "target", "", "param", "1000", "pattern", "", "window", ""),
         Map("action", "Show Notification", "target", "", "param", "Debug,Step 1 complete", "pattern", "", "window", "")
+    ]
+
+    ; v8 guided-loop template: repeat work, detect popups with loop-top memory.
+    g_ActionTemplates["Loop with Popup Detection"] := [
+        Map("action", "Loop Start", "target", "", "param", "count=10; var=i", "pattern", "", "window", ""),
+        Map("action", "Popup Detect", "target", "", "param", "region=0,0,800,600; sensitivity=medium; on=break; mode=now; timeout=5000; var=popupChanged", "pattern", "", "window", ""),
+        Map("action", "Click", "target", "demo:single", "param", "1", "pattern", "", "window", ""),
+        Map("action", "Wait", "target", "", "param", "500", "pattern", "", "window", ""),
+        Map("action", "Loop End", "target", "", "param", "", "pattern", "", "window", "")
     ]
 }
 
@@ -18642,6 +19815,7 @@ ImportTrigger(*) {
 
 ShowTriggerTemplates(*) {
     global g_NotificationTriggers
+    local yPos   ; intentionally local - shadows the top-level calendar layout var
 
     ; Create template selection GUI
     templateGui := Gui("+AlwaysOnTop", "Trigger Templates")
@@ -19025,6 +20199,7 @@ ShowTriggerTemplates(*) {
 
     ; Custom time trigger
     CreateCustomTime(*) {
+        local time   ; intentionally local - shadows the top-level calendar loop var
         time := timeEdit.Value
         name := nameEdit.Value
         msg := msgEdit.Value
@@ -19297,7 +20472,9 @@ CreateDIBSection(w, h, hdc:="", bpp:=32, &ppvBits:=0) {
     hdc2 := hdc ? hdc : GetDC()
     bi := Buffer(40, 0)
     NumPut("UInt", 40, "UInt", w, "UInt", h, "ushort", 1, "ushort", bpp, "UInt", 0, bi)
-    hbm := DllCall("CreateDIBSection", "UPtr", hdc2, "UPtr", bi.Ptr, "UInt", 0, "UPtr*", &ppvBits, "UPtr", 0, "UInt", 0, "UPtr")
+    bits := 0
+    hbm := DllCall("CreateDIBSection", "UPtr", hdc2, "UPtr", bi.Ptr, "UInt", 0, "UPtr*", &bits, "UPtr", 0, "UInt", 0, "UPtr")
+    ppvBits := bits   ; a ByRef parameter cannot be passed to DllCall as &param
     if !hdc
         ReleaseDC(hdc2)
     return hbm
