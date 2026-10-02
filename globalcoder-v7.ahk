@@ -1,7 +1,7 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
 #ErrorStdOut
-#Include SQLiteDB.ahk
+#Include lib/SQLiteDB.ahk
 
 ; ============================================================================
 ; GlobalCoder v7
@@ -19,13 +19,14 @@
 ; REGISTERED HOTKEYS
 ;
 ; Global (available from any window):
-;   Ctrl + Right Shift  - Open the compact native GlobalCoder menuD
-;   Alt  + Right Shift  - Open the compact native GlobalCoder menu
+;   Ctrl + Right Shift  - Open the bounded native GlobalCoder menu, including Snips
+;   Alt  + Right Shift  - Open the bounded native GlobalCoder menu, including Snips
+;   Ctrl + M            - Resume the last Snips language/feature section (or open root)
 ;   Ctrl + Space        - Open Google search and log the query to SQLite
 ;   Ctrl + Alt + N      - Open the New Project wizard
 ;   Ctrl + Alt + L      - Open the Learning Center
 ;   Ctrl + Alt + R      - Rebuild the bounded native menu
-;   Ctrl + Alt + M      - Open the navigable GlobalCoder library browser
+;   Ctrl + Alt + M      - Resume the last Snips language/feature section (alias)
 ;   Ctrl + Alt + K      - Search the knowledge web
 ;   Ctrl + Alt + A      - Open the Windows instruction-language console
 ;
@@ -49,17 +50,35 @@
 ; Input GUT overlay:
 ;   Ctrl + Enter        - Submit the current input
 ;
+; Snips suggestion overlay (only in enabled IDE/editor applications):
+;   Tab                 - Insert the selected snippet and place {{cursor}}
+;   Up / Down           - Select a different likely snippet
+;   Escape              - Dismiss suggestions and clear the typed prefix
+;
+; Native project-tree menu item actions (while a file/folder is highlighted):
+;   V                   - Open the highlighted path in VS Code
+;   N                   - Create a new file in the corresponding folder
+;   O                   - Open Windows Terminal/cmd in that folder
+;   E                   - Open or select the path in Explorer
+;   C                   - Copy the highlighted path
+;
 ; Tutorial StepCanvas (only while StepCanvas is active):
 ;   Left / Right        - Show the previous or next tutorial step
 ;   Ctrl + C            - Copy the current command
 ;
 ; REGISTERED HOTSTRINGS (typed triggers, not modifier-key hotkeys):
-;   jjj                 - Open the navigable GlobalCoder library browser
+;   jjj                 - Open the arrow-navigable native GlobalCoder menu
 ;   ggg                 - Open Google search and log the query to SQLite
+;   gcd                 - Open A_ScriptDir in the active/new Explorer window
+;
+; SQLite contextual bindings:
+;   User-defined hotkeys and hotstrings can be limited by active executable,
+;   excluded executable, window-title text, window class, or any window.
 
 ; --- Portable paths ----------------------------------------------------------
 global GC_DATA_DIR := A_ScriptDir "\data"
 global GC_PROJECT_DIR := GC_DATA_DIR "\projs"
+global GC_SNIP_IMPORT_DIR := GC_DATA_DIR "\snips-import"
 global GC_DB_PATH := GC_DATA_DIR "\globalcoder-v7.db"
 global GC_LIBRARY_DIR := A_ScriptDir "\CustomMenuFiles"
 global GC_SQLITE_WRAPPER := A_ScriptDir "\SQLiteDB.ahk"
@@ -83,7 +102,13 @@ global GC_MenuItems := []
 global GC_MenuIndex := 1
 global GC_MenuStack := []
 global GC_CallingWindowHwnd := 0
+global GC_CallingControl := ""
 global GC_ActiveStepCanvas := ""
+global GC_NativeMenuActive := false
+global GC_HighlightedMenuContext := ""
+global GC_LastHighlightedSnippetContext := ""
+global GC_MenuCommandContexts := Map()
+global GC_MenuPositionContexts := Map()
 
 ; ============================================================================
 ; ALL CLASSES
@@ -147,6 +172,63 @@ class GlobalCoderDatabase {
             trigger TEXT PRIMARY KEY,
             replacement TEXT NOT NULL,
             category TEXT NOT NULL DEFAULT 'Hotstrings',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        /*close*/);
+
+        CREATE TABLE IF NOT EXISTS context_bindings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            binding_type TEXT NOT NULL DEFAULT 'hotstring',
+            trigger TEXT NOT NULL,
+            context_type TEXT NOT NULL DEFAULT 'any',
+            context_value TEXT NOT NULL DEFAULT '',
+            action_type TEXT NOT NULL DEFAULT 'send_text',
+            action_value TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            priority INTEGER NOT NULL DEFAULT 100,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            UNIQUE(binding_type, trigger, context_type, context_value)
+        /*close*/);
+
+        CREATE TABLE IF NOT EXISTS snippet_languages (
+            code TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            aliases TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 100,
+            enabled INTEGER NOT NULL DEFAULT 1
+        /*close*/);
+
+        CREATE TABLE IF NOT EXISTS snippet_feature_groups (
+            code TEXT PRIMARY KEY,
+            label TEXT NOT NULL,
+            domain TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            sort_order INTEGER NOT NULL DEFAULT 100,
+            enabled INTEGER NOT NULL DEFAULT 1
+        /*close*/);
+
+        CREATE TABLE IF NOT EXISTS snippets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            language_code TEXT NOT NULL,
+            feature_code TEXT NOT NULL,
+            name TEXT NOT NULL,
+            trigger TEXT NOT NULL,
+            body TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            usage_count INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            UNIQUE(language_code, feature_code, name),
+            FOREIGN KEY(language_code) REFERENCES snippet_languages(code),
+            FOREIGN KEY(feature_code) REFERENCES snippet_feature_groups(code)
+        /*close*/);
+
+        CREATE TABLE IF NOT EXISTS snippet_editor_contexts (
+            executable TEXT PRIMARY KEY,
+            label TEXT NOT NULL DEFAULT '',
             enabled INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         /*close*/);
@@ -269,6 +351,9 @@ class GlobalCoderDatabase {
         CREATE INDEX IF NOT EXISTS idx_recent_opened ON recent_projects(last_opened DESC);
         CREATE INDEX IF NOT EXISTS idx_knowledge_lookup ON knowledge_nodes(language, feature, title);
         CREATE INDEX IF NOT EXISTS idx_gaps_due ON knowledge_gaps(status, due_at);
+        CREATE INDEX IF NOT EXISTS idx_context_bindings_lookup ON context_bindings(binding_type, trigger, enabled, priority);
+        CREATE INDEX IF NOT EXISTS idx_snippets_lookup ON snippets(language_code, feature_code, enabled, usage_count DESC);
+        CREATE INDEX IF NOT EXISTS idx_snippets_trigger ON snippets(trigger, enabled, usage_count DESC);
         )"
         this.Exec(schema)
     }
@@ -283,8 +368,9 @@ class GlobalCoderDatabase {
             ["Projects", "VSCodePath", "code"],
             ["Projects", "SublimePath", "C:\Program Files\Sublime Text\sublime_text.exe"],
             ["Projects", "GitBashPath", "C:\Program Files\Git\git-bash.exe"],
-            ["Knowledge", "PromptOnResume", "1"],
-            ["Knowledge", "IdleThresholdMs", "900000"]
+            ["Knowledge", "IdleThresholdMs", "900000"],
+            ["Snippets", "SuggestionsEnabled", "1"],
+            ["Snippets", "MinimumPrefixLength", "4"]
         ]
         for row in defaults {
             this.Exec("INSERT OR IGNORE INTO settings(section,key,value) VALUES("
@@ -485,6 +571,140 @@ class SafeMenuBuilder {
                 return item["text"]
         }
         return String(item)
+    }
+}
+
+class NativeMenuLegendWindow {
+    static GuiObj := ""
+    static LegendText := ""
+
+    static Init() {
+        if IsObject(this.GuiObj)
+            return
+        this.GuiObj := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x08000020", "GlobalCoder Menu Keys")
+        this.GuiObj.BackColor := "101010"
+        this.GuiObj.MarginX := 0
+        this.GuiObj.MarginY := 0
+        this.LegendText := this.GuiObj.Add("Text", "x12 y9 w548 h70 Background101010 cFFFFFF")
+        this.LegendText.SetFont("s9", "Segoe UI")
+    }
+
+    static Show(context := "") {
+        this.Init()
+        this.Update(context)
+        GetActiveMonitorWorkArea(&left, &top, &right, &bottom)
+        width := 572, height := 88
+        x := right - width - 10
+        y := bottom - height - 10
+        this.GuiObj.Show("NA x" . x . " y" . y . " w" . width . " h" . height)
+        try WinSetTransparent(238, "ahk_id " . this.GuiObj.Hwnd)
+    }
+
+    static Update(context := "") {
+        if !IsObject(this.LegendText)
+            return
+        line1 := "↑↓ select   → submenu   ← back   Enter open/insert   Esc close"
+        if IsObject(context) && context.Has("path") {
+            line2 := "V VS Code   N new file   O terminal here   E Explorer   C copy path"
+            line3 := DatabaseBrowser.Compact(context["path"], 88)
+        } else if IsObject(context) && context.Has("kind") && context["kind"] = "snippet_feature" {
+            languageLabel := GlobalCoderDatabase.Scalar("SELECT label FROM snippet_languages WHERE code="
+                . GlobalCoderDatabase.Q(context["language_code"]) . " LIMIT 1;", context["language_code"])
+            section := SnippetMenuSectionByCode(context["section_code"])
+            sectionLabel := IsObject(section) ? section["label"] : context["section_code"]
+            line2 := "Resume target: Snips > " . languageLabel . " > " . sectionLabel
+            line3 := context["label"] . " | Enter opens this feature; syntax leaves insert at the calling cursor."
+        } else {
+            line2 := "File/folder actions appear when a project-tree item is highlighted."
+            line3 := "Snips: Enter on a syntax leaf inserts at the calling editor cursor."
+        }
+        this.LegendText.Text := line1 . "`r`n" . line2 . "`r`n" . line3
+    }
+
+    static Hide() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Hide()
+    }
+
+    static Close() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+        this.LegendText := ""
+    }
+}
+
+class NativeMenuMonitor {
+    static Initialized := false
+
+    static Init() {
+        if this.Initialized
+            return
+        OnMessage(0x0211, NativeMenuEnterLoop)
+        OnMessage(0x0212, NativeMenuExitLoop)
+        OnMessage(0x011F, NativeMenuSelect)
+        NativeMenuLegendWindow.Init()
+        this.Initialized := true
+    }
+
+    static ResetMappings() {
+        global GC_MenuCommandContexts, GC_MenuPositionContexts
+        GC_MenuCommandContexts := Map()
+        GC_MenuPositionContexts := Map()
+    }
+
+    static RegisterLastItem(menuObj, context) {
+        global GC_MenuCommandContexts, GC_MenuPositionContexts
+        if !IsObject(menuObj) || !IsObject(context)
+            return
+        try menuHandle := menuObj.Handle
+        catch
+            return
+        position := DllCall("User32.dll\GetMenuItemCount", "Ptr", menuHandle, "Int") - 1
+        if position < 0
+            return
+        GC_MenuPositionContexts[menuHandle . ":" . position] := context
+        commandId := DllCall("User32.dll\GetMenuItemID", "Ptr", menuHandle, "Int", position, "UInt")
+        if commandId != 0xFFFFFFFF
+            GC_MenuCommandContexts[commandId] := context
+    }
+
+    static Enter(*) {
+        global GC_NativeMenuActive, GC_HighlightedMenuContext, GC_LastHighlightedSnippetContext
+        GC_NativeMenuActive := true
+        GC_HighlightedMenuContext := ""
+        GC_LastHighlightedSnippetContext := ""
+        NativeMenuLegendWindow.Show()
+    }
+
+    static Exit(*) {
+        global GC_NativeMenuActive, GC_HighlightedMenuContext, GC_LastHighlightedSnippetContext
+        if IsObject(GC_LastHighlightedSnippetContext) {
+            try RememberSnippetMenuContext(GC_LastHighlightedSnippetContext["language_code"],
+                GC_LastHighlightedSnippetContext["feature_code"])
+        }
+        GC_NativeMenuActive := false
+        GC_HighlightedMenuContext := ""
+        GC_LastHighlightedSnippetContext := ""
+        NativeMenuLegendWindow.Hide()
+    }
+
+    static Select(wParam, lParam) {
+        global GC_HighlightedMenuContext, GC_LastHighlightedSnippetContext, GC_MenuCommandContexts, GC_MenuPositionContexts
+        itemValue := wParam & 0xFFFF
+        flags := (wParam >> 16) & 0xFFFF
+        context := ""
+        if lParam && (flags & 0x0010) {
+            positionKey := lParam . ":" . itemValue
+            if GC_MenuPositionContexts.Has(positionKey)
+                context := GC_MenuPositionContexts[positionKey]
+        } else if GC_MenuCommandContexts.Has(itemValue) {
+            context := GC_MenuCommandContexts[itemValue]
+        }
+        GC_HighlightedMenuContext := context
+        if IsObject(context) && context.Has("kind") && context["kind"] = "snippet_feature"
+            GC_LastHighlightedSnippetContext := context
+        NativeMenuLegendWindow.Update(context)
     }
 }
 
@@ -1369,13 +1589,6 @@ class KnowledgeBase {
             . Number(strength) . ") ON CONFLICT(from_node_id,to_node_id,relation) DO UPDATE SET strength=excluded.strength;")
     }
 
-    static NextGap() {
-        rows := GlobalCoderDatabase.Rows("SELECT g.id,g.node_id,g.prompt,n.title,n.content FROM knowledge_gaps g "
-            . "LEFT JOIN knowledge_nodes n ON n.id=g.node_id WHERE g.status='open' AND g.due_at<=datetime('now','localtime') "
-            . "ORDER BY n.importance DESC,g.created_at LIMIT 1;")
-        return rows.Length > 0 ? rows[1] : ""
-    }
-
     static NextReview() {
         rows := GlobalCoderDatabase.Rows("SELECT n.id,n.title,n.language,n.feature,n.content,"
             . "COALESCE(MAX(r.next_review_at),'1970-01-01') AS next_review_at "
@@ -1393,22 +1606,10 @@ class KnowledgeBase {
         if rating >= 2
             this.RecordUse(nodeId)
     }
-
-    static ResolveGap(gapId, nodeId, answer) {
-        rows := GlobalCoderDatabase.Rows("SELECT content FROM knowledge_nodes WHERE id=" . Integer(nodeId) . " LIMIT 1;")
-        if rows.Length > 0 {
-            updated := RTrim(rows[1]["content"]) . "`n`n" . answer
-            GlobalCoderDatabase.Exec("UPDATE knowledge_nodes SET content=" . GlobalCoderDatabase.Q(updated)
-                . ",updated_at=datetime('now','localtime') WHERE id=" . Integer(nodeId) . ";")
-        }
-        GlobalCoderDatabase.Exec("UPDATE knowledge_gaps SET status='resolved',resolved_at=datetime('now','localtime') WHERE id="
-            . Integer(gapId) . ";")
-    }
 }
 
 class ActivityMonitor {
     static WasIdle := false
-    static LastPromptAt := 0
 
     static Start() {
         SetTimer((*) => ActivityMonitor.Tick(), 30000)
@@ -1423,32 +1624,8 @@ class ActivityMonitor {
             try title := WinGetTitle("A")
             GlobalCoderDatabase.Exec("INSERT INTO activity_log(event_type,detail,active_window,idle_ms) VALUES("
                 . GlobalCoderDatabase.Q(eventType) . ",'' ," . GlobalCoderDatabase.Q(title) . "," . Integer(A_TimeIdlePhysical) . ");")
-            if !isIdle && GlobalCoderDatabase.GetSetting("Knowledge", "PromptOnResume", "1") = "1"
-                this.PromptForGap()
             this.WasIdle := isIdle
         }
-    }
-
-    static PromptForGap() {
-        if A_TickCount - this.LastPromptAt < 600000
-            return
-        gap := KnowledgeBase.NextGap()
-        if !IsObject(gap)
-            return
-        this.LastPromptAt := A_TickCount
-        options := Map(
-            "width", 620,
-            "height", 360,
-            "inputPrompt", gap["title"] . "`n`n" . gap["prompt"],
-            "onSubmit", ResolveKnowledgeGapPrompt.Bind(gap["id"], gap["node_id"]),
-            "persistent", true
-        )
-        OverlayManager.Show("Fill a Knowledge Gap", "", -1, options)
-    }
-
-    static ResolvePrompt(gapId, nodeId, answer) {
-        if Trim(answer) != ""
-            KnowledgeBase.ResolveGap(gapId, nodeId, answer)
     }
 }
 
@@ -1456,7 +1633,7 @@ class HotstringManager {
     static Registered := []
 
     static Init() {
-        Hotstring(":*:jjj", ShowCustomMenu)
+        Hotstring(":*:jjj", ShowMainMenu)
         Hotstring(":*:ggg", GoogleSearchWithLogging)
         this.ReloadCustom()
     }
@@ -1475,6 +1652,2577 @@ class HotstringManager {
     }
 }
 
+class SyntaxGuideRepository {
+    static Seed() {
+        pythonGuide := "
+        (
+PYTHON, PIP, AND VIRTUAL ENVIRONMENTS
+
+1. Verify the Windows Python launcher
+   py --version
+   py -0p                         List installed Python versions and paths
+   py -3.12 --version             Select a particular installed version
+
+2. Create and activate a project environment
+   mkdir my-project
+   cd my-project
+   py -m venv .venv
+   .\.venv\Scripts\Activate.ps1  PowerShell
+   .venv\Scripts\activate.bat    Command Prompt
+   deactivate                     Leave the environment
+
+   If PowerShell blocks activation for the current process:
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+3. Always invoke pip through the selected interpreter
+   py -m pip install --upgrade pip setuptools wheel
+   python -m pip install package-name
+   python -m pip list
+   python -m pip show package-name
+   python -m pip uninstall package-name
+   python -m pip check
+   python -m pip cache purge
+
+4. Reproducible dependencies
+   python -m pip freeze > requirements.txt
+   python -m pip install -r requirements.txt
+   python -m pip install --upgrade -r requirements.txt
+   python -m pip install -e .     Editable install for the current package
+
+5. Popular library groups
+   HTTP and APIs:       python -m pip install requests httpx aiohttp
+   Data:                python -m pip install numpy pandas polars scipy
+   Charts:              python -m pip install matplotlib seaborn plotly
+   Web APIs:            python -m pip install fastapi uvicorn flask django
+   Database:            python -m pip install sqlalchemy alembic psycopg[binary] pymysql
+   Files and formats:   python -m pip install openpyxl pillow pypdf python-docx
+   Scraping:            python -m pip install beautifulsoup4 lxml playwright
+   CLI and config:      python -m pip install typer rich python-dotenv pydantic
+   Testing and quality: python -m pip install pytest pytest-cov ruff mypy black
+   Notebooks:           python -m pip install jupyterlab ipykernel
+
+6. Typical project checks
+   python -m pytest -q
+   python -m pytest --cov=src
+   python -m ruff check .
+   python -m ruff format .
+   python -m mypy src
+
+7. Troubleshooting
+   where.exe python
+   where.exe pip
+   python -c 'import sys; print(sys.executable)'
+   python -c 'import site; print(site.getsitepackages())'
+   python -m pip debug --verbose
+
+Rules of thumb: create one .venv per project; do not commit .venv; commit requirements.txt or a lock file; prefer python -m pip so installs go to the interpreter you intended.
+        )"
+
+        gitGuide := "
+        (
+GIT COMMANDS AND WORKFLOW
+
+Identity and defaults
+   git --version
+   git config --global user.name 'Your Name'
+   git config --global user.email 'you@example.com'
+   git config --global init.defaultBranch main
+   git config --list --show-origin
+
+Start or obtain a repository
+   git init
+   git clone URL
+   git clone URL folder-name
+
+Daily loop
+   git status --short --branch
+   git diff                         Unstaged changes
+   git diff --staged                Staged changes
+   git add file
+   git add -p                       Stage selected hunks
+   git commit -m 'Clear message'
+   git log --oneline --graph --decorate --all
+
+Branches
+   git branch
+   git switch -c feature/name
+   git switch main
+   git merge feature/name
+   git branch -d feature/name
+   git rebase main                  Replay current branch on main
+   git rebase --continue
+   git rebase --abort
+
+Remotes and collaboration
+   git remote -v
+   git remote add origin URL
+   git fetch --all --prune
+   git pull --rebase
+   git push -u origin branch-name
+   git push
+
+Safe correction and recovery
+   git restore file                 Discard unstaged file changes
+   git restore --staged file        Unstage without losing work
+   git commit --amend               Repair the newest local commit
+   git revert COMMIT                Make a new commit that reverses one
+   git reflog                       Find recently moved branch pointers
+
+Temporary work
+   git stash push -u -m 'description'
+   git stash list
+   git stash pop
+   git stash apply stash@{0}
+
+Tags and inspection
+   git tag -a v1.0.0 -m 'Release 1.0.0'
+   git push origin v1.0.0
+   git show COMMIT
+   git blame file
+   git log -- path/to/file
+
+Recommended feature workflow: update main; create a feature branch; make focused commits; fetch and rebase; run tests; push; review; merge. Avoid reset --hard and force-push unless you have resolved the exact target and understand who else shares the history.
+        )"
+
+        npmGuide := "
+        (
+NPM, TYPESCRIPT, AND REACT APPLICATION SETUP
+
+Verify tools
+   node --version
+   npm --version
+   npm config get prefix
+
+Create a modern React plus TypeScript app with Vite
+   npm create vite@latest my-app -- --template react-ts
+   cd my-app
+   npm install
+   npm run dev
+   npm run build
+   npm run preview
+
+Create a plain TypeScript project
+   mkdir my-ts-app
+   cd my-ts-app
+   npm init -y
+   npm install --save-dev typescript tsx @types/node
+   npx tsc --init
+   npx tsc --noEmit
+   npx tsx src/index.ts
+
+Package operations
+   npm install package-name
+   npm install --save-dev package-name
+   npm uninstall package-name
+   npm update
+   npm outdated
+   npm audit
+   npm audit fix
+   npm ls --depth=0
+   npm explain package-name
+
+Common React packages
+   Routing:       npm install react-router-dom
+   Server state:  npm install @tanstack/react-query
+   Forms:         npm install react-hook-form zod @hookform/resolvers
+   State:         npm install zustand
+   HTTP:          npm install axios
+   Dates:         npm install date-fns
+   UI utilities:  npm install clsx tailwind-merge
+   Testing:       npm install -D vitest @testing-library/react @testing-library/jest-dom jsdom
+   Quality:       npm install -D eslint prettier typescript-eslint
+
+Useful package.json scripts
+   dev     starts the local development server
+   build   runs tsc and creates the production bundle
+   test    runs Vitest
+   lint    runs ESLint
+   typecheck runs tsc --noEmit
+
+Locking and clean installs
+   npm install                       Updates package-lock.json as needed
+   npm ci                            Exact clean install from package-lock.json
+   npx package-command               Run a local package executable
+
+Troubleshooting
+   npm cache verify
+   npm doctor
+   npm config list
+   Remove node_modules and run npm ci only after confirming the project lock file is correct.
+
+Commit package.json and package-lock.json. Do not commit node_modules, dist, local environment secrets, or generated coverage output.
+        )"
+
+        dotnetGuide := "
+        (
+.NET CLI COMMAND GUIDE
+
+Inspect SDKs and templates
+   dotnet --info
+   dotnet --list-sdks
+   dotnet new list
+
+Create projects and a solution
+   dotnet new sln -n MySolution
+   dotnet new console -n MyApp
+   dotnet new classlib -n MyLibrary
+   dotnet new webapi -n MyApi
+   dotnet new xunit -n MyApp.Tests
+   dotnet sln MySolution.sln add MyApp/MyApp.csproj
+   dotnet sln MySolution.sln add MyLibrary/MyLibrary.csproj
+   dotnet add MyApp/MyApp.csproj reference MyLibrary/MyLibrary.csproj
+
+Packages
+   dotnet add PROJECT package PACKAGE
+   dotnet add PROJECT package PACKAGE --version VERSION
+   dotnet list PROJECT package
+   dotnet list PROJECT package --outdated
+   dotnet remove PROJECT package PACKAGE
+   dotnet restore
+
+Build, run, and test
+   dotnet clean
+   dotnet build
+   dotnet build --configuration Release
+   dotnet run --project MyApp
+   dotnet watch --project MyApi
+   dotnet test
+   dotnet test --collect:'XPlat Code Coverage'
+   dotnet format
+
+Publish
+   dotnet publish MyApp -c Release -o publish
+   dotnet publish MyApp -c Release -r win-x64 --self-contained true
+
+Entity Framework Core
+   dotnet tool install --global dotnet-ef
+   dotnet add PROJECT package Microsoft.EntityFrameworkCore.Design
+   dotnet ef migrations add InitialCreate --project PROJECT
+   dotnet ef database update --project PROJECT
+   dotnet ef migrations list --project PROJECT
+   dotnet ef migrations remove --project PROJECT
+
+Useful templates: console, classlib, webapi, webapp, mvc, worker, xunit, nunit, mstest, gitignore, editorconfig. Keep SDK selection repeatable with global.json when a team or build server must use a specific SDK feature band.
+        )"
+
+        sqliteGuide := "
+        (
+SQLITE SYNTAX AND OPERATIONS
+
+CLI basics
+   sqlite3 app.db
+   .databases
+   .tables
+   .schema table_name
+   .headers on
+   .mode column
+   .mode csv
+   .import file.csv table_name
+   .output backup.sql
+   .dump
+   .quit
+
+Schema
+   CREATE TABLE users (
+       id INTEGER PRIMARY KEY,
+       email TEXT NOT NULL UNIQUE,
+       display_name TEXT NOT NULL DEFAULT '',
+       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+   /* end columns */ );
+   ALTER TABLE users ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
+   CREATE INDEX idx_users_email ON users(email);
+   DROP INDEX IF EXISTS idx_users_email;
+
+Data changes
+   INSERT INTO users(email, display_name) VALUES('a@example.com', 'Ada');
+   UPDATE users SET display_name='Ada L.' WHERE id=1;
+   DELETE FROM users WHERE id=1;
+   INSERT INTO settings(key,value) VALUES('theme','dark')
+     ON CONFLICT(key) DO UPDATE SET value=excluded.value;
+
+Queries
+   SELECT id,email FROM users WHERE enabled=1 ORDER BY created_at DESC LIMIT 50;
+   SELECT project_id, COUNT(*) AS total FROM tasks GROUP BY project_id HAVING COUNT(*) > 2;
+   SELECT u.email, p.name FROM users u LEFT JOIN projects p ON p.owner_id=u.id;
+   WITH recent AS (SELECT * FROM events ORDER BY id DESC LIMIT 100)
+   SELECT event_type, COUNT(*) FROM recent GROUP BY event_type;
+
+Transactions
+   BEGIN IMMEDIATE;
+   INSERT INTO ...;
+   UPDATE ...;
+   COMMIT;
+   ROLLBACK;
+
+Parameters should be bound by the application instead of concatenating user input. Use foreign keys explicitly with PRAGMA foreign_keys=ON. For desktop applications, WAL mode often improves read/write concurrency:
+   PRAGMA journal_mode=WAL;
+   PRAGMA foreign_keys=ON;
+   PRAGMA integrity_check;
+   PRAGMA table_info(table_name);
+
+Backup and maintenance
+   VACUUM;
+   ANALYZE;
+   .backup backup.db
+   .restore backup.db
+        )"
+
+        tsqlGuide := "
+        (
+T-SQL / SQL SERVER SYNTAX GUIDE
+
+sqlcmd connection examples
+   sqlcmd -S localhost -E
+   sqlcmd -S SERVER -d DATABASE -U USER -P PASSWORD
+   sqlcmd -S SERVER -d DATABASE -E -i script.sql -o result.txt
+
+GO is a client batch separator, not a T-SQL statement.
+
+Schema and data
+   CREATE TABLE dbo.Users (
+       UserId int IDENTITY(1,1) PRIMARY KEY,
+       Email nvarchar(320) NOT NULL UNIQUE,
+       CreatedAt datetime2 NOT NULL DEFAULT sysdatetime()
+   /* end columns */ );
+   ALTER TABLE dbo.Users ADD Enabled bit NOT NULL CONSTRAINT DF_Users_Enabled DEFAULT 1;
+   CREATE INDEX IX_Users_Email ON dbo.Users(Email) INCLUDE(CreatedAt);
+   INSERT dbo.Users(Email) OUTPUT inserted.UserId VALUES('a@example.com');
+   UPDATE dbo.Users SET Enabled=0 WHERE UserId=@UserId;
+
+Queries
+   SELECT TOP (50) UserId,Email FROM dbo.Users WHERE Enabled=1 ORDER BY CreatedAt DESC;
+   SELECT p.ProjectId, COUNT_BIG(*) AS TaskCount
+   FROM dbo.Projects p
+   JOIN dbo.Tasks t ON t.ProjectId=p.ProjectId
+   GROUP BY p.ProjectId;
+
+Variables, CTEs, and windows
+   DECLARE @Since datetime2 = dateadd(day,-30,sysdatetime());
+   WITH Ranked AS (
+       SELECT *, row_number() OVER(PARTITION BY ProjectId ORDER BY CreatedAt DESC) AS rn
+       FROM dbo.Tasks WHERE CreatedAt >= @Since
+   /* end CTE */ )
+   SELECT * FROM Ranked WHERE rn=1;
+
+Transactions and error handling
+   SET XACT_ABORT ON;
+   BEGIN TRY
+       BEGIN TRANSACTION;
+       -- statements
+       COMMIT TRANSACTION;
+   END TRY
+   BEGIN CATCH
+       IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+       THROW;
+   END CATCH;
+
+Stored procedure
+   CREATE OR ALTER PROCEDURE dbo.GetUser @UserId int AS
+   BEGIN
+       SET NOCOUNT ON;
+       SELECT UserId,Email FROM dbo.Users WHERE UserId=@UserId;
+   END;
+
+Temporary data
+   CREATE TABLE #Work(Id int PRIMARY KEY, Value nvarchar(100));
+   DECLARE @Ids TABLE(Id int PRIMARY KEY);
+
+Use sp_executesql with parameters for dynamic SQL. Prefer datetime2 over datetime, nvarchar for Unicode, explicit column lists, schema-qualified object names, TRY/CATCH around multi-statement writes, and least-privilege database accounts.
+        )"
+
+        this.SeedGuide("python-pip-venv", "Python, pip, venv, and Popular Libraries", "Python", pythonGuide)
+        this.SeedGuide("git-command-guide", "Git Commands and Workflow", "Git", gitGuide)
+        this.SeedGuide("npm-typescript-react", "npm, TypeScript, and React Setup", "JavaScript / TypeScript", npmGuide)
+        this.SeedGuide("dotnet-cli", ".NET CLI Commands", ".NET", dotnetGuide)
+        this.SeedGuide("sqlite-syntax", "SQLite Syntax", "SQL", sqliteGuide)
+        this.SeedGuide("tsql-syntax", "T-SQL / SQL Server Syntax", "SQL", tsqlGuide)
+    }
+
+    static SeedGuide(slug, title, category, content) {
+        virtualPath := "guide://" . slug
+        GlobalCoderDatabase.Exec("INSERT OR IGNORE INTO content_items(path,title,content_type,content,source_mtime,metadata) VALUES("
+            . GlobalCoderDatabase.Q(virtualPath) . "," . GlobalCoderDatabase.Q(title) . ",'guide',"
+            . GlobalCoderDatabase.Q(Trim(content, "`r`n ")) . ",''," . GlobalCoderDatabase.Q("builtin:v1|" . category) . ");")
+        GlobalCoderDatabase.Exec("INSERT INTO knowledge_nodes(title,node_type,language,feature,content,confidence,importance) "
+            . "SELECT " . GlobalCoderDatabase.Q(title) . ",'guide'," . GlobalCoderDatabase.Q(category)
+            . ",'syntax-guide'," . GlobalCoderDatabase.Q("Reusable command and syntax reference. Open Automation > Syntax Guides to browse it.")
+            . ",1.0,1.25 WHERE NOT EXISTS(SELECT 1 FROM knowledge_nodes WHERE title=" . GlobalCoderDatabase.Q(title)
+            . " AND node_type='guide');")
+    }
+}
+
+class SyntaxGuideBrowser {
+    GuiObj := ""
+    SearchEdit := ""
+    List := ""
+    ContentEdit := ""
+    StatusText := ""
+    Rows := []
+    SelectedRow := 0
+
+    __New() {
+        this.GuiObj := Gui("+AlwaysOnTop", "GlobalCoder Syntax Guides")
+        this.GuiObj.BackColor := "1E1E1E"
+        this.GuiObj.SetFont("s9", "Segoe UI")
+        this.GuiObj.OnEvent("Close", (*) => this.Close())
+        this.GuiObj.OnEvent("Escape", (*) => this.Close())
+        heading := this.GuiObj.Add("Text", "x12 y12 w1076 h32 c4FC3F7 Center", "Portable Syntax and Setup Guides")
+        heading.SetFont("s14 bold")
+        this.SearchEdit := this.GuiObj.Add("Edit", "x12 y54 w470 Background252526 cFFFFFF")
+        this.GuiObj.Add("Button", "x490 y53 w78 h28 Default", "Search").OnEvent("Click", (*) => this.Load())
+        this.GuiObj.Add("Button", "x576 y53 w78 h28", "Clear").OnEvent("Click", (*) => this.ClearSearch())
+        this.GuiObj.Add("Button", "x850 y53 w112 h28", "Copy Guide").OnEvent("Click", (*) => this.CopyGuide())
+        this.GuiObj.Add("Button", "x970 y53 w118 h28", "All DB Records").OnEvent("Click", (*) => ShowDatabaseBrowser("content_items"))
+        this.List := this.GuiObj.Add("ListView", "x12 y92 w330 h548 -Multi +Grid Background252526 cE6E6E6", ["Category", "Guide"])
+        this.List.ModifyCol(1, 105), this.List.ModifyCol(2, 205)
+        this.List.OnEvent("ItemFocus", (ctrl, row) => this.ShowRow(row))
+        this.List.OnEvent("DoubleClick", (ctrl, row) => this.ShowRow(row))
+        this.ContentEdit := this.GuiObj.Add("Edit", "x352 y92 w736 h548 ReadOnly +Multi +VScroll +HScroll Background181818 cF0F0F0")
+        this.ContentEdit.SetFont("s10", "Consolas")
+        this.StatusText := this.GuiObj.Add("Text", "x12 y650 w950 h30 cA8C7E6", "")
+        this.GuiObj.Add("Button", "x998 y646 w90 h30", "Close").OnEvent("Click", (*) => this.Close())
+        this.GuiObj.Show("w1100 h690")
+        WinActivate("ahk_id " . this.GuiObj.Hwnd)
+        this.Load()
+    }
+
+    Load() {
+        term := Trim(this.SearchEdit.Value)
+        whereSql := " WHERE content_type='guide'"
+        if term != "" {
+            likeValue := GlobalCoderDatabase.Q("%" . term . "%")
+            whereSql .= " AND (title LIKE " . likeValue . " OR content LIKE " . likeValue . " OR metadata LIKE " . likeValue . ")"
+        }
+        this.Rows := GlobalCoderDatabase.Rows("SELECT path,title,metadata,content FROM content_items" . whereSql . " ORDER BY title;")
+        this.List.Delete()
+        for row in this.Rows
+            this.List.Add(, this.Category(row["metadata"]), row["title"])
+        this.StatusText.Text := this.Rows.Length . " guide(s) | Search checks titles, categories, commands, and guide text."
+        this.SelectedRow := 0
+        this.ContentEdit.Value := this.Rows.Length > 0 ? "Select a guide on the left." : "No guides match this search."
+        if this.Rows.Length > 0 {
+            this.List.Modify(1, "+Select +Focus Vis")
+            this.ShowRow(1)
+        }
+    }
+
+    ClearSearch() {
+        this.SearchEdit.Value := ""
+        this.Load()
+        this.SearchEdit.Focus()
+    }
+
+    ShowRow(rowIndex) {
+        if rowIndex < 1 || rowIndex > this.Rows.Length
+            return
+        this.SelectedRow := rowIndex
+        row := this.Rows[rowIndex]
+        this.ContentEdit.Value := row["title"] . "`r`n========================================`r`n`r`n" . row["content"]
+    }
+
+    CopyGuide() {
+        if this.SelectedRow < 1 || this.SelectedRow > this.Rows.Length {
+            GUT_Display("Syntax Guides", "Select a guide first.", 1800)
+            return
+        }
+        row := this.Rows[this.SelectedRow]
+        A_Clipboard := row["title"] . "`r`n`r`n" . row["content"]
+        GUT_Display("Guide Copied", row["title"], 1800)
+    }
+
+    Category(metadata) {
+        separatorAt := InStr(metadata, "|")
+        return separatorAt > 0 ? SubStr(metadata, separatorAt + 1) : metadata
+    }
+
+    Close() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+    }
+}
+
+class ContextBindingManager {
+    static Registered := []
+
+    static Init() {
+        this.SeedDefaults()
+        return this.Reload()
+    }
+
+    static SeedDefaults() {
+        rows := [
+            ["hotstring", "gcd", "exe", "explorer.exe", "function", "OpenScriptDirectoryCurrentExplorer",
+                "In Explorer: target the address bar and navigate to A_ScriptDir", 10],
+            ["hotstring", "gcd", "not_exe", "explorer.exe", "function", "OpenScriptDirectoryNewExplorer",
+                "Outside Explorer: launch Explorer, target its address bar, and navigate to A_ScriptDir", 20]
+        ]
+        for row in rows {
+            GlobalCoderDatabase.Exec("INSERT OR IGNORE INTO context_bindings(binding_type,trigger,context_type,context_value,action_type,action_value,description,priority) VALUES("
+                . GlobalCoderDatabase.Q(row[1]) . "," . GlobalCoderDatabase.Q(row[2]) . ","
+                . GlobalCoderDatabase.Q(row[3]) . "," . GlobalCoderDatabase.Q(row[4]) . ","
+                . GlobalCoderDatabase.Q(row[5]) . "," . GlobalCoderDatabase.Q(row[6]) . ","
+                . GlobalCoderDatabase.Q(row[7]) . "," . Integer(row[8]) . ");")
+        }
+    }
+
+    static Reload() {
+        for registration in this.Registered {
+            try {
+                if IsObject(registration["predicate"])
+                    HotIf(registration["predicate"])
+                else
+                    HotIf()
+                if registration["binding_type"] = "hotstring"
+                    Hotstring(registration["registered_trigger"], "Off")
+                else
+                    Hotkey(registration["registered_trigger"], "Off")
+            }
+        }
+        HotIf()
+        this.Registered := []
+
+        rows := GlobalCoderDatabase.Rows("SELECT id,binding_type,trigger,context_type,context_value,action_type,action_value,description "
+            . "FROM context_bindings WHERE enabled=1 ORDER BY priority,id;")
+        errorCount := 0
+        for row in rows {
+            predicate := row["context_type"] = "any" ? "" : ContextBindingMatches.Bind(row["context_type"], row["context_value"])
+            try {
+                if IsObject(predicate)
+                    HotIf(predicate)
+                else
+                    HotIf()
+                callback := ExecuteContextBinding.Bind(row)
+                registeredTrigger := row["binding_type"] = "hotstring" ? ":*:" . row["trigger"] : row["trigger"]
+                if row["binding_type"] = "hotstring"
+                    Hotstring(registeredTrigger, callback)
+                else
+                    Hotkey(registeredTrigger, callback)
+                this.Registered.Push(Map(
+                    "binding_type", row["binding_type"],
+                    "registered_trigger", registeredTrigger,
+                    "predicate", predicate
+                ))
+            } catch as error {
+                errorCount += 1
+                GlobalCoderDatabase.LogEvent("context_binding_error", "Binding " . row["id"] . ": " . error.Message)
+            }
+        }
+        HotIf()
+        return errorCount
+    }
+
+    static ExpandTokens(value) {
+        value := StrReplace(value, "{{scriptdir}}", A_ScriptDir)
+        value := StrReplace(value, "{{datadir}}", GC_DATA_DIR)
+        value := StrReplace(value, "{{projectdir}}", GC_PROJECT_DIR)
+        value := StrReplace(value, "{{database}}", GC_DB_PATH)
+        return value
+    }
+
+    static IsKnownBuiltIn(actionName) {
+        known := Map(
+            "OpenScriptDirectoryCurrentExplorer", true,
+            "OpenScriptDirectoryNewExplorer", true,
+            "GoogleSearch", true,
+            "ShowMainMenu", true,
+            "ShowCustomMenu", true,
+            "ShowSyntaxGuides", true,
+            "ShowSnippets", true,
+            "ShowContextBindings", true
+        )
+        return known.Has(actionName)
+    }
+}
+
+class ContextBindingEditor {
+    GuiObj := ""
+    List := ""
+    TypeDrop := ""
+    TriggerEdit := ""
+    ContextDrop := ""
+    ContextValueEdit := ""
+    ActionDrop := ""
+    ActionValueEdit := ""
+    DescriptionEdit := ""
+    EnabledCheck := ""
+    StatusText := ""
+    Rows := []
+    SelectedId := 0
+    SourceHwnd := 0
+
+    __New() {
+        global GC_CallingWindowHwnd
+        this.SourceHwnd := GC_CallingWindowHwnd && WinExist("ahk_id " . GC_CallingWindowHwnd)
+            ? GC_CallingWindowHwnd : WinExist("A")
+        this.GuiObj := Gui("+AlwaysOnTop", "GlobalCoder Context Hotkeys and Hotstrings")
+        this.GuiObj.BackColor := "1E1E1E"
+        this.GuiObj.SetFont("s9", "Segoe UI")
+        this.GuiObj.OnEvent("Close", (*) => this.Close())
+        this.GuiObj.OnEvent("Escape", (*) => this.Close())
+        heading := this.GuiObj.Add("Text", "x12 y10 w876 h30 c4FC3F7 Center", "Window-Context Hotkeys and Hotstrings")
+        heading.SetFont("s14 bold")
+        this.List := this.GuiObj.Add("ListView", "x12 y48 w876 h238 -Multi +Grid Background252526 cE6E6E6",
+            ["ID", "Type", "Trigger", "Window context", "Action", "On", "Description"])
+        this.List.ModifyCol(1, 42), this.List.ModifyCol(2, 74), this.List.ModifyCol(3, 82)
+        this.List.ModifyCol(4, 185), this.List.ModifyCol(5, 170), this.List.ModifyCol(6, 42), this.List.ModifyCol(7, 255)
+        this.List.OnEvent("ItemFocus", (ctrl, row) => this.LoadSelected(row))
+        this.List.OnEvent("DoubleClick", (ctrl, row) => this.LoadSelected(row))
+
+        this.GuiObj.Add("Text", "x12 y304 w100 cE6E6E6", "Binding type")
+        this.TypeDrop := this.GuiObj.Add("DropDownList", "x12 y326 w160 Choose1", ["Hotstring", "Hotkey"])
+        this.GuiObj.Add("Text", "x188 y304 w210 cE6E6E6", "Trigger (gcd, ^!g, #n, etc.)")
+        this.TriggerEdit := this.GuiObj.Add("Edit", "x188 y326 w220 Background252526 cFFFFFF")
+        this.EnabledCheck := this.GuiObj.Add("Checkbox", "x430 y330 w130 Checked cE6E6E6", "Enabled")
+
+        this.GuiObj.Add("Text", "x12 y370 w180 cE6E6E6", "Window context")
+        this.ContextDrop := this.GuiObj.Add("DropDownList", "x12 y392 w210 Choose1",
+            ["Any window", "Active executable", "Not executable", "Title contains", "Window class"])
+        this.GuiObj.Add("Text", "x238 y370 w330 cE6E6E6", "Context value (example: explorer.exe)")
+        this.ContextValueEdit := this.GuiObj.Add("Edit", "x238 y392 w390 Background252526 cFFFFFF")
+        this.GuiObj.Add("Button", "x644 y390 w160 h28", "Use Calling Window").OnEvent("Click", (*) => this.CaptureContext())
+
+        this.GuiObj.Add("Text", "x12 y438 w160 cE6E6E6", "Action")
+        this.ActionDrop := this.GuiObj.Add("DropDownList", "x12 y460 w210 Choose1",
+            ["Send text", "Send keys", "Run / open", "Built-in function"])
+        this.GuiObj.Add("Text", "x238 y438 w650 cE6E6E6", "Action value")
+        this.ActionValueEdit := this.GuiObj.Add("Edit", "x238 y460 w650 Background252526 cFFFFFF")
+
+        this.GuiObj.Add("Text", "x12 y502 w876 cA8C7E6", "Tokens: {{scriptdir}}, {{datadir}}, {{projectdir}}, {{database}}. Built-ins: OpenScriptDirectoryCurrentExplorer, OpenScriptDirectoryNewExplorer, GoogleSearch, ShowMainMenu, ShowCustomMenu, ShowSyntaxGuides, ShowSnippets, ShowContextBindings")
+        this.GuiObj.Add("Text", "x12 y536 w120 cE6E6E6", "Description")
+        this.DescriptionEdit := this.GuiObj.Add("Edit", "x12 y558 w876 h60 +Multi Background252526 cFFFFFF")
+
+        this.GuiObj.Add("Button", "x12 y634 w90 h32 Default", "Save").OnEvent("Click", (*) => this.Save())
+        this.GuiObj.Add("Button", "x110 y634 w90 h32", "New").OnEvent("Click", (*) => this.NewBinding())
+        this.GuiObj.Add("Button", "x208 y634 w110 h32", "Enable/Disable").OnEvent("Click", (*) => this.ToggleSelected())
+        this.GuiObj.Add("Button", "x326 y634 w90 h32", "Delete").OnEvent("Click", (*) => this.DeleteSelected())
+        this.GuiObj.Add("Button", "x424 y634 w110 h32", "Reload Rules").OnEvent("Click", (*) => this.ReloadRules())
+        this.StatusText := this.GuiObj.Add("Text", "x12 y678 w760 h28 cA8C7E6", "")
+        this.GuiObj.Add("Button", "x798 y674 w90 h32", "Close").OnEvent("Click", (*) => this.Close())
+        this.GuiObj.Show("w900 h720")
+        WinActivate("ahk_id " . this.GuiObj.Hwnd)
+        this.ReloadRows()
+    }
+
+    ReloadRows() {
+        this.Rows := GlobalCoderDatabase.Rows("SELECT id,binding_type,trigger,context_type,context_value,action_type,action_value,description,enabled "
+            . "FROM context_bindings ORDER BY binding_type,trigger,priority,id;")
+        this.List.Delete()
+        for row in this.Rows {
+            contextLabel := this.ContextLabel(row["context_type"]) . (row["context_value"] != "" ? ": " . row["context_value"] : "")
+            actionLabel := this.ActionLabel(row["action_type"]) . ": " . DatabaseBrowser.Compact(row["action_value"], 55)
+            this.List.Add(, row["id"], this.TypeLabel(row["binding_type"]), row["trigger"], contextLabel,
+                actionLabel, Integer(row["enabled"]) ? "Yes" : "No", row["description"])
+        }
+        this.StatusText.Text := this.Rows.Length . " SQLite binding(s). Changes are registered immediately when saved."
+    }
+
+    LoadSelected(rowIndex) {
+        if rowIndex < 1 || rowIndex > this.Rows.Length
+            return
+        row := this.Rows[rowIndex]
+        this.SelectedId := Integer(row["id"])
+        this.TypeDrop.Text := this.TypeLabel(row["binding_type"])
+        this.TriggerEdit.Value := row["trigger"]
+        this.ContextDrop.Text := this.ContextLabel(row["context_type"])
+        this.ContextValueEdit.Value := row["context_value"]
+        this.ActionDrop.Text := this.ActionLabel(row["action_type"])
+        this.ActionValueEdit.Value := row["action_value"]
+        this.DescriptionEdit.Value := row["description"]
+        this.EnabledCheck.Value := Integer(row["enabled"])
+    }
+
+    NewBinding() {
+        this.SelectedId := 0
+        this.TypeDrop.Choose(1)
+        this.TriggerEdit.Value := ""
+        this.ContextDrop.Choose(1)
+        this.ContextValueEdit.Value := ""
+        this.ActionDrop.Choose(1)
+        this.ActionValueEdit.Value := ""
+        this.DescriptionEdit.Value := ""
+        this.EnabledCheck.Value := 1
+        this.TriggerEdit.Focus()
+        this.StatusText.Text := "Creating a new contextual binding."
+    }
+
+    Save() {
+        bindingType := this.TypeCode(this.TypeDrop.Text)
+        trigger := Trim(this.TriggerEdit.Value)
+        contextType := this.ContextCode(this.ContextDrop.Text)
+        contextValue := Trim(this.ContextValueEdit.Value)
+        actionType := this.ActionCode(this.ActionDrop.Text)
+        actionValue := this.ActionValueEdit.Value
+        description := Trim(this.DescriptionEdit.Value)
+        enabled := this.EnabledCheck.Value ? 1 : 0
+
+        if trigger = "" {
+            MsgBox("Enter a hotstring or hotkey trigger.", "Context Binding", 48)
+            return
+        }
+        if bindingType = "hotstring" && RegExMatch(trigger, "\s") {
+            MsgBox("A hotstring trigger cannot contain whitespace.", "Context Binding", 48)
+            return
+        }
+        if contextType != "any" && contextValue = "" {
+            MsgBox("This context type needs an executable, title fragment, or window class.", "Context Binding", 48)
+            return
+        }
+        if actionValue = "" {
+            MsgBox("Enter an action value.", "Context Binding", 48)
+            return
+        }
+        if actionType = "function" && !ContextBindingManager.IsKnownBuiltIn(actionValue) {
+            MsgBox("That built-in function is not on the allowed list shown above the Description field.", "Context Binding", 48)
+            return
+        }
+
+        try {
+            if this.SelectedId > 0 {
+                GlobalCoderDatabase.Exec("UPDATE context_bindings SET binding_type=" . GlobalCoderDatabase.Q(bindingType)
+                    . ",trigger=" . GlobalCoderDatabase.Q(trigger) . ",context_type=" . GlobalCoderDatabase.Q(contextType)
+                    . ",context_value=" . GlobalCoderDatabase.Q(contextValue) . ",action_type=" . GlobalCoderDatabase.Q(actionType)
+                    . ",action_value=" . GlobalCoderDatabase.Q(actionValue) . ",description=" . GlobalCoderDatabase.Q(description)
+                    . ",enabled=" . enabled . ",updated_at=datetime('now','localtime') WHERE id=" . this.SelectedId . ";")
+            } else {
+                GlobalCoderDatabase.Exec("INSERT INTO context_bindings(binding_type,trigger,context_type,context_value,action_type,action_value,description,enabled) VALUES("
+                    . GlobalCoderDatabase.Q(bindingType) . "," . GlobalCoderDatabase.Q(trigger) . ","
+                    . GlobalCoderDatabase.Q(contextType) . "," . GlobalCoderDatabase.Q(contextValue) . ","
+                    . GlobalCoderDatabase.Q(actionType) . "," . GlobalCoderDatabase.Q(actionValue) . ","
+                    . GlobalCoderDatabase.Q(description) . "," . enabled . ");")
+                this.SelectedId := Integer(GlobalCoderDatabase.Scalar("SELECT last_insert_rowid();", "0"))
+            }
+            errorCount := ContextBindingManager.Reload()
+            this.ReloadRows()
+            this.StatusText.Text := errorCount = 0 ? "Saved and activated." : "Saved; " . errorCount . " invalid binding(s) were skipped and logged."
+        } catch as error {
+            MsgBox(error.Message, "Could Not Save Context Binding", 16)
+        }
+    }
+
+    ToggleSelected() {
+        id := this.SelectedRecordId()
+        if id < 1
+            return
+        GlobalCoderDatabase.Exec("UPDATE context_bindings SET enabled=CASE enabled WHEN 1 THEN 0 ELSE 1 END,updated_at=datetime('now','localtime') WHERE id=" . id . ";")
+        ContextBindingManager.Reload()
+        this.ReloadRows()
+    }
+
+    DeleteSelected() {
+        id := this.SelectedRecordId()
+        if id < 1
+            return
+        if MsgBox("Delete contextual binding " . id . "?", "Delete Context Binding", 0x24) != "Yes"
+            return
+        GlobalCoderDatabase.Exec("DELETE FROM context_bindings WHERE id=" . id . ";")
+        this.SelectedId := 0
+        ContextBindingManager.Reload()
+        this.ReloadRows()
+        this.NewBinding()
+    }
+
+    ReloadRules() {
+        errorCount := ContextBindingManager.Reload()
+        this.ReloadRows()
+        this.StatusText.Text := errorCount = 0 ? "All enabled rules reloaded." : errorCount . " invalid binding(s) were skipped and logged."
+    }
+
+    SelectedRecordId() {
+        rowIndex := this.List.GetNext(0, "F")
+        if rowIndex < 1
+            rowIndex := this.List.GetNext()
+        if rowIndex < 1 || rowIndex > this.Rows.Length {
+            MsgBox("Select a binding first.", "Context Binding", 48)
+            return 0
+        }
+        return Integer(this.Rows[rowIndex]["id"])
+    }
+
+    CaptureContext() {
+        contextType := this.ContextCode(this.ContextDrop.Text)
+        target := this.SourceHwnd && WinExist("ahk_id " . this.SourceHwnd) ? "ahk_id " . this.SourceHwnd : "A"
+        try {
+            switch contextType {
+                case "exe", "not_exe":
+                    this.ContextValueEdit.Value := WinGetProcessName(target)
+                case "title":
+                    this.ContextValueEdit.Value := WinGetTitle(target)
+                case "class":
+                    this.ContextValueEdit.Value := WinGetClass(target)
+                default:
+                    this.ContextValueEdit.Value := ""
+            }
+        }
+    }
+
+    TypeCode(label) {
+        return label = "Hotkey" ? "hotkey" : "hotstring"
+    }
+
+    TypeLabel(code) {
+        return code = "hotkey" ? "Hotkey" : "Hotstring"
+    }
+
+    ContextCode(label) {
+        codes := Map("Any window", "any", "Active executable", "exe", "Not executable", "not_exe", "Title contains", "title", "Window class", "class")
+        return codes.Has(label) ? codes[label] : "any"
+    }
+
+    ContextLabel(code) {
+        labels := Map("any", "Any window", "exe", "Active executable", "not_exe", "Not executable", "title", "Title contains", "class", "Window class")
+        return labels.Has(code) ? labels[code] : code
+    }
+
+    ActionCode(label) {
+        codes := Map("Send text", "send_text", "Send keys", "send_keys", "Run / open", "run", "Built-in function", "function")
+        return codes.Has(label) ? codes[label] : "send_text"
+    }
+
+    ActionLabel(code) {
+        labels := Map("send_text", "Send text", "send_keys", "Send keys", "run", "Run / open", "function", "Built-in function")
+        return labels.Has(code) ? labels[code] : code
+    }
+
+    Close() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+    }
+}
+
+class SnippetRepository {
+    static Init() {
+        this.SeedLanguages()
+        this.SeedFeatureGroups()
+        this.SeedEditorContexts()
+        this.SeedStarterSnippets()
+    }
+
+    static SeedLanguages() {
+        rows := [
+            ["c", "C", "c,h", 10],
+            ["cpp", "C++", "cpp,cxx,cc,hpp,hxx", 20],
+            ["python", "Python", "py,pyw", 30],
+            ["javascript", "JavaScript", "js,jsx,mjs,cjs", 40],
+            ["typescript", "TypeScript", "ts,tsx,mts,cts", 50],
+            ["csharp", "C#", "cs", 60],
+            ["ahk2", "AutoHotkey v2", "ahk", 70]
+        ]
+        for row in rows {
+            GlobalCoderDatabase.Exec("INSERT OR IGNORE INTO snippet_languages(code,label,aliases,sort_order) VALUES("
+                . GlobalCoderDatabase.Q(row[1]) . "," . GlobalCoderDatabase.Q(row[2]) . ","
+                . GlobalCoderDatabase.Q(row[3]) . "," . row[4] . ");")
+        }
+    }
+
+    static SeedFeatureGroups() {
+        rows := [
+            ["program-structure", "Program Structure", "Core Syntax", "Entry points, source layout, declarations, and basic statements"],
+            ["variables-constants", "Variables and Constants", "Core Syntax", "Declarations, assignment, scope, mutability, and constants"],
+            ["types-casting", "Data Types and Casting", "Core Syntax", "Primitive types, inference, conversion, parsing, and type checks"],
+            ["operators-expressions", "Operators and Expressions", "Core Syntax", "Arithmetic, comparison, Boolean, bitwise, null, and expression syntax"],
+            ["strings-text", "Strings and Text", "Core Syntax", "Literals, interpolation, formatting, encoding, and text operations"],
+            ["arrays-collections", "Arrays, Lists, and Collections", "Core Syntax", "Creation, indexing, slicing, mutation, and traversal"],
+            ["maps-sets", "Maps, Dictionaries, and Sets", "Core Syntax", "Key/value and unique-value collections"],
+            ["conditionals-patterns", "Conditionals and Pattern Matching", "Control and Abstraction", "If, else, switch, match, guards, and conditional expressions"],
+            ["loops-iteration", "Loops and Iteration", "Control and Abstraction", "For, while, enumeration, ranges, break, and continue"],
+            ["functions-parameters", "Functions and Parameters", "Control and Abstraction", "Definitions, returns, defaults, variadics, closures, and lambdas"],
+            ["classes-objects", "Classes and Objects", "Control and Abstraction", "Construction, members, inheritance, encapsulation, and object syntax"],
+            ["interfaces-protocols", "Interfaces, Traits, and Protocols", "Control and Abstraction", "Contracts, abstract behavior, mixins, and structural typing"],
+            ["generics-templates", "Generics and Templates", "Control and Abstraction", "Reusable type-parameterized functions and types"],
+            ["modules-imports", "Modules, Packages, and Imports", "Control and Abstraction", "Namespaces, imports, exports, includes, and package boundaries"],
+            ["errors-exceptions", "Errors and Exceptions", "Reliability and Data", "Error values, throwing, catching, cleanup, and recovery"],
+            ["files-streams", "Files, Paths, and Streams", "Reliability and Data", "Reading, writing, paths, buffering, and resource cleanup"],
+            ["dates-time", "Dates, Time, and Timers", "Reliability and Data", "Timestamps, duration, formatting, scheduling, and timers"],
+            ["regex-parsing", "Regular Expressions and Parsing", "Reliability and Data", "Pattern matching, tokenization, validation, and parsing"],
+            ["serialization-formats", "Serialization and Data Formats", "Reliability and Data", "JSON, XML, CSV, binary formats, and object mapping"],
+            ["memory-resources", "Memory and Resources", "Reliability and Data", "Allocation, ownership, disposal, pointers, handles, and lifetimes"],
+            ["data-structures-algorithms", "Algorithms and Data Structures", "Reliability and Data", "Stacks, queues, trees, graphs, searching, sorting, and complexity"],
+            ["async-concurrency", "Concurrency and Async", "Integration and Engineering", "Threads, tasks, promises, async/await, locks, and coordination"],
+            ["networking-http", "Networking and HTTP", "Integration and Engineering", "Clients, servers, sockets, requests, responses, and APIs"],
+            ["databases-sql", "Databases and SQL", "Integration and Engineering", "Connections, commands, transactions, queries, and mapping"],
+            ["processes-cli", "Processes and Command Line", "Integration and Engineering", "Arguments, environment, subprocesses, shells, and exit codes"],
+            ["ui-events", "UI, Events, and Callbacks", "Integration and Engineering", "Windows, controls, event handlers, messages, and interaction"],
+            ["testing-assertions", "Testing and Assertions", "Integration and Engineering", "Unit, integration, fixtures, mocks, assertions, and coverage"],
+            ["debugging-logging", "Debugging and Logging", "Integration and Engineering", "Breakpoints, diagnostics, structured logs, traces, and profiling"],
+            ["build-dependencies", "Build, Dependencies, and Tooling", "Integration and Engineering", "Compilers, package managers, builds, linting, and formatting"],
+            ["interop-native", "Interop and Native APIs", "Integration and Engineering", "FFI, COM, DLLs, platform APIs, and cross-language calls"],
+            ["security-crypto", "Security and Cryptography", "Integration and Engineering", "Secrets, hashing, encryption, validation, and safe boundaries"],
+            ["language-specific", "Language-Specific Features", "Integration and Engineering", "Idioms and capabilities unique to a language or runtime"]
+        ]
+        for index, row in rows {
+            GlobalCoderDatabase.Exec("INSERT OR IGNORE INTO snippet_feature_groups(code,label,domain,description,sort_order) VALUES("
+                . GlobalCoderDatabase.Q(row[1]) . "," . GlobalCoderDatabase.Q(row[2]) . ","
+                . GlobalCoderDatabase.Q(row[3]) . "," . GlobalCoderDatabase.Q(row[4]) . "," . index * 10 . ");")
+        }
+    }
+
+    static SeedEditorContexts() {
+        rows := [
+            ["Code.exe", "Visual Studio Code"],
+            ["Cursor.exe", "Cursor"],
+            ["Windsurf.exe", "Windsurf"],
+            ["SciTE4AutoHotkey.exe", "SciTE4AutoHotkey"],
+            ["SciTE.exe", "SciTE"],
+            ["notepad.exe", "Windows Notepad"],
+            ["notepad++.exe", "Notepad++"],
+            ["sublime_text.exe", "Sublime Text"],
+            ["devenv.exe", "Visual Studio"],
+            ["rider64.exe", "JetBrains Rider"],
+            ["pycharm64.exe", "PyCharm"],
+            ["webstorm64.exe", "WebStorm"],
+            ["idea64.exe", "IntelliJ IDEA"],
+            ["eclipse.exe", "Eclipse"]
+        ]
+        for row in rows {
+            GlobalCoderDatabase.Exec("INSERT OR IGNORE INTO snippet_editor_contexts(executable,label) VALUES("
+                . GlobalCoderDatabase.Q(row[1]) . "," . GlobalCoderDatabase.Q(row[2]) . ");")
+        }
+    }
+
+    static SeedStarterSnippets() {
+        rows := [
+            ["c", "modules-imports", "Include standard header", "cinc", "#include <header.h>`n{{cursor}}", "C preprocessor include"],
+            ["c", "conditionals-patterns", "if / else", "cifx", "if (condition) {`n    {{cursor}}`n} else {`n`n}", "C conditional block"],
+            ["c", "loops-iteration", "indexed for loop", "cfor", "for (size_t i = 0; i < count; ++i) {`n    {{cursor}}`n}", "C indexed loop"],
+            ["c", "loops-iteration", "while loop", "cwhi", "while (condition) {`n    {{cursor}}`n}", "C while loop"],
+            ["c", "functions-parameters", "function definition", "cfun", "return_type function_name(parameters) {`n    {{cursor}}`n}", "C function skeleton"],
+            ["c", "types-casting", "struct declaration", "cstruct", "typedef struct Name {`n    {{cursor}}`n} Name;", "C typedef struct"],
+            ["c", "memory-resources", "allocate and validate", "calloc", "Type *items = calloc(count, sizeof(*items));`nif (items == NULL) {`n    {{cursor}}`n}", "C allocation check"],
+
+            ["cpp", "modules-imports", "include header", "cppinc", "#include <header>`n{{cursor}}", "C++ include"],
+            ["cpp", "conditionals-patterns", "if / else", "cppif", "if (condition) {`n    {{cursor}}`n} else {`n`n}", "C++ conditional"],
+            ["cpp", "loops-iteration", "range for loop", "cppfor", "for (const auto& item : items) {`n    {{cursor}}`n}", "C++ range loop"],
+            ["cpp", "functions-parameters", "function definition", "cppfun", "ReturnType functionName(Parameters) {`n    {{cursor}}`n}", "C++ function skeleton"],
+            ["cpp", "classes-objects", "class declaration", "cppclass", "class Name {`npublic:`n    Name() = default;`n`nprivate:`n    {{cursor}}`n};", "C++ class skeleton"],
+            ["cpp", "functions-parameters", "lambda expression", "cpplambda", "[&](auto value) {`n    {{cursor}}`n}", "C++ lambda"],
+            ["cpp", "errors-exceptions", "try / catch", "cpptry", "try {`n    {{cursor}}`n} catch (const std::exception& error) {`n`n}", "C++ exception block"],
+
+            ["python", "conditionals-patterns", "if / elif / else", "pyif", "if condition:`n    {{cursor}}`nelif other_condition:`n    pass`nelse:`n    pass", "Python conditional"],
+            ["python", "loops-iteration", "for loop", "pyfor", "for item in items:`n    {{cursor}}", "Python for loop"],
+            ["python", "loops-iteration", "enumerated loop", "pyenum", "for index, item in enumerate(items):`n    {{cursor}}", "Python enumerate loop"],
+            ["python", "functions-parameters", "function definition", "pydef", "def function_name(parameters):`n    {{cursor}}", "Python function"],
+            ["python", "classes-objects", "class definition", "pyclass", "class Name:`n    def __init__(self):`n        {{cursor}}", "Python class"],
+            ["python", "errors-exceptions", "try / except", "pytry", "try:`n    {{cursor}}`nexcept Exception as error:`n    raise", "Python exception handling"],
+            ["python", "files-streams", "with open", "pywith", "with open(path, 'r', encoding='utf-8') as file:`n    {{cursor}}", "Python managed file open"],
+            ["python", "async-concurrency", "async function", "pyasync", "async def function_name(parameters):`n    {{cursor}}", "Python async function"],
+
+            ["javascript", "conditionals-patterns", "if / else", "jsif", "if (condition) {`n  {{cursor}}`n} else {`n`n}", "JavaScript conditional"],
+            ["javascript", "loops-iteration", "for of loop", "jsfor", "for (const item of items) {`n  {{cursor}}`n}", "JavaScript for-of loop"],
+            ["javascript", "functions-parameters", "function declaration", "jsfun", "function functionName(parameters) {`n  {{cursor}}`n}", "JavaScript function"],
+            ["javascript", "functions-parameters", "arrow function", "jsarrow", "const functionName = (parameters) => {`n  {{cursor}}`n};", "JavaScript arrow function"],
+            ["javascript", "classes-objects", "class definition", "jsclass", "class Name {`n  constructor() {`n    {{cursor}}`n  }`n}", "JavaScript class"],
+            ["javascript", "errors-exceptions", "try / catch", "jstry", "try {`n  {{cursor}}`n} catch (error) {`n`n}", "JavaScript error handling"],
+            ["javascript", "async-concurrency", "async function", "jsasync", "async function functionName(parameters) {`n  {{cursor}}`n}", "JavaScript async function"],
+            ["javascript", "modules-imports", "ES module import", "jsimport", "import { name } from 'module';`n{{cursor}}", "JavaScript named import"],
+
+            ["typescript", "conditionals-patterns", "if / else", "tsif", "if (condition) {`n  {{cursor}}`n} else {`n`n}", "TypeScript conditional"],
+            ["typescript", "loops-iteration", "typed for of", "tsfor", "for (const item of items) {`n  {{cursor}}`n}", "TypeScript for-of loop"],
+            ["typescript", "functions-parameters", "typed function", "tsfun", "function functionName(parameters: Type): ReturnType {`n  {{cursor}}`n}", "TypeScript function"],
+            ["typescript", "interfaces-protocols", "interface", "tsinterface", "interface Name {`n  {{cursor}}`n}", "TypeScript interface"],
+            ["typescript", "types-casting", "type alias", "tstype", "type Name = {`n  {{cursor}}`n};", "TypeScript type alias"],
+            ["typescript", "classes-objects", "class", "tsclass", "class Name {`n  constructor() {`n    {{cursor}}`n  }`n}", "TypeScript class"],
+            ["typescript", "generics-templates", "generic function", "tsgeneric", "function functionName<T>(value: T): T {`n  {{cursor}}`n}", "TypeScript generic function"],
+            ["typescript", "async-concurrency", "async function", "tsasync", "async function functionName(): Promise<Result> {`n  {{cursor}}`n}", "TypeScript async function"],
+
+            ["csharp", "conditionals-patterns", "if / else", "csif", "if (condition)`n{`n    {{cursor}}`n}`nelse`n{`n`n}", "C# conditional"],
+            ["csharp", "loops-iteration", "foreach loop", "csfor", "foreach (var item in items)`n{`n    {{cursor}}`n}", "C# foreach loop"],
+            ["csharp", "functions-parameters", "method", "csmethod", "ReturnType MethodName(Parameters)`n{`n    {{cursor}}`n}", "C# method"],
+            ["csharp", "classes-objects", "class", "csclass", "public class Name`n{`n    public Name()`n    {`n        {{cursor}}`n    }`n}", "C# class"],
+            ["csharp", "classes-objects", "record", "csrecord", "public sealed record Name(Type Value);`n{{cursor}}", "C# record"],
+            ["csharp", "errors-exceptions", "try / catch", "cstry", "try`n{`n    {{cursor}}`n}`ncatch (Exception error)`n{`n`n}", "C# exception block"],
+            ["csharp", "async-concurrency", "async method", "csasync", "public async Task<Result> MethodNameAsync()`n{`n    {{cursor}}`n}", "C# async method"],
+            ["csharp", "arrays-collections", "LINQ pipeline", "cslinq", "var result = items`n    .Where(item => condition)`n    .Select(item => item)`n    .ToList();`n{{cursor}}", "C# LINQ pipeline"],
+
+            ["ahk2", "conditionals-patterns", "if / else", "ahkif", "if condition {`n    {{cursor}}`n} else {`n`n}", "AutoHotkey v2 conditional"],
+            ["ahk2", "loops-iteration", "for key and value", "ahkfor", "for key, value in collection {`n    {{cursor}}`n}", "AutoHotkey v2 for loop"],
+            ["ahk2", "loops-iteration", "Loop", "ahkloop", "Loop count {`n    {{cursor}}`n}", "AutoHotkey v2 Loop"],
+            ["ahk2", "functions-parameters", "function", "ahkfunc", "FunctionName(parameter := defaultValue) {`n    {{cursor}}`n}", "AutoHotkey v2 function"],
+            ["ahk2", "classes-objects", "class", "ahkclass", "class Name {`n    __New() {`n        {{cursor}}`n    }`n}", "AutoHotkey v2 class"],
+            ["ahk2", "errors-exceptions", "try / catch", "ahktry", "try {`n    {{cursor}}`n} catch as error {`n`n}", "AutoHotkey v2 exception block"],
+            ["ahk2", "ui-events", "GUI", "ahkgui", "guiObj := Gui()`nguiObj.Add(`"Text`", , `"Hello`")`nguiObj.Show()`n{{cursor}}", "AutoHotkey v2 GUI"],
+            ["ahk2", "ui-events", "dynamic hotkey", "ahkhotkey", "Hotkey(`"^!k`", (*) => {{cursor}})", "AutoHotkey v2 dynamic hotkey"]
+        ]
+        for row in rows {
+            GlobalCoderDatabase.Exec("INSERT OR IGNORE INTO snippets(language_code,feature_code,name,trigger,body,description) VALUES("
+                . GlobalCoderDatabase.Q(row[1]) . "," . GlobalCoderDatabase.Q(row[2]) . ","
+                . GlobalCoderDatabase.Q(row[3]) . "," . GlobalCoderDatabase.Q(row[4]) . ","
+                . GlobalCoderDatabase.Q(row[5]) . "," . GlobalCoderDatabase.Q(row[6]) . ");")
+        }
+    }
+
+    static Languages() {
+        return GlobalCoderDatabase.Rows("SELECT code,label,aliases FROM snippet_languages WHERE enabled=1 ORDER BY sort_order,label;")
+    }
+
+    static Features(domain := "") {
+        whereSql := domain = "" ? "" : " AND domain=" . GlobalCoderDatabase.Q(domain)
+        return GlobalCoderDatabase.Rows("SELECT code,label,domain,description FROM snippet_feature_groups WHERE enabled=1"
+            . whereSql . " ORDER BY sort_order,label;")
+    }
+
+    static Search(languageCode := "", featureCode := "", searchText := "", limit := 500) {
+        clauses := ["s.enabled=1"]
+        if languageCode != ""
+            clauses.Push("s.language_code=" . GlobalCoderDatabase.Q(languageCode))
+        if featureCode != ""
+            clauses.Push("s.feature_code=" . GlobalCoderDatabase.Q(featureCode))
+        if Trim(searchText) != "" {
+            likeValue := GlobalCoderDatabase.Q("%" . Trim(searchText) . "%")
+            clauses.Push("(s.name LIKE " . likeValue . " OR s.trigger LIKE " . likeValue
+                . " OR s.body LIKE " . likeValue . " OR s.description LIKE " . likeValue . ")")
+        }
+        return GlobalCoderDatabase.Rows("SELECT s.id,s.language_code,l.label AS language_label,s.feature_code,f.label AS feature_label,"
+            . "s.name,s.trigger,s.body,s.description,s.enabled,s.usage_count FROM snippets s "
+            . "JOIN snippet_languages l ON l.code=s.language_code JOIN snippet_feature_groups f ON f.code=s.feature_code "
+            . "WHERE " . DatabaseBrowser.Join(clauses, " AND ") . " ORDER BY s.usage_count DESC,l.sort_order,f.sort_order,s.name LIMIT " . Integer(limit) . ";")
+    }
+
+    static ById(id) {
+        rows := GlobalCoderDatabase.Rows("SELECT s.id,s.language_code,l.label AS language_label,s.feature_code,f.label AS feature_label,"
+            . "s.name,s.trigger,s.body,s.description,s.enabled,s.usage_count FROM snippets s "
+            . "JOIN snippet_languages l ON l.code=s.language_code JOIN snippet_feature_groups f ON f.code=s.feature_code "
+            . "WHERE s.id=" . Integer(id) . " LIMIT 1;")
+        return rows.Length > 0 ? rows[1] : ""
+    }
+
+    static RecordUse(id) {
+        GlobalCoderDatabase.Exec("UPDATE snippets SET usage_count=usage_count+1,updated_at=datetime('now','localtime') WHERE id=" . Integer(id) . ";")
+    }
+
+    static ExpandBody(body) {
+        expanded := StrReplace(body, "{{scriptdir}}", A_ScriptDir)
+        expanded := StrReplace(expanded, "{{datadir}}", GC_DATA_DIR)
+        expanded := StrReplace(expanded, "{{projectdir}}", GC_PROJECT_DIR)
+        expanded := StrReplace(expanded, "{{database}}", GC_DB_PATH)
+        expanded := StrReplace(expanded, "{{clipboard}}", A_Clipboard)
+        expanded := StrReplace(expanded, "{{date}}", FormatTime(, "yyyy-MM-dd"))
+        expanded := StrReplace(expanded, "{{time}}", FormatTime(, "HH:mm:ss"))
+        return expanded
+    }
+
+    static Insert(row, erasePrefixLength := 0, targetHwnd := 0, targetControl := "") {
+        if !IsObject(row)
+            return false
+        PassivePreviewWindow.CloseCurrent()
+        if targetHwnd && WinExist("ahk_id " . targetHwnd) {
+            WinActivate("ahk_id " . targetHwnd)
+            try WinWaitActive("ahk_id " . targetHwnd, , 1)
+            if targetControl != ""
+                try ControlFocus(targetControl, "ahk_id " . targetHwnd)
+            Sleep(30)
+        }
+        controlClass := ""
+        if targetControl != "" {
+            try controlClass := WinGetClass("ahk_id " . targetControl)
+        }
+        controlInsertion := targetHwnd && targetControl != ""
+            && RegExMatch(controlClass != "" ? controlClass : String(targetControl), "i)^(Edit|RichEdit|Scintilla)")
+        if erasePrefixLength > 0 {
+            if controlInsertion
+                ControlSend("{Backspace " . erasePrefixLength . "}", targetControl, "ahk_id " . targetHwnd)
+            else
+                Send("{Backspace " . erasePrefixLength . "}")
+        }
+        body := this.ExpandBody(row["body"])
+        marker := "{{cursor}}"
+        markerAt := InStr(body, marker)
+        body := StrReplace(body, marker, "")
+        if controlInsertion
+            ControlSendText(body, targetControl, "ahk_id " . targetHwnd)
+        else
+            SendText(body)
+        if markerAt > 0 {
+            trailingCount := StrLen(body) - (markerAt - 1)
+            if trailingCount > 0 {
+                if controlInsertion
+                    ControlSend("{Left " . trailingCount . "}", targetControl, "ahk_id " . targetHwnd)
+                else
+                    Send("{Left " . trailingCount . "}")
+            }
+        }
+        this.RecordUse(row["id"])
+        return true
+    }
+
+    static SaveGhost(languageCode, featureCode, body) {
+        body := Trim(body, "`r`n")
+        if body = ""
+            return 0
+        firstLine := Trim(StrSplit(StrReplace(body, "`r", ""), "`n")[1])
+        baseName := firstLine != "" ? DatabaseBrowser.Compact(firstLine, 72) : "Captured syntax"
+        name := baseName
+        suffix := 2
+        while Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM snippets WHERE language_code="
+            . GlobalCoderDatabase.Q(languageCode) . " AND feature_code=" . GlobalCoderDatabase.Q(featureCode)
+            . " AND name=" . GlobalCoderDatabase.Q(name) . ";", "0")) > 0 {
+            name := baseName . " (" . suffix . ")"
+            suffix += 1
+        }
+        prefixes := Map("c", "c", "cpp", "cpp", "python", "py", "javascript", "js",
+            "typescript", "ts", "csharp", "cs", "ahk2", "ahk")
+        languagePrefix := prefixes.Has(languageCode) ? prefixes[languageCode] : SubStr(languageCode, 1, 3)
+        featureStem := RegExReplace(featureCode, "[^A-Za-z0-9]", "")
+        baseTrigger := languagePrefix . SubStr(featureStem, 1, 4)
+        existingCount := Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM snippets WHERE language_code="
+            . GlobalCoderDatabase.Q(languageCode) . " AND feature_code=" . GlobalCoderDatabase.Q(featureCode) . ";", "0"))
+        trigger := baseTrigger . (existingCount + 1)
+        GlobalCoderDatabase.Exec("INSERT INTO snippets(language_code,feature_code,name,trigger,body,description) VALUES("
+            . GlobalCoderDatabase.Q(languageCode) . "," . GlobalCoderDatabase.Q(featureCode) . ","
+            . GlobalCoderDatabase.Q(name) . "," . GlobalCoderDatabase.Q(trigger) . ","
+            . GlobalCoderDatabase.Q(body) . "," . GlobalCoderDatabase.Q("Captured from the native placeholder menu") . ");")
+        return Integer(GlobalCoderDatabase.Scalar("SELECT last_insert_rowid();", "0"))
+    }
+}
+
+class SnippetBatchImporter {
+    static FormatHeader := "GLOBALCODER_SNIPS_V1"
+
+    static Parse(sourceText) {
+        entries := []
+        errors := []
+        normalized := StrReplace(String(sourceText), "`r`n", "`n")
+        normalized := StrReplace(normalized, "`r", "`n")
+        lines := StrSplit(normalized, "`n")
+        headerFound := false
+        inBlock := false
+        inBody := false
+        current := ""
+        bodyLines := []
+
+        for lineNumber, rawLine in lines {
+            line := RTrim(rawLine, "`r")
+            if lineNumber = 1
+                line := LTrim(line, Chr(0xFEFF))
+            trimmed := Trim(line)
+
+            if !headerFound {
+                if trimmed = "" || SubStr(trimmed, 1, 1) = "#"
+                    continue
+                if trimmed = this.FormatHeader {
+                    headerFound := true
+                    continue
+                }
+                errors.Push("Line " . lineNumber . ": expected " . this.FormatHeader . ".")
+                break
+            }
+
+            if !inBlock {
+                if trimmed = "" || SubStr(trimmed, 1, 1) = "#"
+                    continue
+                if trimmed = "@@SNIP" {
+                    current := Map("source_line", lineNumber)
+                    bodyLines := []
+                    inBlock := true
+                    inBody := false
+                    continue
+                }
+                errors.Push("Line " . lineNumber . ": expected @@SNIP or a comment.")
+                continue
+            }
+
+            if !inBody {
+                if trimmed = "@@BODY" {
+                    inBody := true
+                    continue
+                }
+                if trimmed = "@@END" {
+                    errors.Push("Line " . lineNumber . ": @@BODY is missing before @@END.")
+                    inBlock := false
+                    current := ""
+                    continue
+                }
+                if trimmed = "" || SubStr(trimmed, 1, 1) = "#"
+                    continue
+                separatorAt := InStr(line, ":")
+                if separatorAt < 2 {
+                    errors.Push("Line " . lineNumber . ": metadata must use key: value syntax.")
+                    continue
+                }
+                key := StrLower(Trim(SubStr(line, 1, separatorAt - 1)))
+                value := Trim(SubStr(line, separatorAt + 1))
+                if !this.MetadataKeys().Has(key) {
+                    errors.Push("Line " . lineNumber . ": unknown metadata key '" . key . "'.")
+                    continue
+                }
+                if current.Has(key)
+                    errors.Push("Line " . lineNumber . ": duplicate metadata key '" . key . "'.")
+                else
+                    current[key] := value
+                continue
+            }
+
+            if trimmed = "@@END" {
+                current["body"] := this.Join(bodyLines, "`n")
+                entries.Push(current)
+                current := ""
+                bodyLines := []
+                inBlock := false
+                inBody := false
+            } else {
+                bodyLines.Push(line)
+            }
+        }
+
+        if !headerFound && errors.Length = 0
+            errors.Push("The batch is empty or is missing " . this.FormatHeader . ".")
+        if inBlock
+            errors.Push("Block starting on line " . current["source_line"] . " is missing @@END.")
+        this.Validate(entries, errors)
+        return Map("ok", errors.Length = 0, "entries", entries, "errors", errors)
+    }
+
+    static Validate(entries, errors) {
+        languageCodes := Map()
+        for row in SnippetRepository.Languages()
+            languageCodes[row["code"]] := true
+        featureCodes := Map()
+        for row in SnippetRepository.Features()
+            featureCodes[row["code"]] := true
+        identities := Map()
+        triggers := Map()
+
+        for index, entry in entries {
+            lineNumber := entry.Has("source_line") ? entry["source_line"] : "?"
+            prefix := "Block " . index . " (line " . lineNumber . ")"
+            for requiredKey in ["language", "feature", "name", "trigger", "body"] {
+                if !entry.Has(requiredKey) || Trim(entry[requiredKey]) = ""
+                    errors.Push(prefix . ": required field '" . requiredKey . "' is empty.")
+            }
+            if !entry.Has("language") || !entry.Has("feature") || !entry.Has("name") || !entry.Has("trigger")
+                continue
+
+            languageCode := StrLower(Trim(entry["language"]))
+            featureCode := StrLower(Trim(entry["feature"]))
+            name := Trim(entry["name"])
+            trigger := Trim(entry["trigger"])
+            entry["language"] := languageCode
+            entry["feature"] := featureCode
+            entry["name"] := name
+            entry["trigger"] := trigger
+            entry["description"] := entry.Has("description") ? Trim(entry["description"]) : ""
+            entry["enabled"] := entry.Has("enabled") ? Trim(entry["enabled"]) : "1"
+
+            if !languageCodes.Has(languageCode)
+                errors.Push(prefix . ": unknown language code '" . languageCode . "'.")
+            if !featureCodes.Has(featureCode)
+                errors.Push(prefix . ": unknown feature code '" . featureCode . "'.")
+            if StrLen(trigger) < 4
+                errors.Push(prefix . ": trigger must contain at least four characters.")
+            if RegExMatch(trigger, "\s")
+                errors.Push(prefix . ": trigger cannot contain whitespace.")
+            if entry["enabled"] != "0" && entry["enabled"] != "1"
+                errors.Push(prefix . ": enabled must be 0 or 1.")
+
+            identity := languageCode . Chr(31) . featureCode . Chr(31) . StrLower(name)
+            if identities.Has(identity)
+                errors.Push(prefix . ": duplicate language/feature/name also appears in block " . identities[identity] . ".")
+            else
+                identities[identity] := index
+
+            triggerIdentity := languageCode . Chr(31) . StrLower(trigger)
+            if triggers.Has(triggerIdentity) && triggers[triggerIdentity] != identity
+                errors.Push(prefix . ": trigger '" . trigger . "' is reused by another entry in this batch.")
+            else
+                triggers[triggerIdentity] := identity
+        }
+        if entries.Length = 0 && errors.Length = 0
+            errors.Push("The batch contains no @@SNIP blocks.")
+    }
+
+    static Import(sourceText, refreshRuntime := true) {
+        parsed := this.Parse(sourceText)
+        if !parsed["ok"]
+            return Map("ok", false, "inserted", 0, "updated", 0, "errors", parsed["errors"])
+
+        inserted := 0
+        updated := 0
+        transactionOpen := false
+        try {
+            GlobalCoderDatabase.Exec("BEGIN IMMEDIATE;")
+            transactionOpen := true
+            for entry in parsed["entries"] {
+                identityWhere := "language_code=" . GlobalCoderDatabase.Q(entry["language"])
+                    . " AND feature_code=" . GlobalCoderDatabase.Q(entry["feature"])
+                    . " AND name=" . GlobalCoderDatabase.Q(entry["name"])
+                existed := Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM snippets WHERE " . identityWhere . ";", "0")) > 0
+                GlobalCoderDatabase.Exec("INSERT INTO snippets(language_code,feature_code,name,trigger,body,description,enabled,updated_at) VALUES("
+                    . GlobalCoderDatabase.Q(entry["language"]) . "," . GlobalCoderDatabase.Q(entry["feature"]) . ","
+                    . GlobalCoderDatabase.Q(entry["name"]) . "," . GlobalCoderDatabase.Q(entry["trigger"]) . ","
+                    . GlobalCoderDatabase.Q(entry["body"]) . "," . GlobalCoderDatabase.Q(entry["description"]) . ","
+                    . Integer(entry["enabled"]) . ",datetime('now','localtime')) "
+                    . "ON CONFLICT(language_code,feature_code,name) DO UPDATE SET "
+                    . "trigger=excluded.trigger,body=excluded.body,description=excluded.description,enabled=excluded.enabled,updated_at=excluded.updated_at;")
+                if existed
+                    updated += 1
+                else
+                    inserted += 1
+            }
+            GlobalCoderDatabase.Exec("COMMIT;")
+            transactionOpen := false
+        } catch as error {
+            if transactionOpen
+                try GlobalCoderDatabase.Exec("ROLLBACK;")
+            return Map("ok", false, "inserted", 0, "updated", 0,
+                "errors", ["SQLite import failed; no snippets were changed. " . error.Message])
+        }
+
+        GlobalCoderDatabase.LogEvent("snippet_batch_import", "Inserted " . inserted . ", updated " . updated . ", total " . parsed["entries"].Length)
+        if refreshRuntime {
+            try SnippetSuggestionManager.RefreshSnippets()
+            try RebuildMenu(true)
+        }
+        return Map("ok", true, "inserted", inserted, "updated", updated, "errors", [])
+    }
+
+    static MetadataKeys() {
+        return Map("language", true, "feature", true, "name", true, "trigger", true,
+            "description", true, "enabled", true)
+    }
+
+    static Join(values, separator := "`n") {
+        result := ""
+        for index, value in values
+            result .= (index > 1 ? separator : "") . value
+        return result
+    }
+}
+
+class SnippetBatchImportWindow {
+    GuiObj := ""
+    BatchEdit := ""
+    StatusText := ""
+    BuiltInLanguage := ""
+
+    __New(initialFile := "") {
+        this.GuiObj := Gui(, "GlobalCoder - Batch Import Snips")
+        this.GuiObj.BackColor := "1E1E1E"
+        this.GuiObj.SetFont("s10", "Segoe UI")
+        this.GuiObj.OnEvent("Close", (*) => this.Close())
+        this.GuiObj.OnEvent("Escape", (*) => this.Close())
+        this.GuiObj.OnEvent("DropFiles", (guiObj, ctrl, files, x, y) => this.LoadDroppedFiles(files))
+
+        title := this.GuiObj.Add("Text", "x16 y14 w850 h28 cFFFFFF", "SQLite Snip Batch Import")
+        title.SetFont("s14 bold")
+        this.GuiObj.Add("Text", "x16 y45 w850 h42 cB9C7DB",
+            "Paste an AI-generated GLOBALCODER_SNIPS_V1 batch or load a .snips file. The complete batch is validated before one atomic SQLite upsert.")
+        this.BatchEdit := this.GuiObj.Add("Edit", "x16 y92 w868 h480 +Multi +WantTab +HScroll -Wrap Background101010 cF0F0F0")
+        this.BatchEdit.SetFont("s10", "Consolas")
+        this.GuiObj.Add("Button", "x16 y586 w120 h30", "Paste Clipboard").OnEvent("Click", (*) => this.PasteClipboard())
+        this.GuiObj.Add("Button", "x146 y586 w105 h30", "Load File...").OnEvent("Click", (*) => this.SelectFile())
+        this.GuiObj.Add("Button", "x261 y586 w136 h30", "Open Import Folder").OnEvent("Click", (*) => this.OpenImportFolder())
+        this.BuiltInLanguage := this.GuiObj.Add("DropDownList", "x407 y588 w112 Choose1", ["All languages", "AutoHotkey v2", "C", "C++", "Python", "JavaScript", "TypeScript", "C#"])
+        this.GuiObj.Add("Button", "x527 y586 w90 h30", "Load Built-in").OnEvent("Click", (*) => this.LoadBuiltInBatch())
+        importButton := this.GuiObj.Add("Button", "x617 y586 w130 h30 Default", "Validate + Import")
+        importButton.OnEvent("Click", (*) => this.Import())
+        this.GuiObj.Add("Button", "x757 y586 w127 h30", "Close").OnEvent("Click", (*) => this.Close())
+        this.StatusText := this.GuiObj.Add("Text", "x16 y627 w868 h46 c9CDCFE",
+            "Format: @@SNIP metadata, @@BODY multiline code, @@END. Existing language + feature + name records are updated; new records are inserted.")
+
+        if initialFile != "" && FileExist(initialFile)
+            this.LoadFile(initialFile)
+        this.GuiObj.Show("w900 h690")
+        this.BatchEdit.Focus()
+    }
+
+    PasteClipboard() {
+        this.BatchEdit.Value := A_Clipboard
+        this.StatusText.Text := "Clipboard pasted. Choose Validate + Import when ready."
+        this.BatchEdit.Focus()
+    }
+
+    SelectFile() {
+        selected := FileSelect(1, GC_SNIP_IMPORT_DIR, "Load a GlobalCoder Snip batch", "Snip batches (*.snips; *.txt)")
+        if selected != ""
+            this.LoadFile(selected)
+    }
+
+    LoadDroppedFiles(files) {
+        if files.Length > 0
+            this.LoadFile(files[1])
+    }
+
+    LoadFile(filePath) {
+        try {
+            this.BatchEdit.Value := FileRead(filePath, "UTF-8")
+            this.StatusText.Text := "Loaded: " . filePath
+            this.BatchEdit.Focus()
+        } catch as error {
+            this.StatusText.Text := "Could not load file: " . error.Message
+        }
+    }
+
+    LoadBuiltInBatch() {
+        fileNames := Map(
+            "AutoHotkey v2", "autohotkey-v2-batch.snips",
+            "C", "c-batch.snips",
+            "C++", "cpp-batch.snips",
+            "Python", "python-batch.snips",
+            "JavaScript", "javascript-batch.snips",
+            "TypeScript", "typescript-batch.snips",
+            "C#", "csharp-batch.snips")
+        selectedLanguage := this.BuiltInLanguage.Text
+        if selectedLanguage = "All languages" {
+            combined := SnippetBatchImporter.FormatHeader
+            for languageLabel, fileName in fileNames {
+                filePath := GC_SNIP_IMPORT_DIR . "\" . fileName
+                if !FileExist(filePath) {
+                    this.StatusText.Text := "Missing built-in batch: " . filePath
+                    return
+                }
+                batchText := FileRead(filePath, "UTF-8")
+                batchText := RegExReplace(batchText, "^\x{FEFF}?GLOBALCODER_SNIPS_V1\R?", "")
+                combined .= "`r`n`r`n" . LTrim(batchText, "`r`n")
+            }
+            this.BatchEdit.Value := combined
+            this.StatusText.Text := "Loaded all seven built-in language batches into one atomic import."
+            this.BatchEdit.Focus()
+            return
+        }
+        if !fileNames.Has(selectedLanguage) {
+            this.StatusText.Text := "Choose a built-in language batch first."
+            return
+        }
+        this.LoadFile(GC_SNIP_IMPORT_DIR . "\" . fileNames[selectedLanguage])
+    }
+
+    OpenImportFolder() {
+        if !DirExist(GC_SNIP_IMPORT_DIR)
+            DirCreate(GC_SNIP_IMPORT_DIR)
+        Run("explorer.exe " . QuoteArgument(GC_SNIP_IMPORT_DIR))
+    }
+
+    Import() {
+        result := SnippetBatchImporter.Import(this.BatchEdit.Value)
+        if !result["ok"] {
+            message := "Import cancelled; SQLite was not changed.`r`n`r`n" . SnippetBatchImporter.Join(result["errors"], "`r`n")
+            this.StatusText.Text := "Validation failed: " . result["errors"].Length . " issue(s). No database changes."
+            MsgBox(message, "Snip Batch Validation", 48)
+            return
+        }
+        message := "Batch import complete.`r`n`r`nInserted: " . result["inserted"] . "`r`nUpdated: " . result["updated"]
+            . "`r`n`r`nThe Snips menus and four-character suggestions are refreshed."
+        this.StatusText.Text := "Imported: " . result["inserted"] . " inserted, " . result["updated"] . " updated."
+        MsgBox(message, "GlobalCoder Snips", 64)
+    }
+
+    Close() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+    }
+}
+
+class SnippetBrowser {
+    GuiObj := ""
+    FilterLanguage := ""
+    FilterFeature := ""
+    SearchEdit := ""
+    List := ""
+    NameEdit := ""
+    TriggerEdit := ""
+    EditLanguage := ""
+    EditFeature := ""
+    BodyEdit := ""
+    DescriptionEdit := ""
+    EnabledCheck := ""
+    StatusText := ""
+    LanguageRows := []
+    FeatureRows := []
+    Rows := []
+    SelectedId := 0
+    TargetHwnd := 0
+    TargetControl := ""
+
+    __New(initialLanguage := "", initialFeature := "") {
+        global GC_CallingWindowHwnd, GC_CallingControl
+        this.TargetHwnd := GC_CallingWindowHwnd && WinExist("ahk_id " . GC_CallingWindowHwnd)
+            ? GC_CallingWindowHwnd : WinExist("A")
+        this.TargetControl := GC_CallingControl
+        this.LanguageRows := SnippetRepository.Languages()
+        this.FeatureRows := SnippetRepository.Features()
+
+        this.GuiObj := Gui("+AlwaysOnTop", "GlobalCoder Snips - IDE-Agnostic Code Helper")
+        this.GuiObj.BackColor := "1E1E1E"
+        this.GuiObj.SetFont("s9", "Segoe UI")
+        this.GuiObj.OnEvent("Close", (*) => this.Close())
+        this.GuiObj.OnEvent("Escape", (*) => this.Close())
+        heading := this.GuiObj.Add("Text", "x12 y10 w1176 h30 c4FC3F7 Center", "Snips: Learn, Add, Find, and Insert")
+        heading.SetFont("s14 bold")
+
+        languageLabels := ["All languages"]
+        selectedLanguageIndex := 1
+        for row in this.LanguageRows {
+            languageLabels.Push(row["label"])
+            if row["code"] = initialLanguage
+                selectedLanguageIndex := languageLabels.Length
+        }
+        featureLabels := ["All feature groups"]
+        selectedFeatureIndex := 1
+        for row in this.FeatureRows {
+            featureLabels.Push(row["domain"] . " > " . row["label"])
+            if row["code"] = initialFeature
+                selectedFeatureIndex := featureLabels.Length
+        }
+        this.FilterLanguage := this.GuiObj.Add("DropDownList", "x12 y50 w180 Choose" . selectedLanguageIndex, languageLabels)
+        this.FilterFeature := this.GuiObj.Add("DropDownList", "x202 y50 w300 Choose" . selectedFeatureIndex, featureLabels)
+        this.SearchEdit := this.GuiObj.Add("Edit", "x512 y50 w310 Background252526 cFFFFFF")
+        this.GuiObj.Add("Button", "x832 y49 w72 h28 Default", "Search").OnEvent("Click", (*) => this.LoadRows())
+        this.GuiObj.Add("Button", "x912 y49 w66 h28", "Clear").OnEvent("Click", (*) => this.ClearFilters())
+        this.GuiObj.Add("Button", "x986 y49 w96 h28", "Structure").OnEvent("Click", (*) => ShowSnippetStructure())
+        this.GuiObj.Add("Button", "x1090 y49 w98 h28", "IDE Apps").OnEvent("Click", (*) => ShowSnippetEditorContexts())
+        this.FilterLanguage.OnEvent("Change", (*) => this.LoadRows())
+        this.FilterFeature.OnEvent("Change", (*) => this.LoadRows())
+
+        this.List := this.GuiObj.Add("ListView", "x12 y88 w460 h538 -Multi +Grid Background252526 cE6E6E6",
+            ["Language", "Feature", "Trigger", "Snippet", "Uses"])
+        this.List.ModifyCol(1, 92), this.List.ModifyCol(2, 122), this.List.ModifyCol(3, 76)
+        this.List.ModifyCol(4, 130), this.List.ModifyCol(5, 40)
+        this.List.OnEvent("ItemFocus", (ctrl, row) => this.LoadSelected(row))
+        this.List.OnEvent("DoubleClick", (ctrl, row) => this.InsertSelected(row))
+
+        this.GuiObj.Add("Text", "x486 y90 w315 cE6E6E6", "Snippet name")
+        this.GuiObj.Add("Text", "x808 y90 w180 cE6E6E6", "Suggestion trigger (4+ characters)")
+        this.NameEdit := this.GuiObj.Add("Edit", "x486 y112 w310 Background252526 cFFFFFF")
+        this.TriggerEdit := this.GuiObj.Add("Edit", "x808 y112 w180 Background252526 cFFFFFF")
+        this.EnabledCheck := this.GuiObj.Add("Checkbox", "x1004 y116 w100 Checked cE6E6E6", "Enabled")
+
+        editLanguageLabels := []
+        for row in this.LanguageRows
+            editLanguageLabels.Push(row["label"])
+        editFeatureLabels := []
+        for row in this.FeatureRows
+            editFeatureLabels.Push(row["domain"] . " > " . row["label"])
+        this.GuiObj.Add("Text", "x486 y154 w180 cE6E6E6", "Language")
+        this.GuiObj.Add("Text", "x728 y154 w360 cE6E6E6", "Uniform feature group")
+        this.EditLanguage := this.GuiObj.Add("DropDownList", "x486 y176 w230 Choose1", editLanguageLabels)
+        this.EditFeature := this.GuiObj.Add("DropDownList", "x728 y176 w460 Choose1", editFeatureLabels)
+
+        this.GuiObj.Add("Text", "x486 y218 w500 cE6E6E6", "Insertable body")
+        this.BodyEdit := this.GuiObj.Add("Edit", "x486 y240 w702 h254 +Multi +VScroll +HScroll Background181818 cF0F0F0")
+        this.BodyEdit.SetFont("s10", "Consolas")
+        this.GuiObj.Add("Text", "x486 y502 w702 cA8C7E6",
+            "Tokens: {{cursor}}, {{clipboard}}, {{date}}, {{time}}, {{scriptdir}}, {{datadir}}, {{projectdir}}, {{database}}")
+        this.GuiObj.Add("Text", "x486 y530 w180 cE6E6E6", "Description / learning note")
+        this.DescriptionEdit := this.GuiObj.Add("Edit", "x486 y552 w702 h74 +Multi Background252526 cFFFFFF")
+
+        this.GuiObj.Add("Button", "x12 y640 w90 h32", "New").OnEvent("Click", (*) => this.NewSnippet())
+        this.GuiObj.Add("Button", "x110 y640 w90 h32", "Save").OnEvent("Click", (*) => this.Save())
+        this.GuiObj.Add("Button", "x208 y640 w90 h32", "Delete").OnEvent("Click", (*) => this.DeleteSelected())
+        this.GuiObj.Add("Button", "x306 y640 w90 h32", "Copy").OnEvent("Click", (*) => this.CopySelected())
+        this.GuiObj.Add("Button", "x486 y640 w170 h34", "Insert into Calling Editor").OnEvent("Click", (*) => this.InsertSelected())
+        this.GuiObj.Add("Button", "x666 y640 w110 h34", "Reload Snips").OnEvent("Click", (*) => this.ReloadSnips())
+        this.StatusText := this.GuiObj.Add("Text", "x12 y686 w1050 h34 cA8C7E6", "")
+        this.GuiObj.Add("Button", "x1098 y682 w90 h32", "Close").OnEvent("Click", (*) => this.Close())
+        this.GuiObj.Show("w1200 h732")
+        WinActivate("ahk_id " . this.GuiObj.Hwnd)
+        this.LoadRows()
+        if initialLanguage != "" || initialFeature != ""
+            this.NewSnippet(false)
+    }
+
+    LoadRows() {
+        languageCode := this.FilterLanguage.Value > 1 ? this.LanguageRows[this.FilterLanguage.Value - 1]["code"] : ""
+        featureCode := this.FilterFeature.Value > 1 ? this.FeatureRows[this.FilterFeature.Value - 1]["code"] : ""
+        this.Rows := SnippetRepository.Search(languageCode, featureCode, this.SearchEdit.Value)
+        this.List.Delete()
+        for row in this.Rows
+            this.List.Add(, row["language_label"], row["feature_label"], row["trigger"], row["name"], row["usage_count"])
+        this.StatusText.Text := this.Rows.Length . " snippet(s). Double-click inserts into the calling editor; Save changes SQLite immediately."
+        if this.Rows.Length > 0 {
+            this.List.Modify(1, "+Select +Focus Vis")
+            this.LoadSelected(1)
+        }
+    }
+
+    LoadSelected(rowIndex) {
+        if rowIndex < 1 || rowIndex > this.Rows.Length
+            return
+        row := this.Rows[rowIndex]
+        this.SelectedId := Integer(row["id"])
+        this.NameEdit.Value := row["name"]
+        this.TriggerEdit.Value := row["trigger"]
+        this.EditLanguage.Text := row["language_label"]
+        this.EditFeature.Text := row["feature_label"] = "" ? this.EditFeature.Text : this.FeatureDisplay(row["feature_code"])
+        this.BodyEdit.Value := row["body"]
+        this.DescriptionEdit.Value := row["description"]
+        this.EnabledCheck.Value := Integer(row["enabled"])
+    }
+
+    NewSnippet(focusName := true) {
+        this.SelectedId := 0
+        this.NameEdit.Value := ""
+        this.TriggerEdit.Value := ""
+        this.BodyEdit.Value := "{{cursor}}"
+        this.DescriptionEdit.Value := ""
+        this.EnabledCheck.Value := 1
+        if this.FilterLanguage.Value > 1
+            this.EditLanguage.Text := this.LanguageRows[this.FilterLanguage.Value - 1]["label"]
+        else
+            this.EditLanguage.Choose(1)
+        if this.FilterFeature.Value > 1
+            this.EditFeature.Text := this.FeatureDisplay(this.FeatureRows[this.FilterFeature.Value - 1]["code"])
+        else
+            this.EditFeature.Choose(1)
+        if focusName
+            this.NameEdit.Focus()
+        this.StatusText.Text := "New placeholder ready. Choose the same feature group in any language for a uniform reference structure."
+    }
+
+    Save() {
+        name := Trim(this.NameEdit.Value)
+        trigger := Trim(this.TriggerEdit.Value)
+        languageCode := this.LanguageCodeFromLabel(this.EditLanguage.Text)
+        featureCode := this.FeatureCodeFromDisplay(this.EditFeature.Text)
+        if name = "" || trigger = "" || Trim(this.BodyEdit.Value) = "" {
+            MsgBox("Name, trigger, and body are required.", "Snips", 48)
+            return
+        }
+        if StrLen(trigger) < 4 || RegExMatch(trigger, "\s") {
+            MsgBox("Use a trigger of at least four non-whitespace characters so suggestions are intentional.", "Snips", 48)
+            return
+        }
+        try {
+            if this.SelectedId > 0 {
+                GlobalCoderDatabase.Exec("UPDATE snippets SET language_code=" . GlobalCoderDatabase.Q(languageCode)
+                    . ",feature_code=" . GlobalCoderDatabase.Q(featureCode) . ",name=" . GlobalCoderDatabase.Q(name)
+                    . ",trigger=" . GlobalCoderDatabase.Q(trigger) . ",body=" . GlobalCoderDatabase.Q(this.BodyEdit.Value)
+                    . ",description=" . GlobalCoderDatabase.Q(this.DescriptionEdit.Value) . ",enabled=" . (this.EnabledCheck.Value ? 1 : 0)
+                    . ",updated_at=datetime('now','localtime') WHERE id=" . this.SelectedId . ";")
+            } else {
+                GlobalCoderDatabase.Exec("INSERT INTO snippets(language_code,feature_code,name,trigger,body,description,enabled) VALUES("
+                    . GlobalCoderDatabase.Q(languageCode) . "," . GlobalCoderDatabase.Q(featureCode) . ","
+                    . GlobalCoderDatabase.Q(name) . "," . GlobalCoderDatabase.Q(trigger) . ","
+                    . GlobalCoderDatabase.Q(this.BodyEdit.Value) . "," . GlobalCoderDatabase.Q(this.DescriptionEdit.Value)
+                    . "," . (this.EnabledCheck.Value ? 1 : 0) . ");")
+                this.SelectedId := Integer(GlobalCoderDatabase.Scalar("SELECT last_insert_rowid();", "0"))
+            }
+            SnippetSuggestionManager.RefreshSnippets()
+            RebuildMenu(true)
+            this.LoadRows()
+            this.StatusText.Text := "Snippet saved to SQLite and menus/suggestions refreshed."
+        } catch as error {
+            MsgBox(error.Message, "Could Not Save Snippet", 16)
+        }
+    }
+
+    DeleteSelected() {
+        if this.SelectedId < 1 {
+            MsgBox("Select a saved snippet first.", "Snips", 48)
+            return
+        }
+        if MsgBox("Delete this snippet from SQLite?", "Delete Snippet", 0x24) != "Yes"
+            return
+        GlobalCoderDatabase.Exec("DELETE FROM snippets WHERE id=" . this.SelectedId . ";")
+        this.SelectedId := 0
+        SnippetSuggestionManager.RefreshSnippets()
+        RebuildMenu(true)
+        this.LoadRows()
+        this.NewSnippet(false)
+    }
+
+    InsertSelected(rowIndex := 0) {
+        if rowIndex > 0 && rowIndex <= this.Rows.Length
+            row := this.Rows[rowIndex]
+        else
+            row := SnippetRepository.ById(this.SelectedId)
+        if !IsObject(row) {
+            MsgBox("Select a saved snippet first.", "Snips", 48)
+            return
+        }
+        this.Close()
+        Sleep(80)
+        SnippetRepository.Insert(row, 0, this.TargetHwnd, this.TargetControl)
+    }
+
+    CopySelected() {
+        row := SnippetRepository.ById(this.SelectedId)
+        if !IsObject(row) {
+            MsgBox("Select a saved snippet first.", "Snips", 48)
+            return
+        }
+        A_Clipboard := SnippetRepository.ExpandBody(StrReplace(row["body"], "{{cursor}}", ""))
+        this.StatusText.Text := "Snippet copied."
+    }
+
+    ReloadSnips() {
+        SnippetSuggestionManager.RefreshSnippets()
+        RebuildMenu(true)
+        this.LoadRows()
+        this.StatusText.Text := "Snips, suggestions, and the native menu were rebuilt."
+    }
+
+    ClearFilters() {
+        this.FilterLanguage.Choose(1)
+        this.FilterFeature.Choose(1)
+        this.SearchEdit.Value := ""
+        this.LoadRows()
+    }
+
+    LanguageCodeFromLabel(label) {
+        for row in this.LanguageRows {
+            if row["label"] = label
+                return row["code"]
+        }
+        return this.LanguageRows[1]["code"]
+    }
+
+    FeatureCodeFromDisplay(display) {
+        for row in this.FeatureRows {
+            if this.FeatureDisplay(row["code"]) = display
+                return row["code"]
+        }
+        return this.FeatureRows[1]["code"]
+    }
+
+    FeatureDisplay(code) {
+        for row in this.FeatureRows {
+            if row["code"] = code
+                return row["domain"] . " > " . row["label"]
+        }
+        return ""
+    }
+
+    Close() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+    }
+}
+
+class SnippetStructureBrowser {
+    GuiObj := ""
+    List := ""
+    Rows := []
+
+    __New() {
+        this.GuiObj := Gui("+AlwaysOnTop", "GlobalCoder Snip Feature Structure")
+        this.GuiObj.BackColor := "1E1E1E"
+        this.GuiObj.SetFont("s9", "Segoe UI")
+        this.GuiObj.OnEvent("Close", (*) => this.Close())
+        this.GuiObj.OnEvent("Escape", (*) => this.Close())
+        this.GuiObj.Add("Text", "x12 y12 w876 h44 cA8C7E6",
+            "Every language receives the same feature structure. Zero-count rows are intentional placeholders—double-click one to add its first syntax snippet.")
+        this.List := this.GuiObj.Add("ListView", "x12 y62 w876 h570 -Multi +Grid Background252526 cE6E6E6",
+            ["Language", "Domain", "Feature group", "Snips", "Purpose"])
+        this.List.ModifyCol(1, 110), this.List.ModifyCol(2, 155), this.List.ModifyCol(3, 205), this.List.ModifyCol(4, 48), this.List.ModifyCol(5, 335)
+        this.Rows := GlobalCoderDatabase.Rows("SELECT l.code AS language_code,l.label AS language_label,f.code AS feature_code,f.domain,f.label AS feature_label,f.description,COUNT(s.id) AS snippet_count "
+            . "FROM snippet_languages l CROSS JOIN snippet_feature_groups f LEFT JOIN snippets s ON s.language_code=l.code AND s.feature_code=f.code "
+            . "WHERE l.enabled=1 AND f.enabled=1 GROUP BY l.code,f.code ORDER BY l.sort_order,f.sort_order;")
+        for row in this.Rows
+            this.List.Add(, row["language_label"], row["domain"], row["feature_label"], row["snippet_count"], row["description"])
+        this.List.OnEvent("DoubleClick", (ctrl, row) => this.OpenGroup(row))
+        this.GuiObj.Add("Text", "x12 y642 w730 h26 c777777", "Double-click: browse/add that language and feature group | Esc: close")
+        this.GuiObj.Add("Button", "x798 y638 w90 h30", "Close").OnEvent("Click", (*) => this.Close())
+        this.GuiObj.Show("w900 h682")
+        WinActivate("ahk_id " . this.GuiObj.Hwnd)
+    }
+
+    OpenGroup(rowIndex) {
+        if rowIndex < 1 || rowIndex > this.Rows.Length
+            return
+        row := this.Rows[rowIndex]
+        this.Close()
+        ShowSnippets(row["language_code"], row["feature_code"])
+    }
+
+    Close() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+    }
+}
+
+class SnippetEditorContextEditor {
+    GuiObj := ""
+    List := ""
+    ExecutableEdit := ""
+    LabelEdit := ""
+    EnabledCheck := ""
+    Rows := []
+    CallingHwnd := 0
+
+    __New() {
+        global GC_CallingWindowHwnd
+        this.CallingHwnd := GC_CallingWindowHwnd && WinExist("ahk_id " . GC_CallingWindowHwnd)
+            ? GC_CallingWindowHwnd : WinExist("A")
+        this.GuiObj := Gui("+AlwaysOnTop", "Snip Suggestion IDE Applications")
+        this.GuiObj.BackColor := "1E1E1E"
+        this.GuiObj.OnEvent("Close", (*) => this.Close())
+        this.GuiObj.OnEvent("Escape", (*) => this.Close())
+        this.GuiObj.Add("Text", "x12 y12 w616 h42 cA8C7E6",
+            "Transparent four-character suggestions run only while an enabled executable below is active.")
+        this.List := this.GuiObj.Add("ListView", "x12 y62 w616 h310 -Multi +Grid Background252526 cE6E6E6", ["Executable", "Editor / IDE", "Enabled"])
+        this.List.ModifyCol(1, 190), this.List.ModifyCol(2, 330), this.List.ModifyCol(3, 78)
+        this.List.OnEvent("ItemFocus", (ctrl, row) => this.LoadSelected(row))
+        this.GuiObj.Add("Text", "x12 y390 w210 cE6E6E6", "Executable (example: Code.exe)")
+        this.GuiObj.Add("Text", "x254 y390 w250 cE6E6E6", "Display label")
+        this.ExecutableEdit := this.GuiObj.Add("Edit", "x12 y412 w230 Background252526 cFFFFFF")
+        this.LabelEdit := this.GuiObj.Add("Edit", "x254 y412 w260 Background252526 cFFFFFF")
+        this.EnabledCheck := this.GuiObj.Add("Checkbox", "x526 y416 w100 Checked cE6E6E6", "Enabled")
+        this.GuiObj.Add("Button", "x12 y458 w90 h30 Default", "Save").OnEvent("Click", (*) => this.Save())
+        this.GuiObj.Add("Button", "x110 y458 w118 h30", "Capture Caller").OnEvent("Click", (*) => this.CaptureCaller())
+        this.GuiObj.Add("Button", "x236 y458 w90 h30", "Delete").OnEvent("Click", (*) => this.DeleteSelected())
+        this.GuiObj.Add("Button", "x538 y458 w90 h30", "Close").OnEvent("Click", (*) => this.Close())
+        this.GuiObj.Show("w640 h506")
+        WinActivate("ahk_id " . this.GuiObj.Hwnd)
+        this.ReloadRows()
+    }
+
+    ReloadRows() {
+        this.Rows := GlobalCoderDatabase.Rows("SELECT executable,label,enabled FROM snippet_editor_contexts ORDER BY label,executable;")
+        this.List.Delete()
+        for row in this.Rows
+            this.List.Add(, row["executable"], row["label"], Integer(row["enabled"]) ? "Yes" : "No")
+    }
+
+    LoadSelected(rowIndex) {
+        if rowIndex < 1 || rowIndex > this.Rows.Length
+            return
+        row := this.Rows[rowIndex]
+        this.ExecutableEdit.Value := row["executable"]
+        this.LabelEdit.Value := row["label"]
+        this.EnabledCheck.Value := Integer(row["enabled"])
+    }
+
+    CaptureCaller() {
+        target := this.CallingHwnd && WinExist("ahk_id " . this.CallingHwnd) ? "ahk_id " . this.CallingHwnd : "A"
+        try {
+            this.ExecutableEdit.Value := WinGetProcessName(target)
+            this.LabelEdit.Value := WinGetTitle(target)
+        }
+    }
+
+    Save() {
+        executable := Trim(this.ExecutableEdit.Value)
+        if executable = "" {
+            MsgBox("Enter an executable name.", "Snip IDE Context", 48)
+            return
+        }
+        GlobalCoderDatabase.Exec("INSERT INTO snippet_editor_contexts(executable,label,enabled) VALUES("
+            . GlobalCoderDatabase.Q(executable) . "," . GlobalCoderDatabase.Q(Trim(this.LabelEdit.Value)) . ","
+            . (this.EnabledCheck.Value ? 1 : 0) . ") ON CONFLICT(executable) DO UPDATE SET label=excluded.label,enabled=excluded.enabled;")
+        SnippetSuggestionManager.ReloadEditorContexts()
+        this.ReloadRows()
+    }
+
+    DeleteSelected() {
+        executable := Trim(this.ExecutableEdit.Value)
+        if executable = ""
+            return
+        if MsgBox("Remove " . executable . " from suggestion-enabled applications?", "Snip IDE Context", 0x24) != "Yes"
+            return
+        GlobalCoderDatabase.Exec("DELETE FROM snippet_editor_contexts WHERE executable=" . GlobalCoderDatabase.Q(executable) . ";")
+        this.ExecutableEdit.Value := "", this.LabelEdit.Value := ""
+        SnippetSuggestionManager.ReloadEditorContexts()
+        this.ReloadRows()
+    }
+
+    Close() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+    }
+}
+
+class GhostSnippetCaptureWindow {
+    static Current := ""
+    GuiObj := ""
+    BodyEdit := ""
+    StatusText := ""
+    LanguageCode := ""
+    FeatureCode := ""
+    TargetHwnd := 0
+    LastChangeTick := 0
+    Changed := false
+    Finished := false
+    TickTimer := ""
+
+    static Show(languageCode, featureCode) {
+        if IsObject(this.Current)
+            this.Current.Finish(false)
+        this.Current := GhostSnippetCaptureWindow(languageCode, featureCode)
+        return this.Current
+    }
+
+    __New(languageCode, featureCode) {
+        global GC_CallingWindowHwnd
+        this.LanguageCode := languageCode
+        this.FeatureCode := featureCode
+        this.TargetHwnd := GC_CallingWindowHwnd
+        languageLabel := GlobalCoderDatabase.Scalar("SELECT label FROM snippet_languages WHERE code="
+            . GlobalCoderDatabase.Q(languageCode) . " LIMIT 1;", languageCode)
+        featureLabel := GlobalCoderDatabase.Scalar("SELECT label FROM snippet_feature_groups WHERE code="
+            . GlobalCoderDatabase.Q(featureCode) . " LIMIT 1;", featureCode)
+
+        this.GuiObj := Gui("+AlwaysOnTop +ToolWindow -MaximizeBox -MinimizeBox", "Ghost Snip Capture")
+        this.GuiObj.BackColor := "10243A"
+        this.GuiObj.SetFont("s9", "Segoe UI")
+        this.GuiObj.OnEvent("Close", (*) => this.Finish(true))
+        this.GuiObj.OnEvent("Escape", (*) => this.Finish(false))
+        this.GuiObj.Add("Text", "x12 y10 w616 h38 cFFFFFF",
+            languageLabel . " > " . SnippetFeatureMenuLabel(featureCode, featureLabel)
+            . "`nType the syntax body below. It becomes this placeholder's first Snip.")
+        this.BodyEdit := this.GuiObj.Add("Edit", "x12 y56 w616 h150 +Multi +VScroll Background081726 cFFFFFF")
+        this.BodyEdit.SetFont("s10", "Consolas")
+        this.BodyEdit.OnEvent("Change", (*) => this.OnChange())
+        this.StatusText := this.GuiObj.Add("Text", "x12 y216 w616 h36 cA8C7E6",
+            "Auto-save in 5.0 seconds after the last character | Esc cancels")
+        this.GuiObj.Show("w640 h264")
+        try WinSetTransparent(245, "ahk_id " . this.GuiObj.Hwnd)
+        WinActivate("ahk_id " . this.GuiObj.Hwnd)
+        this.BodyEdit.Focus()
+        this.LastChangeTick := A_TickCount
+        this.TickTimer := ObjBindMethod(this, "Tick")
+        SetTimer(this.TickTimer, 100)
+    }
+
+    OnChange() {
+        this.Changed := true
+        this.LastChangeTick := A_TickCount
+    }
+
+    Tick(*) {
+        if this.Finished
+            return
+        remaining := Max(0, 5000 - (A_TickCount - this.LastChangeTick))
+        this.StatusText.Text := "Auto-save in " . Format("{:.1f}", remaining / 1000)
+            . " seconds after the last character | Esc cancels"
+        if remaining <= 0
+            this.Finish(true)
+    }
+
+    Finish(saveText := true, *) {
+        if this.Finished
+            return
+        this.Finished := true
+        if IsObject(this.TickTimer)
+            SetTimer(this.TickTimer, 0)
+        body := IsObject(this.BodyEdit) ? this.BodyEdit.Value : ""
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+
+        savedId := 0
+        if saveText && this.Changed && Trim(body) != "" {
+            savedId := SnippetRepository.SaveGhost(this.LanguageCode, this.FeatureCode, body)
+            SnippetSuggestionManager.RefreshSnippets()
+            RebuildMenu(true)
+        }
+        if this.TargetHwnd && WinExist("ahk_id " . this.TargetHwnd)
+            WinActivate("ahk_id " . this.TargetHwnd)
+        if savedId > 0 {
+            row := SnippetRepository.ById(savedId)
+            PassivePreviewWindow.Show("Ghost Snip Saved",
+                row["name"] . "  [" . row["trigger"] . "]`r`n`r`nSaved into the selected SQLite placeholder.", 2600)
+        }
+        if GhostSnippetCaptureWindow.Current = this
+            GhostSnippetCaptureWindow.Current := ""
+    }
+}
+
+class PassivePreviewWindow {
+    static Current := ""
+    GuiObj := ""
+    ContentText := ""
+    CloseTimer := ""
+
+    static Show(title, content, timeout := 9000) {
+        this.CloseCurrent()
+        this.Current := PassivePreviewWindow(title, content, timeout)
+        return this.Current
+    }
+
+    static CloseCurrent(*) {
+        if IsObject(this.Current)
+            this.Current.Close()
+        this.Current := ""
+    }
+
+    __New(title, content, timeout) {
+        this.GuiObj := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x08000020", title)
+        this.GuiObj.BackColor := "10243A"
+        this.GuiObj.MarginX := 0
+        this.GuiObj.MarginY := 0
+        displayText := title . "`r`n" . "========================================" . "`r`n`r`n" . content
+        this.ContentText := this.GuiObj.Add("Text", "x14 y12 w872 h536 Background10243A cEAF5FF", displayText)
+        this.ContentText.SetFont("s9", "Consolas")
+        GetActiveMonitorWorkArea(&left, &top, &right, &bottom)
+        width := Min(900, right - left - 24)
+        height := Min(560, bottom - top - 24)
+        x := left + ((right - left - width) // 2)
+        y := top + ((bottom - top - height) // 2)
+        this.ContentText.Move(, , width - 28, height - 24)
+        this.GuiObj.Show("NA x" . x . " y" . y . " w" . width . " h" . height)
+        try WinSetTransparent(230, "ahk_id " . this.GuiObj.Hwnd)
+        this.CloseTimer := ObjBindMethod(this, "Close")
+        SetTimer(this.CloseTimer, -Max(1500, Integer(timeout)))
+    }
+
+    Close(*) {
+        if IsObject(this.CloseTimer)
+            SetTimer(this.CloseTimer, 0)
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+        if PassivePreviewWindow.Current = this
+            PassivePreviewWindow.Current := ""
+    }
+}
+
+class SnippetSuggestionWindow {
+    GuiObj := ""
+    ContentText := ""
+
+    __New() {
+        this.GuiObj := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x08000020", "GlobalCoder Snip Suggestions")
+        this.GuiObj.BackColor := "10243A"
+        this.GuiObj.MarginX := 0
+        this.GuiObj.MarginY := 0
+        this.ContentText := this.GuiObj.Add("Text", "x0 y0 w620 h180 +0x200 Background10243A cEAF5FF")
+        this.ContentText.SetFont("s9", "Consolas")
+    }
+
+    Show(items, selectedIndex, typedPrefix) {
+        lines := "  Snips: '" . typedPrefix . "'    Tab insert | Up/Down select | Esc dismiss`n"
+        for index, row in items {
+            marker := index = selectedIndex ? "> " : "  "
+            lines .= marker . row["trigger"] . "  -  " . row["name"] . "  [" . row["language_label"] . " / " . row["feature_label"] . "]`n"
+        }
+        this.ContentText.Text := RTrim(lines, "`r`n")
+        height := 32 + items.Length * 22
+        this.ContentText.Move(, , 620, height)
+        this.GetSuggestionPosition(620, height, &x, &y)
+        this.GuiObj.Show("NA x" . x . " y" . y . " w620 h" . height)
+        try WinSetTransparent(228, "ahk_id " . this.GuiObj.Hwnd)
+    }
+
+    GetSuggestionPosition(width, height, &x, &y) {
+        caretX := 0, caretY := 0
+        try CaretGetPos(&caretX, &caretY)
+        GetActiveMonitorWorkArea(&left, &top, &right, &bottom)
+        if !IsNumber(caretX) || !IsNumber(caretY) || (caretX = 0 && caretY = 0) {
+            try MouseGetPos(&caretX, &caretY)
+        }
+        if !IsNumber(caretX) || !IsNumber(caretY)
+            caretX := left + 40, caretY := top + 80
+        x := Max(left + 8, Min(caretX, right - width - 8))
+        y := caretY + 28
+        if y + height > bottom - 8
+            y := Max(top + 8, caretY - height - 12)
+    }
+
+    Hide() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Hide()
+    }
+
+    Close() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+    }
+}
+
+class SnippetSuggestionManager {
+    static Hook := ""
+    static Window := ""
+    static Running := false
+    static Visible := false
+    static Buffer := ""
+    static Suggestions := []
+    static SelectedIndex := 1
+    static EditorExecutables := Map()
+    static ExtensionLanguages := Map()
+    static MinimumPrefixLength := 4
+    static LastEditorHwnd := 0
+
+    static Init() {
+        this.MinimumPrefixLength := Max(4, ToInteger(GlobalCoderDatabase.GetSetting("Snippets", "MinimumPrefixLength", "4"), 4))
+        this.ReloadEditorContexts()
+        this.RefreshSnippets()
+        if GlobalCoderDatabase.GetSetting("Snippets", "SuggestionsEnabled", "1") = "1"
+            this.Start()
+    }
+
+    static ReloadEditorContexts() {
+        this.EditorExecutables := Map()
+        rows := GlobalCoderDatabase.Rows("SELECT executable FROM snippet_editor_contexts WHERE enabled=1;")
+        for row in rows
+            this.EditorExecutables[StrLower(row["executable"])] := true
+
+        this.ExtensionLanguages := Map()
+        languageRows := GlobalCoderDatabase.Rows("SELECT code,aliases FROM snippet_languages WHERE enabled=1;")
+        for row in languageRows {
+            for extension in StrSplit(row["aliases"], ",")
+                this.ExtensionLanguages[StrLower(Trim(extension))] := row["code"]
+        }
+    }
+
+    static RefreshSnippets() {
+        ; Suggestions query SQLite on demand so newly saved records and usage
+        ; ranking are immediately visible without maintaining a second datastore.
+        if this.Visible
+            this.UpdateSuggestions()
+    }
+
+    static Start() {
+        if this.Running
+            return
+        try {
+            this.Hook := InputHook("V I1")
+            this.Hook.OnChar := SnippetInputChar
+            this.Hook.OnKeyDown := SnippetInputKeyDown
+            this.Hook.KeyOpt("{Backspace}{Tab}{Enter}{Space}{Left}{Right}{Up}{Down}{Home}{End}{Delete}{PgUp}{PgDn}", "N")
+            this.Hook.Start()
+            SetTimer(SnippetSuggestionContextTick, 250)
+            this.Running := true
+        } catch as error {
+            this.Running := false
+            GlobalCoderDatabase.LogEvent("snippet_input_hook_error", error.Message)
+        }
+    }
+
+    static Stop() {
+        if IsObject(this.Hook)
+            try this.Hook.Stop()
+        SetTimer(SnippetSuggestionContextTick, 0)
+        this.Hook := ""
+        this.Running := false
+        this.Reset()
+        if IsObject(this.Window)
+            this.Window.Close()
+        this.Window := ""
+    }
+
+    static Toggle(*) {
+        enabled := GlobalCoderDatabase.GetSetting("Snippets", "SuggestionsEnabled", "1") = "1"
+        GlobalCoderDatabase.SetSetting("Snippets", "SuggestionsEnabled", enabled ? "0" : "1")
+        if enabled
+            this.Stop()
+        else
+            this.Start()
+        RebuildMenu(true)
+        PassivePreviewWindow.Show("Snip Suggestions",
+            enabled ? "Four-character suggestions disabled." : "Four-character suggestions enabled.", 2200)
+    }
+
+    static OnChar(characters) {
+        if !this.IsEditorActive() {
+            this.Reset()
+            return
+        }
+        activeHwnd := WinExist("A")
+        if this.LastEditorHwnd != activeHwnd
+            this.Buffer := ""
+        this.LastEditorHwnd := activeHwnd
+        for character in StrSplit(characters) {
+            if RegExMatch(character, "^[A-Za-z0-9_+#]$")
+                this.Buffer .= StrLower(character)
+            else {
+                this.Reset()
+                return
+            }
+        }
+        if StrLen(this.Buffer) > 64
+            this.Buffer := SubStr(this.Buffer, -63)
+        if StrLen(this.Buffer) >= this.MinimumPrefixLength
+            this.UpdateSuggestions()
+        else
+            this.Hide()
+    }
+
+    static OnKeyDown(vk, sc) {
+        if vk = 0x08 {
+            if StrLen(this.Buffer) > 0
+                this.Buffer := SubStr(this.Buffer, 1, -1)
+            if StrLen(this.Buffer) >= this.MinimumPrefixLength
+                this.UpdateSuggestions()
+            else
+                this.Hide()
+            return
+        }
+        if this.Visible && (vk = 0x09 || vk = 0x26 || vk = 0x28)
+            return
+        if vk = 0x0D || vk = 0x09 || vk = 0x20 || vk = 0x25 || vk = 0x27
+            || vk = 0x24 || vk = 0x23 || vk = 0x2E || vk = 0x21 || vk = 0x22
+            this.Reset()
+    }
+
+    static UpdateSuggestions() {
+        if !this.IsEditorActive() || StrLen(this.Buffer) < this.MinimumPrefixLength {
+            this.Hide()
+            return
+        }
+        prefixLike := GlobalCoderDatabase.Q(this.Buffer . "%")
+        detectedLanguage := this.DetectActiveLanguage()
+        languageOrder := detectedLanguage = "" ? "1" : "CASE WHEN s.language_code="
+            . GlobalCoderDatabase.Q(detectedLanguage) . " THEN 0 ELSE 1 END"
+        this.Suggestions := GlobalCoderDatabase.Rows("SELECT s.id,s.language_code,l.label AS language_label,s.feature_code,"
+            . "f.label AS feature_label,s.name,s.trigger,s.body,s.description,s.enabled,s.usage_count FROM snippets s "
+            . "JOIN snippet_languages l ON l.code=s.language_code JOIN snippet_feature_groups f ON f.code=s.feature_code "
+            . "WHERE s.enabled=1 AND (lower(s.trigger) LIKE " . prefixLike . " OR lower(s.name) LIKE " . prefixLike . ") "
+            . "ORDER BY " . languageOrder . ",CASE WHEN lower(s.trigger)=" . GlobalCoderDatabase.Q(this.Buffer)
+            . " THEN 0 ELSE 1 END,s.usage_count DESC,s.name LIMIT 8;")
+        if this.Suggestions.Length = 0 {
+            this.Hide()
+            return
+        }
+        this.SelectedIndex := Min(Max(1, this.SelectedIndex), this.Suggestions.Length)
+        if !IsObject(this.Window)
+            this.Window := SnippetSuggestionWindow()
+        this.Window.Show(this.Suggestions, this.SelectedIndex, this.Buffer)
+        this.Visible := true
+    }
+
+    static Move(delta) {
+        if !this.Visible || this.Suggestions.Length = 0
+            return
+        this.SelectedIndex += delta
+        if this.SelectedIndex < 1
+            this.SelectedIndex := this.Suggestions.Length
+        else if this.SelectedIndex > this.Suggestions.Length
+            this.SelectedIndex := 1
+        this.Window.Show(this.Suggestions, this.SelectedIndex, this.Buffer)
+    }
+
+    static Accept() {
+        if !this.Visible || this.SelectedIndex < 1 || this.SelectedIndex > this.Suggestions.Length
+            return
+        row := this.Suggestions[this.SelectedIndex]
+        prefixLength := StrLen(this.Buffer)
+        this.Buffer := ""
+        this.Hide()
+        KeyWait("Tab")
+        SnippetRepository.Insert(row, prefixLength)
+    }
+
+    static Dismiss() {
+        this.Reset()
+    }
+
+    static Hide() {
+        if IsObject(this.Window)
+            this.Window.Hide()
+        this.Visible := false
+        this.Suggestions := []
+        this.SelectedIndex := 1
+    }
+
+    static Reset() {
+        this.Buffer := ""
+        this.Hide()
+    }
+
+    static ContextTick() {
+        if this.Visible && (!this.IsEditorActive() || WinExist("A") != this.LastEditorHwnd)
+            this.Reset()
+    }
+
+    static IsEditorActive() {
+        try return this.EditorExecutables.Has(StrLower(WinGetProcessName("A")))
+        catch
+            return false
+    }
+
+    static DetectActiveLanguage() {
+        try title := WinGetTitle("A")
+        catch
+            return ""
+        bestExtension := ""
+        for extension, languageCode in this.ExtensionLanguages {
+            if RegExMatch(title, "i)\." . RegExReplace(extension, "([\\.\+\*\?\[\]\(\)\{\}\^\$\|])", "\\$1") . "(?:\s|[-|]|—|$)") {
+                if StrLen(extension) > StrLen(bestExtension)
+                    bestExtension := extension
+            }
+        }
+        return bestExtension != "" ? this.ExtensionLanguages[bestExtension] : ""
+    }
+}
+
+class DatabaseBrowser {
+    GuiObj := ""
+    SourceDrop := ""
+    SearchEdit := ""
+    List := ""
+    StatusText := ""
+    Page := 1
+    PageSize := 100
+    CurrentKey := "queries"
+    CurrentRows := []
+    CurrentColumns := []
+    TotalRows := 0
+
+    static Sources() {
+        ; Table names, column names, sort expressions, and searchable columns are
+        ; deliberately whitelisted here. User text is only ever used as a quoted value.
+        return Map(
+            "queries", Map("label", "Google / Query History", "table", "queries",
+                "columns", ["id", "created_at", "query", "provider", "context"],
+                "search", ["query", "provider", "context", "created_at"], "order", "id DESC"),
+            "recent_projects", Map("label", "Recent Projects", "table", "recent_projects",
+                "columns", ["name", "path", "project_type", "open_count", "last_opened"],
+                "search", ["name", "path", "project_type"], "order", "last_opened DESC"),
+            "settings", Map("label", "Settings", "table", "settings",
+                "columns", ["section", "key", "value", "updated_at"],
+                "search", ["section", "key", "value"], "order", "section, key"),
+            "event_log", Map("label", "Event Log", "table", "event_log",
+                "columns", ["id", "created_at", "event_type", "detail"],
+                "search", ["event_type", "detail", "created_at"], "order", "id DESC"),
+            "errors", Map("label", "Error Log", "table", "errors",
+                "columns", ["id", "created_at", "message", "file", "line", "stack"],
+                "search", ["message", "file", "stack", "created_at"], "order", "id DESC"),
+            "activity_log", Map("label", "Activity / Idle Log", "table", "activity_log",
+                "columns", ["id", "created_at", "event_type", "active_window", "idle_ms", "detail"],
+                "search", ["event_type", "active_window", "detail", "created_at"], "order", "id DESC"),
+            "knowledge_nodes", Map("label", "Knowledge Nodes", "table", "knowledge_nodes",
+                "columns", ["id", "title", "node_type", "language", "feature", "confidence", "importance", "use_count", "updated_at", "content"],
+                "search", ["title", "node_type", "language", "feature", "content"], "order", "importance DESC, use_count DESC, updated_at DESC"),
+            "knowledge_edges", Map("label", "Knowledge Relationships", "table", "knowledge_edges",
+                "columns", ["id", "from_node_id", "to_node_id", "relation", "strength", "created_at"],
+                "search", ["relation", "created_at"], "order", "id DESC"),
+            "knowledge_gaps", Map("label", "Knowledge Gaps", "table", "knowledge_gaps",
+                "columns", ["id", "node_id", "status", "due_at", "created_at", "resolved_at", "prompt"],
+                "search", ["status", "prompt", "due_at", "created_at"], "order", "status, due_at DESC"),
+            "knowledge_reviews", Map("label", "Knowledge Reviews", "table", "knowledge_reviews",
+                "columns", ["id", "node_id", "rating", "reviewed_at", "next_review_at", "response"],
+                "search", ["response", "reviewed_at", "next_review_at"], "order", "id DESC"),
+            "actions", Map("label", "Action Definitions", "table", "actions",
+                "columns", ["name", "function_name", "enabled", "description", "created_at"],
+                "search", ["name", "function_name", "description"], "order", "name"),
+            "hotstrings", Map("label", "Hotstrings", "table", "hotstrings",
+                "columns", ["trigger", "category", "enabled", "replacement", "created_at"],
+                "search", ["trigger", "category", "replacement"], "order", "trigger"),
+            "context_bindings", Map("label", "Context Hotkeys / Hotstrings", "table", "context_bindings",
+                "columns", ["id", "binding_type", "trigger", "context_type", "context_value", "action_type", "action_value", "enabled", "priority", "updated_at", "description"],
+                "search", ["binding_type", "trigger", "context_type", "context_value", "action_type", "action_value", "description"], "order", "binding_type, trigger, priority, id"),
+            "snippet_languages", Map("label", "Snippet Languages", "table", "snippet_languages",
+                "columns", ["code", "label", "aliases", "sort_order", "enabled"],
+                "search", ["code", "label", "aliases"], "order", "sort_order, label"),
+            "snippet_feature_groups", Map("label", "Snippet Feature Groups", "table", "snippet_feature_groups",
+                "columns", ["code", "label", "domain", "sort_order", "enabled", "description"],
+                "search", ["code", "label", "domain", "description"], "order", "sort_order, label"),
+            "snippets", Map("label", "Code Snippets", "table", "snippets",
+                "columns", ["id", "language_code", "feature_code", "name", "trigger", "enabled", "usage_count", "updated_at", "description", "body"],
+                "search", ["language_code", "feature_code", "name", "trigger", "description", "body"], "order", "usage_count DESC, language_code, feature_code, name"),
+            "snippet_editor_contexts", Map("label", "Snippet IDE Applications", "table", "snippet_editor_contexts",
+                "columns", ["executable", "label", "enabled", "created_at"],
+                "search", ["executable", "label"], "order", "label, executable"),
+            "content_items", Map("label", "Indexed Content", "table", "content_items",
+                "columns", ["title", "path", "content_type", "source_mtime", "updated_at", "content"],
+                "search", ["title", "path", "content_type", "content"], "order", "updated_at DESC"),
+            "tutorial_steps", Map("label", "Tutorial Steps", "table", "tutorial_steps",
+                "columns", ["id", "language", "project_type", "step_no", "command", "directions", "input_needed", "explanation"],
+                "search", ["language", "project_type", "command", "directions", "explanation"], "order", "language, project_type, step_no"),
+            "instruction_commands", Map("label", "Instruction Commands", "table", "instruction_commands",
+                "columns", ["name", "syntax", "ahk_mapping", "description", "example"],
+                "search", ["name", "syntax", "ahk_mapping", "description", "example"], "order", "name"),
+            "instruction_programs", Map("label", "Instruction Programs", "table", "instruction_programs",
+                "columns", ["id", "name", "run_count", "last_run", "updated_at", "source"],
+                "search", ["name", "source"], "order", "updated_at DESC")
+        )
+    }
+
+    __New(initialKey := "queries") {
+        sources := DatabaseBrowser.Sources()
+        if !sources.Has(initialKey)
+            initialKey := "queries"
+        this.CurrentKey := initialKey
+
+        this.GuiObj := Gui("+AlwaysOnTop", "GlobalCoder Admin - SQLite Records")
+        this.GuiObj.BackColor := "1E1E1E"
+        this.GuiObj.SetFont("s9", "Segoe UI")
+        this.GuiObj.OnEvent("Close", (*) => this.Close())
+        this.GuiObj.OnEvent("Escape", (*) => this.Close())
+
+        this.GuiObj.Add("Text", "x12 y15 w54 cE6E6E6", "Records")
+        labels := []
+        selectedIndex := 1
+        for key, config in sources {
+            labels.Push(config["label"])
+            if key = initialKey
+                selectedIndex := labels.Length
+        }
+        this.SourceDrop := this.GuiObj.Add("DropDownList", "x70 y11 w260 Choose" . selectedIndex, labels)
+        this.SourceDrop.OnEvent("Change", (*) => this.ChangeSource())
+
+        this.SearchEdit := this.GuiObj.Add("Edit", "x342 y11 w430 Background252526 cFFFFFF")
+        this.GuiObj.Add("Button", "x782 y10 w80 h28 Default", "Search").OnEvent("Click", (*) => this.Search())
+        this.GuiObj.Add("Button", "x870 y10 w70 h28", "Clear").OnEvent("Click", (*) => this.ClearSearch())
+        this.GuiObj.Add("Button", "x948 y10 w140 h28", "Open DB Folder").OnEvent("Click", (*) => this.OpenDatabaseFolder())
+
+        this.GuiObj.Add("Button", "x12 y48 w74 h28", "< Previous").OnEvent("Click", (*) => this.PreviousPage())
+        this.GuiObj.Add("Button", "x94 y48 w74 h28", "Next >").OnEvent("Click", (*) => this.NextPage())
+        this.GuiObj.Add("Button", "x176 y48 w74 h28", "Refresh").OnEvent("Click", (*) => this.Load())
+        this.GuiObj.Add("Button", "x834 y48 w122 h28", "Record Details").OnEvent("Click", (*) => this.ShowSelectedDetails())
+        this.GuiObj.Add("Button", "x964 y48 w124 h28", "Copy Record").OnEvent("Click", (*) => this.CopySelectedRecord())
+
+        this.List := this.GuiObj.Add("ListView", "x12 y86 w1076 h520 -Multi +Grid Background252526 cE6E6E6", ["Loading"])
+        this.List.OnEvent("DoubleClick", (ctrl, row) => this.ShowSelectedDetails(row))
+        this.StatusText := this.GuiObj.Add("Text", "x12 y618 w1076 h42 cA8C7E6", "Loading SQLite records...")
+        this.GuiObj.Add("Text", "x12 y666 w850 h22 c777777", "Enter: search | Double-click: full record | Esc: close | Up/Down: select")
+        this.GuiObj.Add("Button", "x998 y660 w90 h30", "Close").OnEvent("Click", (*) => this.Close())
+
+        this.GuiObj.Show("w1100 h704")
+        WinActivate("ahk_id " . this.GuiObj.Hwnd)
+        this.Load()
+    }
+
+    ChangeSource() {
+        selectedLabel := this.SourceDrop.Text
+        for key, config in DatabaseBrowser.Sources() {
+            if config["label"] = selectedLabel {
+                this.CurrentKey := key
+                break
+            }
+        }
+        this.Page := 1
+        this.Load()
+    }
+
+    Search() {
+        this.Page := 1
+        this.Load()
+    }
+
+    ClearSearch() {
+        this.SearchEdit.Value := ""
+        this.Page := 1
+        this.Load()
+        this.SearchEdit.Focus()
+    }
+
+    PreviousPage() {
+        if this.Page > 1 {
+            this.Page -= 1
+            this.Load()
+        }
+    }
+
+    NextPage() {
+        if this.Page * this.PageSize < this.TotalRows {
+            this.Page += 1
+            this.Load()
+        }
+    }
+
+    Load() {
+        config := DatabaseBrowser.Sources()[this.CurrentKey]
+        whereSql := this.BuildWhere(config)
+        this.TotalRows := Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM " . config["table"] . whereSql . ";", "0"))
+        maxPage := Max(1, Ceil(this.TotalRows / this.PageSize))
+        this.Page := Min(this.Page, maxPage)
+        offset := (this.Page - 1) * this.PageSize
+        columnsSql := DatabaseBrowser.Join(config["columns"], ",")
+        sql := "SELECT " . columnsSql . " FROM " . config["table"] . whereSql
+            . " ORDER BY " . config["order"] . " LIMIT " . this.PageSize . " OFFSET " . offset . ";"
+        this.CurrentRows := GlobalCoderDatabase.Rows(sql)
+        this.CurrentColumns := config["columns"]
+        this.RebuildList()
+
+        firstRow := this.TotalRows = 0 ? 0 : offset + 1
+        lastRow := Min(this.TotalRows, offset + this.CurrentRows.Length)
+        this.StatusText.Text := config["label"] . ": records " . firstRow . "-" . lastRow . " of " . this.TotalRows
+            . " | page " . this.Page . " of " . maxPage . " | table: " . config["table"]
+    }
+
+    BuildWhere(config) {
+        term := Trim(this.SearchEdit.Value)
+        if term = ""
+            return ""
+        likeValue := GlobalCoderDatabase.Q("%" . term . "%")
+        clauses := []
+        for columnName in config["search"]
+            clauses.Push("CAST(" . columnName . " AS TEXT) LIKE " . likeValue)
+        return " WHERE " . DatabaseBrowser.Join(clauses, " OR ")
+    }
+
+    RebuildList() {
+        this.List.Delete()
+        while this.List.GetCount("Column") > 0
+            this.List.DeleteCol(1)
+        for index, columnName in this.CurrentColumns
+            this.List.InsertCol(index, , columnName)
+        for row in this.CurrentRows {
+            values := []
+            for columnName in this.CurrentColumns
+                values.Push(DatabaseBrowser.Compact(row[columnName]))
+            this.List.Add(, values*)
+        }
+        for index, columnName in this.CurrentColumns {
+            width := (columnName = "query" || columnName = "message" || columnName = "detail"
+                || columnName = "content" || columnName = "stack" || columnName = "path") ? 280 : 135
+            if columnName = "id" || columnName = "line" || columnName = "rating" || columnName = "enabled"
+                width := 65
+            this.List.ModifyCol(index, width)
+        }
+        if this.CurrentRows.Length > 0
+            this.List.Modify(1, "+Select +Focus Vis")
+    }
+
+    SelectedRow(rowIndex := 0) {
+        if rowIndex < 1
+            rowIndex := this.List.GetNext(0, "F")
+        if rowIndex < 1
+            rowIndex := this.List.GetNext()
+        if rowIndex < 1 || rowIndex > this.CurrentRows.Length
+            return ""
+        return this.CurrentRows[rowIndex]
+    }
+
+    ShowSelectedDetails(rowIndex := 0) {
+        row := this.SelectedRow(rowIndex)
+        if !IsObject(row) {
+            GUT_Display("Database Records", "Select a record first.", 2200)
+            return
+        }
+        config := DatabaseBrowser.Sources()[this.CurrentKey]
+        GUT_Display(config["label"] . " - Record Details", this.RowText(row), -1,
+            Map("width", 900, "height", 620, "persistent", true, "position", "Center"))
+    }
+
+    CopySelectedRecord() {
+        row := this.SelectedRow()
+        if !IsObject(row) {
+            GUT_Display("Database Records", "Select a record first.", 2200)
+            return
+        }
+        A_Clipboard := this.RowText(row)
+        GUT_Display("Record Copied", "The complete SQLite record is on the clipboard.", 1800)
+    }
+
+    RowText(row) {
+        textValue := ""
+        for columnName in this.CurrentColumns
+            textValue .= columnName . ":`n" . row[columnName] . "`n`n"
+        return RTrim(textValue, "`r`n")
+    }
+
+    OpenDatabaseFolder() {
+        SplitPath(GC_DB_PATH, , &databaseFolder)
+        Run("explorer.exe " . QuoteArgument(databaseFolder))
+    }
+
+    Close() {
+        if IsObject(this.GuiObj)
+            try this.GuiObj.Destroy()
+        this.GuiObj := ""
+    }
+
+    static Compact(value, maxLength := 180) {
+        compactValue := StrReplace(StrReplace(String(value), "`r", " "), "`n", " ")
+        return StrLen(compactValue) > maxLength ? SubStr(compactValue, 1, maxLength - 3) . "..." : compactValue
+    }
+
+    static Join(values, separator := ", ") {
+        result := ""
+        for index, value in values
+            result .= (index > 1 ? separator : "") . value
+        return result
+    }
+}
+
 ; ============================================================================
 ; STARTUP AND ONE-TIME MIGRATION
 ; ============================================================================
@@ -1487,12 +4235,17 @@ InitializeGlobalCoder() {
     try {
         EnsurePortableFolders()
         OverlayManager.Init()
+        NativeMenuMonitor.Init()
         GlobalCoderDatabase.Init(GC_DB_PATH)
         MigrateLegacyStorageOnce()
         LoadRuntimeSettings()
         ProjectManager.Init()
+        SyntaxGuideRepository.Seed()
+        SnippetRepository.Init()
         HotstringManager.Init()
         RegisterGlobalHotkeys()
+        ContextBindingManager.Init()
+        SnippetSuggestionManager.Init()
         GC_MainMenu := PrepareMenu()
         SetupTrayMenu()
         ActivityMonitor.Start()
@@ -1521,10 +4274,13 @@ IsValidationMode() {
 }
 
 RunValidationSuite() {
+    global GC_CallingWindowHwnd, GC_CallingControl, GC_MenuCommandContexts
     if GlobalCoderDatabase.Scalar("PRAGMA integrity_check;", "failed") != "ok"
         throw Error("SQLite integrity check failed")
     if Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM instruction_commands;", "0")) < 10
         throw Error("Instruction language seed data is incomplete")
+    if UrlEncode("a b+é") != "a+b%2B%C3%A9"
+        throw Error("UTF-8 URL encoding validation failed")
 
     menuItems := []
     Loop 90
@@ -1532,6 +4288,231 @@ RunValidationSuite() {
     validationMenu := SafeMenuBuilder.Build(menuItems, ExecuteActionItem)
     if !IsObject(validationMenu)
         throw Error("Safe menu pagination failed")
+
+    adminItems := BuildSpecialSubmenu("Admin")
+    if adminItems.Length < 10
+        throw Error("Custom Admin submenu validation failed")
+    adminMenu := BuildAdminNativeMenu()
+    if !IsObject(adminMenu)
+        throw Error("Native Admin submenu validation failed")
+
+    recordBrowser := DatabaseBrowser("queries")
+    if !IsObject(recordBrowser.GuiObj) || recordBrowser.CurrentKey != "queries"
+        throw Error("SQLite record browser validation failed")
+    recordBrowser.Close()
+
+    if Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM content_items WHERE content_type='guide';", "0")) < 6
+        throw Error("Built-in syntax guide seed validation failed")
+    guideBrowser := SyntaxGuideBrowser()
+    if !IsObject(guideBrowser.GuiObj) || guideBrowser.Rows.Length < 6
+        throw Error("Syntax guide browser validation failed")
+    guideBrowser.Close()
+
+    if Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM context_bindings WHERE trigger='gcd';", "0")) != 2
+        throw Error("Contextual gcd hotstring seed validation failed")
+    if ContextBindingManager.Registered.Length < 2
+        throw Error("Context binding runtime registration failed")
+    bindingEditor := ContextBindingEditor()
+    if !IsObject(bindingEditor.GuiObj) || bindingEditor.Rows.Length < 2
+        throw Error("Context binding editor validation failed")
+    bindingEditor.LoadSelected(1)
+    if Trim(bindingEditor.TriggerEdit.Value) = ""
+        throw Error("Context binding form population failed")
+    bindingEditor.Close()
+
+    contextRecordBrowser := DatabaseBrowser("context_bindings")
+    if contextRecordBrowser.CurrentRows.Length < 2
+        throw Error("Context binding record browser validation failed")
+    contextRecordBrowser.Close()
+
+    if ContextBindingManager.ExpandTokens("{{scriptdir}}") != A_ScriptDir
+        throw Error("Context binding token expansion failed")
+
+    if Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM snippet_languages WHERE enabled=1;", "0")) != 7
+        throw Error("Snippet language taxonomy validation failed")
+    if Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM snippet_feature_groups WHERE enabled=1;", "0")) < 32
+        throw Error("Snippet feature taxonomy validation failed")
+    if Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM snippets WHERE enabled=1;", "0")) < 50
+        throw Error("Starter snippet validation failed")
+    if Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM snippets WHERE length(trigger)<4;", "0")) != 0
+        throw Error("Snippet suggestion trigger-length validation failed")
+    if Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM snippet_editor_contexts WHERE enabled=1;", "0")) < 10
+        throw Error("Snippet editor-context validation failed")
+
+    builtInBatches := Map(
+        "c", "c-batch.snips",
+        "cpp", "cpp-batch.snips",
+        "python", "python-batch.snips",
+        "javascript", "javascript-batch.snips",
+        "typescript", "typescript-batch.snips",
+        "csharp", "csharp-batch.snips",
+        "ahk2", "autohotkey-v2-batch.snips")
+    for languageCode, batchFileName in builtInBatches {
+        batchPath := GC_SNIP_IMPORT_DIR . "\" . batchFileName
+        if !FileExist(batchPath)
+            throw Error("Built-in Snip batch is missing: " . batchPath)
+        batchValidation := SnippetBatchImporter.Parse(FileRead(batchPath, "UTF-8"))
+        if !batchValidation["ok"]
+            throw Error(batchFileName . " validation failed: " . SnippetBatchImporter.Join(batchValidation["errors"], " | "))
+        featureCoverage := Map()
+        for entry in batchValidation["entries"] {
+            if entry["language"] != languageCode
+                throw Error(batchFileName . " contains the wrong language code: " . entry["language"])
+            featureCoverage[entry["feature"]] := true
+        }
+        if featureCoverage.Count != 32
+            throw Error(batchFileName . " does not cover all 32 Snip feature groups")
+    }
+
+    validBatch := "
+    (
+    GLOBALCODER_SNIPS_V1
+
+    @@SNIP
+    language: ahk2
+    feature: program-structure
+    name: __GlobalCoder batch validation__
+    trigger: ahkbatchvalidation
+    description: Temporary validation row
+    @@BODY
+    #Requires AutoHotkey v2.0
+    {{cursor}}
+    @@END
+    )"
+    invalidBatch := validBatch . "`n`n@@SNIP`nlanguage: ahk2`nfeature: not-a-real-feature`nname: Must not import`ntrigger: ahkinvalid`n@@BODY`nno_op()`n@@END"
+    GlobalCoderDatabase.Exec("DELETE FROM snippets WHERE name='__GlobalCoder batch validation__';")
+    invalidResult := SnippetBatchImporter.Import(invalidBatch, false)
+    if invalidResult["ok"]
+        throw Error("Invalid Snip batch was not rejected atomically")
+    if Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM snippets WHERE name='__GlobalCoder batch validation__';", "0")) != 0
+        throw Error("Invalid Snip batch changed SQLite before validation completed")
+    try {
+        firstImport := SnippetBatchImporter.Import(validBatch, false)
+        if !firstImport["ok"] || firstImport["inserted"] != 1
+            throw Error("Valid Snip batch insert validation failed")
+        updatedBatch := StrReplace(validBatch, "{{cursor}}", "MsgBox(`"updated`")`n{{cursor}}")
+        secondImport := SnippetBatchImporter.Import(updatedBatch, false)
+        if !secondImport["ok"] || secondImport["updated"] != 1
+            throw Error("Snip batch upsert validation failed")
+        if !InStr(GlobalCoderDatabase.Scalar("SELECT body FROM snippets WHERE name='__GlobalCoder batch validation__' LIMIT 1;"), "updated")
+            throw Error("Snip batch upsert did not replace the body")
+    } finally {
+        GlobalCoderDatabase.Exec("DELETE FROM snippets WHERE name='__GlobalCoder batch validation__';")
+    }
+    batchWindow := SnippetBatchImportWindow()
+    if !IsObject(batchWindow.GuiObj)
+        throw Error("Snip batch import window validation failed")
+    batchWindow.BuiltInLanguage.Choose(1)
+    batchWindow.LoadBuiltInBatch()
+    combinedBatchValidation := SnippetBatchImporter.Parse(batchWindow.BatchEdit.Value)
+    if !combinedBatchValidation["ok"] || combinedBatchValidation["entries"].Length < 224
+        throw Error("Combined all-language Snip batch validation failed")
+    batchWindow.Close()
+
+    snipsMenu := BuildSnipsNativeMenu()
+    if !IsObject(snipsMenu)
+        throw Error("Bounded native Snips hierarchy validation failed")
+    snipGui := SnippetBrowser("python", "loops-iteration")
+    if !IsObject(snipGui.GuiObj) || snipGui.Rows.Length < 2
+        throw Error("Snippet browser/editor validation failed")
+    snipGui.Close()
+    structureBrowser := SnippetStructureBrowser()
+    if structureBrowser.Rows.Length < 224
+        throw Error("Uniform language/feature placeholder structure validation failed")
+    structureBrowser.Close()
+    editorContextBrowser := SnippetEditorContextEditor()
+    if editorContextBrowser.Rows.Length < 10
+        throw Error("Snippet IDE context editor validation failed")
+    editorContextBrowser.Close()
+
+    suggestionRows := SnippetRepository.Search("python", "loops-iteration", "", 1)
+    suggestionWindow := SnippetSuggestionWindow()
+    suggestionWindow.Show([suggestionRows[1]], 1, "pyfo")
+    suggestionWindow.Hide()
+    suggestionWindow.Close()
+    if !SnippetSuggestionManager.Running
+        throw Error("Snippet input monitor validation failed")
+
+    if SnippetMenuSections().Length < 10
+        throw Error("Arrow-navigable Snips category tree validation failed")
+    insertionRows := SnippetRepository.Search("python", "conditionals-patterns", "pyif", 1)
+    insertionGui := Gui("+AlwaysOnTop", "Snips Cursor Target Validation")
+    insertionEdit := insertionGui.Add("Edit", "w500 h260 +Multi")
+    insertionGui.Show("w520 h290")
+    WinActivate("ahk_id " . insertionGui.Hwnd)
+    insertionEdit.Focus()
+    savedCallingHwnd := GC_CallingWindowHwnd
+    savedCallingControl := GC_CallingControl
+    GC_CallingWindowHwnd := insertionGui.Hwnd
+    GC_CallingControl := ControlGetFocus("ahk_id " . insertionGui.Hwnd)
+    previewActiveHwnd := WinExist("A")
+    PreviewSnippetFeature("python", "conditionals-patterns")
+    Sleep(50)
+    if WinExist("A") != previewActiveHwnd
+        throw Error("Passive snippet preview stole editor focus")
+    PassivePreviewWindow.CloseCurrent()
+    insertionEdit.Focus()
+    InsertSnippetById(insertionRows[1]["id"])
+    Sleep(80)
+    if !InStr(insertionEdit.Value, "if condition:")
+        throw Error("Native menu snippet did not insert at the calling editor cursor. Control: " . GC_CallingControl . " Captured: " . insertionEdit.Value)
+    GlobalCoderDatabase.Exec("UPDATE snippets SET usage_count=MAX(0,usage_count-1) WHERE id=" . Integer(insertionRows[1]["id"]) . ";")
+
+    GlobalCoderDatabase.Exec("SAVEPOINT validation_snip_context;")
+    GlobalCoderDatabase.SetSetting("Menu", "LastSnippetLanguage", "")
+    GlobalCoderDatabase.SetSetting("Menu", "LastSnippetSection", "")
+    NativeMenuMonitor.ResetMappings()
+    hoverSectionMenu := BuildSnippetSectionNativeMenu("python", "control-flow", false)
+    NativeMenuMonitor.Enter()
+    NativeMenuMonitor.Select((0x0010 << 16) | 0, hoverSectionMenu.Handle)
+    NativeMenuMonitor.Exit()
+    if GlobalCoderDatabase.GetSetting("Menu", "LastSnippetLanguage", "") != "python"
+        || GlobalCoderDatabase.GetSetting("Menu", "LastSnippetSection", "") != "control-flow"
+        throw Error("Highlighted Snips section persistence validation failed")
+    resumeMenu := BuildSnippetSectionNativeMenu("python", "control-flow", true)
+    if !IsObject(resumeMenu)
+        throw Error("Ctrl+M Snips resume menu validation failed")
+
+    ghostWindow := GhostSnippetCaptureWindow.Show("c", "security-crypto")
+    priorGhostTick := ghostWindow.LastChangeTick
+    ghostWindow.BodyEdit.Value := "validation_security_call();"
+    ghostWindow.OnChange()
+    if ghostWindow.LastChangeTick < priorGhostTick
+        throw Error("Ghost Snip debounce refresh validation failed")
+    ghostWindow.LastChangeTick := A_TickCount - 5100
+    ghostWindow.Tick()
+    if Integer(GlobalCoderDatabase.Scalar("SELECT COUNT(*) FROM snippets WHERE language_code='c' AND feature_code='security-crypto' "
+        . "AND body='validation_security_call();';", "0")) < 1
+        throw Error("Ghost Snip contextual auto-save validation failed")
+    PassivePreviewWindow.CloseCurrent()
+    GlobalCoderDatabase.Exec("ROLLBACK TO validation_snip_context;")
+    GlobalCoderDatabase.Exec("RELEASE validation_snip_context;")
+    RebuildMenu(true)
+
+    pathContextMenu := Menu()
+    pathContextMenu.Add("Validation project file", (*) => 0)
+    NativeMenuMonitor.RegisterLastItem(pathContextMenu, Map("kind", "file", "path", A_ScriptFullPath))
+    pathCommandId := DllCall("User32.dll\GetMenuItemID", "Ptr", pathContextMenu.Handle, "Int", 0, "UInt")
+    legendActiveHwnd := WinExist("A")
+    NativeMenuMonitor.Enter()
+    NativeMenuMonitor.Select(pathCommandId, pathContextMenu.Handle)
+    if !NativeMenuPathActionIsActive()
+        throw Error("Highlighted native menu path-action context validation failed")
+    if WinExist("A") != legendActiveHwnd
+        throw Error("Native menu key legend stole editor focus")
+    NativeMenuMonitor.Exit()
+    projectTreeMenu := BuildProjectTreesNativeMenu()
+    if !IsObject(projectTreeMenu) || GC_MenuCommandContexts.Count = 0
+        throw Error("Bounded project file-tree menu context validation failed")
+
+    GC_CallingWindowHwnd := savedCallingHwnd
+    GC_CallingControl := savedCallingControl
+    insertionGui.Destroy()
+
+    snippetRecordBrowser := DatabaseBrowser("snippets")
+    if snippetRecordBrowser.CurrentRows.Length < 50
+        throw Error("Snippet SQLite record browser validation failed")
+    snippetRecordBrowser.Close()
 
     overlayItems := [Map("text", "Validation row", "actionText", "OK")]
     overlay := OverlayManager.Show("Validation", overlayItems, -1,
@@ -1568,7 +4549,7 @@ RunValidationSuite() {
 }
 
 EnsurePortableFolders() {
-    required := [GC_DATA_DIR, GC_PROJECT_DIR, GC_LIBRARY_DIR]
+    required := [GC_DATA_DIR, GC_PROJECT_DIR, GC_LIBRARY_DIR, GC_SNIP_IMPORT_DIR]
     for folder in required {
         if !DirExist(folder)
             DirCreate(folder)
@@ -1667,6 +4648,13 @@ ImportLegacyActions(filePath) {
 }
 
 CloseGlobalCoder(exitReason, exitCode) {
+    try SnippetSuggestionManager.Stop()
+    try {
+        if IsObject(GhostSnippetCaptureWindow.Current)
+            GhostSnippetCaptureWindow.Current.Finish(false)
+    }
+    try PassivePreviewWindow.CloseCurrent()
+    try NativeMenuLegendWindow.Close()
     try GlobalCoderDatabase.LogEvent("shutdown", exitReason . " (" . exitCode . ")")
     try GlobalCoderDatabase.Connection.CloseDB()
 }
@@ -1681,31 +4669,11 @@ SetupTrayMenu() {
     A_TrayMenu.Add("Browse Library", (*) => ShowCustomMenu())
     A_TrayMenu.Add()
 
-    projectMenu := Menu()
-    projectMenu.Add("Create New Project", (*) => ShowNewProjectWizard())
-    projectMenu.Add("Recent Projects", (*) => ShowRecentProjects())
-    projectMenu.Add("Learning Center", (*) => ShowLearningCenter())
-    projectMenu.Add("Project Settings", (*) => ShowProjectSettings())
-    A_TrayMenu.Add("Projects", projectMenu)
-
-    knowledgeMenu := Menu()
-    knowledgeMenu.Add("Add Knowledge", (*) => ShowAddKnowledgeGUI())
-    knowledgeMenu.Add("Search Knowledge", (*) => ShowKnowledgeSearch())
-    knowledgeMenu.Add("Review a Gap", (*) => ActivityMonitor.PromptForGap())
-    knowledgeMenu.Add("Knowledge Test", (*) => ShowKnowledgeTest())
-    A_TrayMenu.Add("Knowledge Web", knowledgeMenu)
-
-    automationMenu := Menu()
-    automationMenu.Add("Instruction Language", (*) => ShowInstructionLanguageConsole())
-    automationMenu.Add("Command Reference", (*) => ShowInstructionReference())
-    automationMenu.Add("Find in Knowledge and Files", (*) => FindInFiles())
-    A_TrayMenu.Add("Automation", automationMenu)
-
-    A_TrayMenu.Add()
-    A_TrayMenu.Add("Settings", (*) => ShowSettingsGUI())
-    A_TrayMenu.Add("Hotstrings", (*) => ShowHotstringsGUI())
-    A_TrayMenu.Add("Query History", (*) => ShowQueryLog())
-    A_TrayMenu.Add("Open Script Folder", (*) => Run("explorer.exe " . QuoteArgument(A_ScriptDir)))
+    A_TrayMenu.Add("Projects", BuildProjectsNativeMenu())
+    A_TrayMenu.Add("Knowledge Web", BuildKnowledgeNativeMenu())
+    A_TrayMenu.Add("Automation", BuildAutomationNativeMenu())
+    A_TrayMenu.Add("Snips Admin", BuildSnipsQuickMenu())
+    A_TrayMenu.Add("Admin", BuildAdminNativeMenu())
     A_TrayMenu.Add()
     A_TrayMenu.Add("Reload", (*) => Reload())
     A_TrayMenu.Add("Exit", (*) => ExitApp())
@@ -1715,6 +4683,7 @@ SetupTrayMenu() {
     ; The final true freezes the loaded globe icon so later tray updates keep it.
     try TraySetIcon(A_WinDir "\System32\Shell32.dll", 14, true)
     A_IconTip := "GlobalCoder v7 - portable project and knowledge manager"
+    try OnMessage(0x0404, TrayIconCallback, 0)
     OnMessage(0x0404, TrayIconCallback)
 }
 
@@ -1726,37 +4695,400 @@ TrayIconCallback(wParam, lParam, msg, hwnd) {
 }
 
 PrepareMenu(*) {
-    ; Intentionally static and small. Directory content belongs in the ListView
-    ; browser, where Windows' native Menu item/handle limit does not apply.
+    ; Every native branch is bounded. Snips caps languages, domains, features,
+    ; and direct insert choices; full database content belongs in ListViews.
+    NativeMenuMonitor.ResetMappings()
     menuObj := Menu()
     menuObj.Add("GlobalCoder Dashboard", (*) => ShowMainFeaturesGUI())
     menuObj.Add("Browse Library", (*) => ShowCustomMenu())
     menuObj.Add()
-    menuObj.Add("New Project", (*) => ShowNewProjectWizard())
-    menuObj.Add("Recent Projects", (*) => ShowRecentProjects())
-    menuObj.Add("Learning Center", (*) => ShowLearningCenter())
+    menuObj.Add("Projects", BuildProjectsNativeMenu())
+    menuObj.Add("Knowledge Web", BuildKnowledgeNativeMenu())
+    menuObj.Add("Automation", BuildAutomationNativeMenu())
+    menuObj.Add("Snips", BuildSnipsNativeMenu())
+    menuObj.Add("Admin", BuildAdminNativeMenu())
     menuObj.Add()
-    menuObj.Add("Knowledge Search", (*) => ShowKnowledgeSearch())
-    menuObj.Add("Instruction Language", (*) => ShowInstructionLanguageConsole())
-    menuObj.Add("Google Search", (*) => GoogleSearchWithLogging())
-    menuObj.Add()
-    menuObj.Add("Settings", (*) => ShowSettingsGUI())
     menuObj.Add("Exit", (*) => ExitApp())
     return menuObj
 }
 
+BuildProjectsNativeMenu() {
+    menuObj := Menu()
+    menuObj.Add("Create New Project", (*) => ShowNewProjectWizard())
+    menuObj.Add("Recent Projects", (*) => ShowRecentProjects())
+    menuObj.Add("Learning Center", (*) => ShowLearningCenter())
+    menuObj.Add("Project Settings", (*) => ShowProjectSettings())
+    menuObj.Add()
+    menuObj.Add("Project File Trees", BuildProjectTreesNativeMenu())
+    return menuObj
+}
+
+BuildProjectTreesNativeMenu() {
+    treeMenu := Menu()
+    state := Map("remaining", 420)
+    seen := Map()
+    addedCount := 0
+    rootPath := GlobalCoderDatabase.GetSetting("Projects", "DefaultRoot", GC_PROJECT_DIR)
+    if DirExist(rootPath) {
+        treeMenu.Add("Default Projects Root", BuildProjectPathNativeMenu(rootPath, 0, state))
+        NativeMenuMonitor.RegisterLastItem(treeMenu, Map("kind", "folder", "path", rootPath))
+        seen[StrLower(NormalizePath(rootPath))] := true
+        addedCount += 1
+    }
+    rows := GlobalCoderDatabase.Rows("SELECT name,path FROM recent_projects ORDER BY last_opened DESC LIMIT 15;")
+    for row in rows {
+        path := row["path"]
+        normalized := StrLower(NormalizePath(path))
+        if !DirExist(path) || seen.Has(normalized)
+            continue
+        label := row["name"] != "" ? row["name"] : path
+        treeMenu.Add(label, BuildProjectPathNativeMenu(path, 0, state))
+        NativeMenuMonitor.RegisterLastItem(treeMenu, Map("kind", "folder", "path", path))
+        seen[normalized] := true
+        addedCount += 1
+        if state["remaining"] <= 0
+            break
+    }
+    if addedCount = 0
+        treeMenu.Add("No project folders recorded", (*) => PassivePreviewWindow.Show("Project Trees", "Create or open a project first.", 2600))
+    return treeMenu
+}
+
+BuildProjectPathNativeMenu(folderPath, depth, state) {
+    menuObj := Menu()
+    menuObj.Add("Open This Folder", (*) => Run("explorer.exe " . QuoteArgument(folderPath)))
+    NativeMenuMonitor.RegisterLastItem(menuObj, Map("kind", "folder", "path", folderPath))
+    state["remaining"] -= 1
+    if depth >= 6 || state["remaining"] <= 0 {
+        menuObj.Add("More Items in Explorer...", (*) => Run("explorer.exe " . QuoteArgument(folderPath)))
+        NativeMenuMonitor.RegisterLastItem(menuObj, Map("kind", "folder", "path", folderPath))
+        return menuObj
+    }
+
+    menuObj.Add()
+    itemCount := 0
+    truncated := false
+    try {
+        Loop Files, folderPath . "\*", "D" {
+            if A_LoopFileName = ".git" || A_LoopFileName = "node_modules" || A_LoopFileName = ".venv"
+                continue
+            if itemCount >= 20 || state["remaining"] <= 0 {
+                truncated := true
+                break
+            }
+            childPath := A_LoopFilePath
+            menuObj.Add("[+] " . A_LoopFileName, BuildProjectPathNativeMenu(childPath, depth + 1, state))
+            NativeMenuMonitor.RegisterLastItem(menuObj, Map("kind", "folder", "path", childPath))
+            itemCount += 1
+            state["remaining"] -= 1
+        }
+        if itemCount < 20 && state["remaining"] > 0 {
+            Loop Files, folderPath . "\*", "F" {
+                if itemCount >= 20 || state["remaining"] <= 0 {
+                    truncated := true
+                    break
+                }
+                filePath := A_LoopFilePath
+                menuObj.Add(A_LoopFileName, OpenProjectTreeFile.Bind(filePath))
+                NativeMenuMonitor.RegisterLastItem(menuObj, Map("kind", "file", "path", filePath))
+                itemCount += 1
+                state["remaining"] -= 1
+            }
+        }
+    }
+    if truncated || state["remaining"] <= 0 {
+        menuObj.Add("More Items in Explorer...", (*) => Run("explorer.exe " . QuoteArgument(folderPath)))
+        NativeMenuMonitor.RegisterLastItem(menuObj, Map("kind", "folder", "path", folderPath))
+    }
+    return menuObj
+}
+
+OpenProjectTreeFile(filePath, *) {
+    Run(filePath)
+}
+
+BuildKnowledgeNativeMenu() {
+    menuObj := Menu()
+    menuObj.Add("Add Knowledge", (*) => ShowAddKnowledgeGUI())
+    menuObj.Add("Search Knowledge", (*) => ShowKnowledgeSearch())
+    menuObj.Add("Knowledge Test", (*) => ShowKnowledgeTest())
+    return menuObj
+}
+
+BuildAutomationNativeMenu() {
+    menuObj := Menu()
+    menuObj.Add("Syntax and Setup Guides", (*) => ShowSyntaxGuides())
+    menuObj.Add("Instruction Language", (*) => ShowInstructionLanguageConsole())
+    menuObj.Add("Command Reference", (*) => ShowInstructionReference())
+    menuObj.Add("Find in Knowledge and Files", (*) => FindInFiles())
+    menuObj.Add("Google Search", (*) => GoogleSearchWithLogging())
+    menuObj.Add("Context Hotkeys / Hotstrings", (*) => ShowContextBindings())
+    return menuObj
+}
+
+BuildSnipsQuickMenu() {
+    menuObj := Menu()
+    menuObj.Add("Browse / Add Snips", (*) => ShowSnippets())
+    menuObj.Add("Batch Import Snips...", (*) => ShowSnippetBatchImporter())
+    menuObj.Add("Uniform Feature Structure", (*) => ShowSnippetStructure())
+    menuObj.Add("Suggestion IDE Applications", (*) => ShowSnippetEditorContexts())
+    menuObj.Add("Toggle Four-Character Suggestions", (*) => SnippetSuggestionManager.Toggle())
+    if GlobalCoderDatabase.GetSetting("Snippets", "SuggestionsEnabled", "1") = "1"
+        menuObj.Check("Toggle Four-Character Suggestions")
+    return menuObj
+}
+
+BuildSnipsNativeMenu() {
+    ; Normal Snips navigation is entirely native: no ListView or management GUI.
+    menuObj := Menu()
+    languageRows := SnippetRepository.Languages()
+    for index, languageRow in languageRows {
+        if index > 20
+            break
+        menuObj.Add(languageRow["label"], BuildSnippetLanguageNativeMenu(languageRow["code"]))
+    }
+    if languageRows.Length > 20
+        menuObj.Add("Additional languages are available in Admin", (*) => ShowSnippetMenuHelp())
+    menuObj.Add()
+    menuObj.Add("Snips Keyboard Help (passive)", (*) => ShowSnippetMenuHelp())
+    menuObj.Add("Four-Character Suggestions", (*) => SnippetSuggestionManager.Toggle())
+    if GlobalCoderDatabase.GetSetting("Snippets", "SuggestionsEnabled", "1") = "1"
+        menuObj.Check("Four-Character Suggestions")
+    return menuObj
+}
+
+BuildSnippetLanguageNativeMenu(languageCode) {
+    languageMenu := Menu()
+    for section in SnippetMenuSections() {
+        sectionMenu := BuildSnippetSectionNativeMenu(languageCode, section["code"], false)
+        languageMenu.Add(section["label"], sectionMenu)
+    }
+    return languageMenu
+}
+
+BuildSnippetSectionNativeMenu(languageCode, sectionCode, includeResumeHeader := false) {
+    sectionMenu := Menu()
+    section := SnippetMenuSectionByCode(sectionCode)
+    if !IsObject(section)
+        return sectionMenu
+    if includeResumeHeader {
+        languageLabel := GlobalCoderDatabase.Scalar("SELECT label FROM snippet_languages WHERE code="
+            . GlobalCoderDatabase.Q(languageCode) . " LIMIT 1;", languageCode)
+        headerLabel := "[Snips > " . languageLabel . " > " . section["label"] . "]"
+        sectionMenu.Add(headerLabel, (*) => 0)
+        sectionMenu.Disable(headerLabel)
+        sectionMenu.Add()
+    }
+    featureRows := SnippetRepository.Features()
+    featureLookup := Map()
+    for row in featureRows
+        featureLookup[row["code"]] := row
+    for featureCode in section["features"] {
+        if !featureLookup.Has(featureCode)
+            continue
+        featureRow := featureLookup[featureCode]
+        menuLabel := SnippetFeatureMenuLabel(featureCode, featureRow["label"])
+        sectionMenu.Add(menuLabel, BuildSnippetFeatureNativeMenu(languageCode, featureCode))
+        NativeMenuMonitor.RegisterLastItem(sectionMenu, Map("kind", "snippet_feature",
+            "language_code", languageCode, "feature_code", featureCode,
+            "section_code", sectionCode, "label", menuLabel))
+    }
+    if includeResumeHeader {
+        sectionMenu.Add()
+        sectionMenu.Add("Full GlobalCoder Menu", (*) => ShowMainMenu())
+    }
+    return sectionMenu
+}
+
+BuildSnippetFeatureNativeMenu(languageCode, featureCode) {
+    rows := SnippetRepository.Search(languageCode, featureCode, "", 500)
+    if rows.Length > 0 {
+        items := []
+        for row in rows
+            items.Push(Map("label", row["name"] . "  [" . row["trigger"] . "]", "id", row["id"],
+                "language_code", languageCode, "feature_code", featureCode))
+        featureMenu := SafeMenuBuilder.Build(items, InsertSnippetMenuItem, 20)
+        featureMenu.Add()
+        featureMenu.Add("Preview Feature Reference (passive)", (*) => PreviewSnippetFeature(languageCode, featureCode))
+    } else {
+        featureMenu := Menu()
+        featureMenu.Add("No syntax saved yet - type one now...", (*) => CaptureSnippetPlaceholder(languageCode, featureCode))
+    }
+    return featureMenu
+}
+
+SnippetMenuSections() {
+    return [
+        Map("code", "basics-types", "label", "Basics and Types", "features", ["program-structure", "variables-constants", "types-casting", "operators-expressions", "strings-text"]),
+        Map("code", "collections-data", "label", "Collections and Data", "features", ["arrays-collections", "maps-sets", "data-structures-algorithms"]),
+        Map("code", "control-flow", "label", "Control Flow", "features", ["conditionals-patterns", "loops-iteration"]),
+        Map("code", "functions-modules", "label", "Functions and Modules", "features", ["functions-parameters", "generics-templates", "modules-imports"]),
+        Map("code", "objects-contracts", "label", "Objects and Contracts", "features", ["classes-objects", "interfaces-protocols"]),
+        Map("code", "errors-resources", "label", "Errors and Resources", "features", ["errors-exceptions", "memory-resources"]),
+        Map("code", "files-formats-time", "label", "Files, Formats, and Time", "features", ["files-streams", "dates-time", "regex-parsing", "serialization-formats"]),
+        Map("code", "async-events", "label", "Async and Events", "features", ["async-concurrency", "ui-events"]),
+        Map("code", "integration-system", "label", "Integration and System", "features", ["networking-http", "databases-sql", "processes-cli", "interop-native"]),
+        Map("code", "testing-tooling", "label", "Testing and Tooling", "features", ["testing-assertions", "debugging-logging", "build-dependencies"]),
+        Map("code", "security-language", "label", "Security and Language Features", "features", ["security-crypto", "language-specific"])
+    ]
+}
+
+SnippetMenuSectionByCode(sectionCode) {
+    for section in SnippetMenuSections() {
+        if section["code"] = sectionCode
+            return section
+    }
+    return ""
+}
+
+SnippetMenuSectionForFeature(featureCode) {
+    for section in SnippetMenuSections() {
+        for candidate in section["features"] {
+            if candidate = featureCode
+                return section
+        }
+    }
+    return ""
+}
+
+SnippetFeatureMenuLabel(featureCode, fallbackLabel) {
+    labels := Map(
+        "program-structure", "Program / File Structure",
+        "variables-constants", "Variables / Constants / Scope",
+        "types-casting", "Types / Casting / Type Checks",
+        "operators-expressions", "Operators / Expressions",
+        "strings-text", "Strings / Formatting / Encoding",
+        "arrays-collections", "Arrays / Lists / Collections",
+        "maps-sets", "Maps / Dictionaries / Sets",
+        "conditionals-patterns", "If / Else / Switch / Match",
+        "loops-iteration", "For / While / Loop / Iteration",
+        "functions-parameters", "Functions / Parameters / Lambdas",
+        "classes-objects", "Classes / Objects / Construction",
+        "interfaces-protocols", "Interfaces / Traits / Protocols",
+        "generics-templates", "Generics / Templates",
+        "modules-imports", "Modules / Packages / Imports",
+        "errors-exceptions", "Errors / Exceptions / Cleanup",
+        "files-streams", "Files / Paths / Streams",
+        "dates-time", "Dates / Time / Timers",
+        "regex-parsing", "Regex / Parsing / Validation",
+        "serialization-formats", "JSON / XML / CSV / Serialization",
+        "memory-resources", "Memory / Pointers / Resources",
+        "data-structures-algorithms", "Algorithms / Data Structures",
+        "async-concurrency", "Async / Threads / Concurrency",
+        "networking-http", "Networking / HTTP / APIs",
+        "databases-sql", "Databases / SQL / Transactions",
+        "processes-cli", "Processes / CLI / Environment",
+        "ui-events", "UI / Events / Callbacks",
+        "testing-assertions", "Tests / Assertions / Mocks",
+        "debugging-logging", "Debugging / Logging / Profiling",
+        "build-dependencies", "Build / Dependencies / Tooling",
+        "interop-native", "Interop / COM / DLL / Native APIs",
+        "security-crypto", "Security / Hashing / Cryptography",
+        "language-specific", "Language-Specific Features"
+    )
+    return labels.Has(featureCode) ? labels[featureCode] : fallbackLabel
+}
+
+InsertSnippetMenuItem(item, *) {
+    RememberSnippetMenuContext(item["language_code"], item["feature_code"])
+    InsertSnippetById(item["id"])
+}
+
+BuildRecordViewsNativeMenu() {
+    menuObj := Menu()
+    menuObj.Add("Google / Query History", (*) => ShowDatabaseBrowser("queries"))
+    menuObj.Add("Recent Projects", (*) => ShowDatabaseBrowser("recent_projects"))
+    menuObj.Add("Knowledge Nodes", (*) => ShowDatabaseBrowser("knowledge_nodes"))
+    menuObj.Add("Knowledge Relationships", (*) => ShowDatabaseBrowser("knowledge_edges"))
+    menuObj.Add("Knowledge Gaps", (*) => ShowDatabaseBrowser("knowledge_gaps"))
+    menuObj.Add("Knowledge Reviews", (*) => ShowDatabaseBrowser("knowledge_reviews"))
+    menuObj.Add("Indexed Content", (*) => ShowDatabaseBrowser("content_items"))
+    menuObj.Add("Tutorial Steps", (*) => ShowDatabaseBrowser("tutorial_steps"))
+    menuObj.Add("Instruction Commands", (*) => ShowDatabaseBrowser("instruction_commands"))
+    menuObj.Add("Instruction Programs", (*) => ShowDatabaseBrowser("instruction_programs"))
+    menuObj.Add("Action Definitions", (*) => ShowDatabaseBrowser("actions"))
+    menuObj.Add("Hotstrings", (*) => ShowDatabaseBrowser("hotstrings"))
+    menuObj.Add("Context Hotkeys / Hotstrings", (*) => ShowDatabaseBrowser("context_bindings"))
+    menuObj.Add("Code Snippets", (*) => ShowDatabaseBrowser("snippets"))
+    menuObj.Add("Snippet Languages", (*) => ShowDatabaseBrowser("snippet_languages"))
+    menuObj.Add("Snippet Feature Groups", (*) => ShowDatabaseBrowser("snippet_feature_groups"))
+    menuObj.Add("Snippet IDE Applications", (*) => ShowDatabaseBrowser("snippet_editor_contexts"))
+    menuObj.Add("Settings", (*) => ShowDatabaseBrowser("settings"))
+    menuObj.Add("Activity / Idle Log", (*) => ShowDatabaseBrowser("activity_log"))
+    menuObj.Add("Event Log", (*) => ShowDatabaseBrowser("event_log"))
+    menuObj.Add("Error Log", (*) => ShowDatabaseBrowser("errors"))
+    return menuObj
+}
+
+BuildAdminNativeMenu() {
+    menuObj := Menu()
+    menuObj.Add("Browse SQLite Records", BuildRecordViewsNativeMenu())
+    menuObj.Add("Query History", (*) => ShowDatabaseBrowser("queries"))
+    menuObj.Add("Error Log", (*) => ShowDatabaseBrowser("errors"))
+    menuObj.Add("Event Log", (*) => ShowDatabaseBrowser("event_log"))
+    menuObj.Add()
+    menuObj.Add("Settings", (*) => ShowSettingsGUI())
+    menuObj.Add("Project Settings", (*) => ShowProjectSettings())
+    menuObj.Add("Hotstrings", (*) => ShowHotstringsGUI())
+    menuObj.Add("Context Hotkeys / Hotstrings", (*) => ShowContextBindings())
+    menuObj.Add("Snip Database Editor", (*) => ShowSnippets())
+    menuObj.Add("Batch Import Snips...", (*) => ShowSnippetBatchImporter())
+    menuObj.Add("Snip Feature Coverage", (*) => ShowSnippetStructure())
+    menuObj.Add("Snip Suggestion IDE Apps", (*) => ShowSnippetEditorContexts())
+    menuObj.Add("Add Action Definition", (*) => ShowAddActionGUI())
+    menuObj.Add()
+    menuObj.Add("Rebuild Menus", (*) => RebuildMenu())
+    menuObj.Add("Open Script Folder", (*) => Run("explorer.exe " . QuoteArgument(A_ScriptDir)))
+    menuObj.Add("Open Database Folder", (*) => OpenDatabaseFolder())
+    menuObj.Add("Reload GlobalCoder", (*) => Reload())
+    return menuObj
+}
+
 ShowMainMenu(*) {
-    global GC_MainMenu, GC_CallingWindowHwnd
-    GC_CallingWindowHwnd := WinExist("A")
+    global GC_MainMenu
+    CaptureNativeMenuCallingContext()
     if !IsObject(GC_MainMenu)
         GC_MainMenu := PrepareMenu()
     GC_MainMenu.Show()
 }
 
-RebuildMenu(*) {
+ShowLastSnippetSectionMenu(*) {
+    CaptureNativeMenuCallingContext()
+    languageCode := GlobalCoderDatabase.GetSetting("Menu", "LastSnippetLanguage", "")
+    sectionCode := GlobalCoderDatabase.GetSetting("Menu", "LastSnippetSection", "")
+    if languageCode = "" || !IsObject(SnippetMenuSectionByCode(sectionCode)) {
+        ShowMainMenu()
+        return
+    }
+    resumeMenu := BuildSnippetSectionNativeMenu(languageCode, sectionCode, true)
+    resumeMenu.Show()
+}
+
+CaptureNativeMenuCallingContext() {
+    global GC_CallingWindowHwnd, GC_CallingControl
+    GC_CallingWindowHwnd := WinExist("A")
+    try GC_CallingControl := ControlGetFocus("ahk_id " . GC_CallingWindowHwnd)
+    catch
+        GC_CallingControl := ""
+}
+
+RememberSnippetMenuContext(languageCode, featureCode) {
+    section := SnippetMenuSectionForFeature(featureCode)
+    if !IsObject(section)
+        return
+    GlobalCoderDatabase.SetSetting("Menu", "LastSnippetLanguage", languageCode)
+    GlobalCoderDatabase.SetSetting("Menu", "LastSnippetSection", section["code"])
+    GlobalCoderDatabase.SetSetting("Menu", "LastSnippetFeature", featureCode)
+}
+
+RebuildMenu(silent := false, *) {
     global GC_MainMenu
     GC_MainMenu := PrepareMenu()
-    GUT_Display("Menu Ready", "The bounded native menu and library browser were refreshed.", 2500)
+    SetupTrayMenu()
+    if Type(silent) != "Integer"
+        silent := false
+    if !silent
+        GUT_Display("Menu Ready", "The bounded native menu, Snips hierarchy, and library browser were refreshed.", 2500)
 }
 
 ; ============================================================================
@@ -1773,7 +5105,7 @@ ShowCustomMenu(*) {
     GC_MenuStack := []
     GC_MenuItems := BuildMenuItems(GC_LIBRARY_DIR)
     GC_MenuIndex := FirstSelectableIndex(GC_MenuItems)
-    CreateCustomMenuGui("GlobalCoder Library")
+    CreateCustomMenuGui("GlobalCoder v7")
 }
 
 BuildMenuItems(path, isSubmenu := false) {
@@ -1781,12 +5113,11 @@ BuildMenuItems(path, isSubmenu := false) {
     if isSubmenu
         result.Push(Map("name", "< Back", "path", "", "type", "back"))
     else {
-        result.Push(Map("name", "Knowledge: Add", "path", "action:AddKnowledge", "type", "action"))
-        result.Push(Map("name", "Knowledge: Search", "path", "action:SearchKnowledge", "type", "action"))
-        result.Push(Map("name", "Knowledge: Test Recall", "path", "action:TestKnowledge", "type", "action"))
-        result.Push(Map("name", "Automation Instruction Language", "path", "action:InstructionLanguage", "type", "action"))
-        result.Push(Map("name", "Projects: New", "path", "action:NewProject", "type", "action"))
-        result.Push(Map("name", "Projects: Recent", "path", "action:RecentProjects", "type", "action"))
+        result.Push(Map("name", "Projects >", "path", "submenu:Projects", "type", "submenu"))
+        result.Push(Map("name", "Knowledge Web >", "path", "submenu:Knowledge", "type", "submenu"))
+        result.Push(Map("name", "Automation >", "path", "submenu:Automation", "type", "submenu"))
+        result.Push(Map("name", "Snips >", "path", "submenu:Snips", "type", "submenu"))
+        result.Push(Map("name", "Admin >", "path", "submenu:Admin", "type", "submenu"))
         result.Push(Map("name", "--- Library ---", "path", "", "type", "separator"))
     }
 
@@ -1797,6 +5128,64 @@ BuildMenuItems(path, isSubmenu := false) {
             result.Push(Map("name", "[Folder] " . A_LoopFileName, "path", A_LoopFilePath, "type", "folder"))
         Loop Files, path "\*", "F"
             result.Push(Map("name", A_LoopFileName, "path", A_LoopFilePath, "type", "file"))
+    }
+    return result
+}
+
+BuildSpecialSubmenu(submenuName) {
+    result := [Map("name", "< Back", "path", "", "type", "back")]
+    switch submenuName {
+        case "Projects":
+            result.Push(Map("name", "Create New Project", "path", "action:NewProject", "type", "action"))
+            result.Push(Map("name", "Recent Projects", "path", "action:RecentProjects", "type", "action"))
+            result.Push(Map("name", "Learning Center", "path", "action:LearningCenter", "type", "action"))
+            result.Push(Map("name", "Project Settings", "path", "action:ProjectSettings", "type", "action"))
+        case "Knowledge":
+            result.Push(Map("name", "Add Knowledge", "path", "action:AddKnowledge", "type", "action"))
+            result.Push(Map("name", "Search Knowledge", "path", "action:SearchKnowledge", "type", "action"))
+            result.Push(Map("name", "Knowledge Test", "path", "action:TestKnowledge", "type", "action"))
+        case "Automation":
+            result.Push(Map("name", "Syntax and Setup Guides", "path", "action:SyntaxGuides", "type", "action"))
+            result.Push(Map("name", "Instruction Language", "path", "action:InstructionLanguage", "type", "action"))
+            result.Push(Map("name", "Command Reference", "path", "action:InstructionReference", "type", "action"))
+            result.Push(Map("name", "Find in Knowledge and Files", "path", "action:GlobalSearch", "type", "action"))
+            result.Push(Map("name", "Google Search", "path", "action:GoogleSearch", "type", "action"))
+            result.Push(Map("name", "Context Hotkeys / Hotstrings", "path", "action:ContextBindings", "type", "action"))
+        case "Snips":
+            result.Push(Map("name", "Browse / Add All Snips", "path", "action:Snips", "type", "action"))
+            result.Push(Map("name", "Uniform Feature Structure", "path", "action:SnippetStructure", "type", "action"))
+            result.Push(Map("name", "Suggestion IDE Applications", "path", "action:SnippetEditors", "type", "action"))
+            result.Push(Map("name", "Toggle Four-Character Suggestions", "path", "action:ToggleSnippetSuggestions", "type", "action"))
+            result.Push(Map("name", "--- Languages ---", "path", "", "type", "separator"))
+            result.Push(Map("name", "C", "path", "action:SnipsC", "type", "action"))
+            result.Push(Map("name", "C++", "path", "action:SnipsCpp", "type", "action"))
+            result.Push(Map("name", "Python", "path", "action:SnipsPython", "type", "action"))
+            result.Push(Map("name", "JavaScript", "path", "action:SnipsJavaScript", "type", "action"))
+            result.Push(Map("name", "TypeScript", "path", "action:SnipsTypeScript", "type", "action"))
+            result.Push(Map("name", "C#", "path", "action:SnipsCSharp", "type", "action"))
+            result.Push(Map("name", "AutoHotkey v2", "path", "action:SnipsAhk2", "type", "action"))
+        case "Admin":
+            result.Push(Map("name", "Browse All SQLite Records", "path", "action:DatabaseBrowser", "type", "action"))
+            result.Push(Map("name", "Google / Query History", "path", "action:QueryHistory", "type", "action"))
+            result.Push(Map("name", "Error Log", "path", "action:ErrorRecords", "type", "action"))
+            result.Push(Map("name", "Event Log", "path", "action:EventRecords", "type", "action"))
+            result.Push(Map("name", "Activity / Idle Log", "path", "action:ActivityRecords", "type", "action"))
+            result.Push(Map("name", "--- Configuration ---", "path", "", "type", "separator"))
+            result.Push(Map("name", "Settings", "path", "action:Settings", "type", "action"))
+            result.Push(Map("name", "Project Settings", "path", "action:ProjectSettings", "type", "action"))
+            result.Push(Map("name", "Hotstrings", "path", "action:Hotstrings", "type", "action"))
+            result.Push(Map("name", "Context Hotkeys / Hotstrings", "path", "action:ContextBindings", "type", "action"))
+            result.Push(Map("name", "Snips Database / Editor", "path", "action:Snips", "type", "action"))
+            result.Push(Map("name", "Batch Import Snips", "path", "action:SnippetBatchImport", "type", "action"))
+            result.Push(Map("name", "Add Action Definition", "path", "action:AddAction", "type", "action"))
+            result.Push(Map("name", "--- Maintenance ---", "path", "", "type", "separator"))
+            result.Push(Map("name", "Rebuild Menus", "path", "action:RebuildMenu", "type", "action"))
+            result.Push(Map("name", "Open Script Folder", "path", "action:OpenScriptFolder", "type", "action"))
+            result.Push(Map("name", "Open Database Folder", "path", "action:OpenDatabaseFolder", "type", "action"))
+            result.Push(Map("name", "Reload GlobalCoder", "path", "action:Reload", "type", "action"))
+            result.Push(Map("name", "Exit GlobalCoder", "path", "action:Exit", "type", "action"))
+        default:
+            result.Push(Map("name", "Unknown menu: " . submenuName, "path", "", "type", "separator"))
     }
     return result
 }
@@ -1881,6 +5270,11 @@ SelectMenuItem(rowIndex) {
             GC_MenuItems := BuildMenuItems(item["path"], true)
             GC_MenuIndex := FirstSelectableIndex(GC_MenuItems)
             RefreshCustomMenu()
+        case "submenu":
+            GC_MenuStack.Push(Map("items", GC_MenuItems, "index", GC_MenuIndex))
+            GC_MenuItems := BuildSpecialSubmenu(StrReplace(item["path"], "submenu:", ""))
+            GC_MenuIndex := FirstSelectableIndex(GC_MenuItems)
+            RefreshCustomMenu()
         case "file":
             CloseCustomMenu()
             MenuEventHandler(item["path"])
@@ -1927,10 +5321,72 @@ ExecuteMenuAction(actionName) {
             ShowKnowledgeTest()
         case "InstructionLanguage":
             ShowInstructionLanguageConsole()
+        case "SyntaxGuides":
+            ShowSyntaxGuides()
+        case "ContextBindings":
+            ShowContextBindings()
+        case "Snips":
+            ShowSnippets()
+        case "SnippetBatchImport":
+            ShowSnippetBatchImporter()
+        case "SnippetStructure":
+            ShowSnippetStructure()
+        case "SnippetEditors":
+            ShowSnippetEditorContexts()
+        case "ToggleSnippetSuggestions":
+            SnippetSuggestionManager.Toggle()
+        case "SnipsC":
+            ShowSnippets("c")
+        case "SnipsCpp":
+            ShowSnippets("cpp")
+        case "SnipsPython":
+            ShowSnippets("python")
+        case "SnipsJavaScript":
+            ShowSnippets("javascript")
+        case "SnipsTypeScript":
+            ShowSnippets("typescript")
+        case "SnipsCSharp":
+            ShowSnippets("csharp")
+        case "SnipsAhk2":
+            ShowSnippets("ahk2")
+        case "InstructionReference":
+            ShowInstructionReference()
         case "NewProject":
             ShowNewProjectWizard()
         case "RecentProjects":
             ShowRecentProjects()
+        case "LearningCenter":
+            ShowLearningCenter()
+        case "ProjectSettings":
+            ShowProjectSettings()
+        case "GlobalSearch":
+            FindInFiles()
+        case "GoogleSearch":
+            GoogleSearchWithLogging()
+        case "DatabaseBrowser", "QueryHistory":
+            ShowDatabaseBrowser("queries")
+        case "ErrorRecords":
+            ShowDatabaseBrowser("errors")
+        case "EventRecords":
+            ShowDatabaseBrowser("event_log")
+        case "ActivityRecords":
+            ShowDatabaseBrowser("activity_log")
+        case "Settings":
+            ShowSettingsGUI()
+        case "Hotstrings":
+            ShowHotstringsGUI()
+        case "AddAction":
+            ShowAddActionGUI()
+        case "RebuildMenu":
+            RebuildMenu()
+        case "OpenScriptFolder":
+            Run("explorer.exe " . QuoteArgument(A_ScriptDir))
+        case "OpenDatabaseFolder":
+            OpenDatabaseFolder()
+        case "Reload":
+            Reload()
+        case "Exit":
+            ExitApp()
         default:
             GUT_Display("Unknown Action", actionName, 3000)
     }
@@ -2503,6 +5959,7 @@ ShowInstructionReference(*) {
 ; ============================================================================
 
 GoogleSearchWithLogging(*) {
+    global GC_DB_PATH
     result := InputBox("Enter a search query. It will be stored in SQLite:", "Google Search", "w420 h130")
     if result.Result = "Cancel" || Trim(result.Value) = ""
         return
@@ -2519,21 +5976,284 @@ GoogleSearch(*) {
 }
 
 ShowQueryLog(*) {
-    rows := GlobalCoderDatabase.Rows("SELECT query,provider,context,created_at FROM queries ORDER BY id DESC LIMIT 500;")
+    ShowDatabaseBrowser("queries")
+}
+
+ShowDatabaseBrowser(initialKey := "queries", *) {
+    DatabaseBrowser(initialKey)
+}
+
+ShowSyntaxGuides(*) {
+    SyntaxGuideBrowser()
+}
+
+ShowSnippets(initialLanguage := "", initialFeature := "", *) {
+    SnippetBrowser(initialLanguage, initialFeature)
+}
+
+ShowSnippetBatchImporter(initialFile := "", *) {
+    SnippetBatchImportWindow(initialFile)
+}
+
+ShowSnippetStructure(*) {
+    SnippetStructureBrowser()
+}
+
+ShowSnippetEditorContexts(*) {
+    SnippetEditorContextEditor()
+}
+
+ShowSnippetMenuHelp(*) {
+    content := "Ctrl+Right Shift or Ctrl+M opens the native menu.`r`n`r`n"
+        . "Use arrows to move through Snips > Language > Category > Feature.`r`n"
+        . "Press Right to enter a submenu, Left to go back, and Enter on a snippet to insert it.`r`n"
+        . "The insertion target is the editor window from which the menu was called.`r`n`r`n"
+        . "Snippet management remains under Admin; it is never part of normal Snips navigation.`r`n"
+        . "This preview is click-through, non-activating, and dismisses automatically."
+    PassivePreviewWindow.Show("Snips Keyboard Navigation", content, 9000)
+}
+
+CaptureSnippetPlaceholder(languageCode, featureCode, *) {
+    RememberSnippetMenuContext(languageCode, featureCode)
+    GhostSnippetCaptureWindow.Show(languageCode, featureCode)
+}
+
+PreviewSnippetFeature(languageCode, featureCode, *) {
+    RememberSnippetMenuContext(languageCode, featureCode)
+    languageLabel := GlobalCoderDatabase.Scalar("SELECT label FROM snippet_languages WHERE code="
+        . GlobalCoderDatabase.Q(languageCode) . " LIMIT 1;", languageCode)
+    featureLabel := GlobalCoderDatabase.Scalar("SELECT label FROM snippet_feature_groups WHERE code="
+        . GlobalCoderDatabase.Q(featureCode) . " LIMIT 1;", featureCode)
+    rows := SnippetRepository.Search(languageCode, featureCode, "", 30)
     if rows.Length = 0 {
-        GUT_Display("Query History", "No searches have been logged.", 3000)
+        content := "This language/feature slot exists in the uniform Snips tree, but no syntax has been recorded yet.`r`n`r`n"
+            . "Add its first syntax later through Admin > Snip Database Editor."
+    } else {
+        content := ""
+        for row in rows {
+            content .= row["name"] . "  [" . row["trigger"] . "]`r`n"
+            if row["description"] != ""
+                content .= row["description"] . "`r`n"
+            content .= row["body"] . "`r`n`r`n----------------------------------------`r`n`r`n"
+        }
+        content := RTrim(content, "`r`n- ")
+    }
+    PassivePreviewWindow.Show(languageLabel . " - " . featureLabel, content, 12000)
+}
+
+InsertSnippetById(id, *) {
+    global GC_CallingWindowHwnd, GC_CallingControl
+    row := SnippetRepository.ById(id)
+    if !IsObject(row) {
+        GUT_Display("Snips", "That snippet record no longer exists.", 2200)
         return
     }
-    items := []
-    for row in rows {
-        items.Push(Map(
-            "text", row["created_at"] . " | " . row["query"],
-            "actionText", row["provider"],
-            "copyCommand", row["query"]
-        ))
+    targetHwnd := GC_CallingWindowHwnd && WinExist("ahk_id " . GC_CallingWindowHwnd) ? GC_CallingWindowHwnd : WinExist("A")
+    SnippetRepository.Insert(row, 0, targetHwnd, GC_CallingControl)
+}
+
+SnippetInputChar(inputHook, characters) {
+    SnippetSuggestionManager.OnChar(characters)
+}
+
+SnippetInputKeyDown(inputHook, vk, sc) {
+    SnippetSuggestionManager.OnKeyDown(vk, sc)
+}
+
+SnippetSuggestionContextTick(*) {
+    SnippetSuggestionManager.ContextTick()
+}
+
+SnippetSuggestionIsActive(*) {
+    return SnippetSuggestionManager.Visible && SnippetSuggestionManager.IsEditorActive()
+}
+
+SnippetAcceptSuggestion(*) {
+    SnippetSuggestionManager.Accept()
+}
+
+SnippetMoveSuggestion(delta, *) {
+    SnippetSuggestionManager.Move(delta)
+}
+
+SnippetDismissSuggestion(*) {
+    SnippetSuggestionManager.Dismiss()
+}
+
+NativeMenuEnterLoop(wParam, lParam, msg, hwnd) {
+    NativeMenuMonitor.Enter()
+}
+
+NativeMenuExitLoop(wParam, lParam, msg, hwnd) {
+    NativeMenuMonitor.Exit()
+}
+
+NativeMenuSelect(wParam, lParam, msg, hwnd) {
+    NativeMenuMonitor.Select(wParam, lParam)
+}
+
+NativeMenuPathActionIsActive(*) {
+    global GC_NativeMenuActive, GC_HighlightedMenuContext
+    return GC_NativeMenuActive && IsObject(GC_HighlightedMenuContext)
+        && GC_HighlightedMenuContext.Has("path")
+}
+
+QueueNativeMenuPathAction(actionName, *) {
+    global GC_HighlightedMenuContext
+    if !IsObject(GC_HighlightedMenuContext) || !GC_HighlightedMenuContext.Has("path")
+        return
+    context := GC_HighlightedMenuContext.Clone()
+    Send("{Esc}")
+    SetTimer(PerformNativeMenuPathAction.Bind(actionName, context), -60)
+}
+
+PerformNativeMenuPathAction(actionName, context, *) {
+    global GC_VSCodePath
+    path := context["path"]
+    directory := MenuContextDirectory(context)
+    switch actionName {
+        case "vscode":
+            try Run(QuoteArgument(GC_VSCodePath) . " " . QuoteArgument(path), directory)
+            catch as error
+                PassivePreviewWindow.Show("VS Code", "Could not open VS Code:`r`n" . error.Message, 3500)
+        case "new_file":
+            CreateFileFromMenuContext(context)
+        case "terminal":
+            try Run("wt.exe -d " . QuoteArgument(directory), directory)
+            catch
+                Run(QuoteArgument(A_ComSpec), directory)
+        case "explorer":
+            if context["kind"] = "file"
+                Run("explorer.exe /select," . QuoteArgument(path))
+            else
+                Run("explorer.exe " . QuoteArgument(path))
+        case "copy_path":
+            A_Clipboard := path
+            PassivePreviewWindow.Show("Path Copied", path, 2200)
     }
-    GUT_Display("Query History (SQLite)", items, -1,
-        Map("itemized", true, "width", 860, "height", 560, "persistent", true, "position", "Center"))
+}
+
+MenuContextDirectory(context) {
+    path := context["path"]
+    if context["kind"] = "folder"
+        return path
+    SplitPath(path, , &directory)
+    return directory
+}
+
+CreateFileFromMenuContext(context) {
+    directory := MenuContextDirectory(context)
+    if !DirExist(directory) {
+        PassivePreviewWindow.Show("New File", "The target folder no longer exists:`r`n" . directory, 3200)
+        return
+    }
+    result := InputBox("New file name in:`n" . directory, "New Project File", "w520 h150")
+    if result.Result = "Cancel"
+        return
+    fileName := Trim(result.Value)
+    if !IsSafeFileName(fileName) {
+        MsgBox("Enter a valid file name without path separators.", "New Project File", 48)
+        return
+    }
+    filePath := directory . "\" . fileName
+    if FileExist(filePath) {
+        MsgBox("That file already exists.", "New Project File", 48)
+        return
+    }
+    file := FileOpen(filePath, "w", "UTF-8-RAW")
+    if !IsObject(file) {
+        MsgBox("Could not create the file.", "New Project File", 16)
+        return
+    }
+    file.Close()
+    GlobalCoderDatabase.UpsertContent(filePath, "")
+    RebuildMenu(true)
+    PassivePreviewWindow.Show("Project File Created", filePath, 2600)
+}
+
+ShowContextBindings(*) {
+    ContextBindingEditor()
+}
+
+OpenDatabaseFolder(*) {
+    SplitPath(GC_DB_PATH, , &databaseFolder)
+    Run("explorer.exe " . QuoteArgument(databaseFolder))
+}
+
+ContextBindingMatches(contextType, contextValue, *) {
+    try {
+        switch contextType {
+            case "exe":
+                return StrLower(WinGetProcessName("A")) = StrLower(contextValue)
+            case "not_exe":
+                return StrLower(WinGetProcessName("A")) != StrLower(contextValue)
+            case "title":
+                return InStr(WinGetTitle("A"), contextValue, false) > 0
+            case "class":
+                return StrLower(WinGetClass("A")) = StrLower(contextValue)
+            default:
+                return true
+        }
+    } catch {
+        return contextType = "not_exe" || contextType = "any"
+    }
+}
+
+ExecuteContextBinding(binding, *) {
+    actionType := binding["action_type"]
+    actionValue := ContextBindingManager.ExpandTokens(binding["action_value"])
+    switch actionType {
+        case "send_text":
+            SendText(actionValue)
+        case "send_keys":
+            Send(actionValue)
+        case "run":
+            Run(actionValue)
+        case "function":
+            switch actionValue {
+                case "OpenScriptDirectoryCurrentExplorer":
+                    OpenScriptDirectoryCurrentExplorer()
+                case "OpenScriptDirectoryNewExplorer":
+                    OpenScriptDirectoryNewExplorer()
+                case "GoogleSearch":
+                    GoogleSearchWithLogging()
+                case "ShowMainMenu":
+                    ShowMainMenu()
+                case "ShowCustomMenu":
+                    ShowCustomMenu()
+                case "ShowSyntaxGuides":
+                    ShowSyntaxGuides()
+                case "ShowSnippets":
+                    ShowSnippets()
+                case "ShowContextBindings":
+                    ShowContextBindings()
+                default:
+                    GUT_Display("Context Binding", "Unknown built-in action: " . actionValue, 3000)
+            }
+    }
+}
+
+OpenScriptDirectoryCurrentExplorer(*) {
+    if !WinActive("ahk_exe explorer.exe") {
+        OpenScriptDirectoryNewExplorer()
+        return
+    }
+    Send("!d")
+    Sleep(100)
+    Send("^a")
+    Sleep(60)
+    SendText(A_ScriptDir)
+    Sleep(60)
+    Send("{Enter}")
+}
+
+OpenScriptDirectoryNewExplorer(*) {
+    try Run("explorer.exe")
+    if !WinWaitActive("ahk_exe explorer.exe", , 5) {
+        Run("explorer.exe " . QuoteArgument(A_ScriptDir))
+        return
+    }
+    OpenScriptDirectoryCurrentExplorer()
 }
 
 PasteHotstring(replacement, *) {
@@ -2967,9 +6687,6 @@ ShowSettingsGUI(*) {
     guiObj.Add("Edit", "x220 y109 w110 vWidth Background252526 cFFFFFF", GC_OverlayWidth)
     guiObj.Add("Text", "x24 y149 w180 cE6E6E6", "Default height")
     guiObj.Add("Edit", "x220 y146 w110 vHeight Background252526 cFFFFFF", GC_OverlayHeight)
-    guiObj.Add("Checkbox", "x16 y206 vPromptOnResume cE6E6E6 "
-        . (GlobalCoderDatabase.GetSetting("Knowledge", "PromptOnResume", "1") = "1" ? "Checked" : ""),
-        "Prompt for a due knowledge gap after a long idle period")
     guiObj.Add("Text", "x12 y244 w416 h45 cA8C7E6", "All application state: " . GC_DB_PATH)
     guiObj.Add("Button", "x12 y296 w90 h32 Default", "Save").OnEvent("Click", (*) => SaveSettings(guiObj))
     guiObj.Add("Button", "x112 y296 w120 h32", "Project Paths").OnEvent("Click", (*) => ShowProjectSettings())
@@ -2987,7 +6704,6 @@ SaveSettings(guiObj) {
     GlobalCoderDatabase.SetSetting("Overlay", "Opacity", opacity)
     GlobalCoderDatabase.SetSetting("Overlay", "Width", width)
     GlobalCoderDatabase.SetSetting("Overlay", "Height", height)
-    GlobalCoderDatabase.SetSetting("Knowledge", "PromptOnResume", values.PromptOnResume ? "1" : "0")
     LoadRuntimeSettings()
     guiObj.Destroy()
     GUT_Display("Settings Saved", "All transparent boxes now use the updated shared controls.", 3000)
@@ -3007,8 +6723,12 @@ ShowMainFeaturesGUI(*) {
         ["Knowledge Web", ShowKnowledgeSearch],
         ["Add Knowledge", ShowAddKnowledgeGUI],
         ["Knowledge Recall Test", ShowKnowledgeTest],
+        ["Syntax and Setup Guides", ShowSyntaxGuides],
+        ["Snips: Browse, Add, and Insert", ShowSnippets],
         ["Windows Instruction Language", ShowInstructionLanguageConsole],
         ["Global Search", FindInFiles],
+        ["Context Hotkeys / Hotstrings", ShowContextBindings],
+        ["Admin: Browse SQLite Records", ShowDatabaseBrowser],
         ["Settings", ShowSettingsGUI]
     ]
     y := 56
@@ -3070,11 +6790,11 @@ DemoStepCanvas(*) {
 
 UrlEncode(text) {
     byteCount := StrPut(text, "UTF-8")
-    buffer := Buffer(byteCount, 0)
-    StrPut(text, buffer, "UTF-8")
+    utf8Bytes := Buffer(byteCount, 0)
+    StrPut(text, utf8Bytes, "UTF-8")
     encoded := ""
     Loop byteCount - 1 {
-        byte := NumGet(buffer, A_Index - 1, "UChar")
+        byte := NumGet(utf8Bytes, A_Index - 1, "UChar")
         if (byte >= 0x30 && byte <= 0x39)
             || (byte >= 0x41 && byte <= 0x5A)
             || (byte >= 0x61 && byte <= 0x7A)
@@ -3281,11 +7001,22 @@ OverlayCopyActive(*) {
     OverlayManager.CopyActive()
 }
 
-ResolveKnowledgeGapPrompt(gapId, nodeId, answer) {
-    ActivityMonitor.ResolvePrompt(gapId, nodeId, answer)
-}
-
 RegisterGlobalHotkeys() {
+    ; Highlight-sensitive actions inside the native project file tree.
+    HotIf(NativeMenuPathActionIsActive)
+    Hotkey("v", QueueNativeMenuPathAction.Bind("vscode"))
+    Hotkey("n", QueueNativeMenuPathAction.Bind("new_file"))
+    Hotkey("o", QueueNativeMenuPathAction.Bind("terminal"))
+    Hotkey("e", QueueNativeMenuPathAction.Bind("explorer"))
+    Hotkey("c", QueueNativeMenuPathAction.Bind("copy_path"))
+
+    ; Non-focus-stealing Snips suggestions inside configured IDE/editor apps.
+    HotIf(SnippetSuggestionIsActive)
+    Hotkey("Tab", SnippetAcceptSuggestion)
+    Hotkey("Up", SnippetMoveSuggestion.Bind(-1))
+    Hotkey("Down", SnippetMoveSuggestion.Bind(1))
+    Hotkey("Escape", SnippetDismissSuggestion)
+
     ; Custom library browser.
     HotIf(CustomMenuIsActive)
     Hotkey("Up", MenuMove.Bind(-1))
@@ -3328,11 +7059,12 @@ RegisterGlobalHotkeys() {
     HotIf()
     Hotkey("^RShift", ShowMainMenu)
     Hotkey("!RShift", ShowMainMenu)
+    Hotkey("^m", ShowLastSnippetSectionMenu)
     Hotkey("^Space", GoogleSearchWithLogging)
     Hotkey("^!n", ShowNewProjectWizard)
     Hotkey("^!l", ShowLearningCenter)
     Hotkey("^!r", RebuildMenu)
-    Hotkey("^!m", ShowCustomMenu)
+    Hotkey("^!m", ShowLastSnippetSectionMenu)
     Hotkey("^!k", ShowKnowledgeSearch)
     Hotkey("^!a", ShowInstructionLanguageConsole)
 }

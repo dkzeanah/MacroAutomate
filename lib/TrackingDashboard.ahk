@@ -627,12 +627,16 @@ Track_MpOnWindow() {
     g_MpSnapLV.Delete()
     g_MpSnapIds := []
     if winId {
-        for s in MouseTrack_Snapshots(winId, 500) {
-            mk := s["minute_key"]
-            pretty := SubStr(mk, 1, 4) . "-" . SubStr(mk, 5, 2) . "-" . SubStr(mk, 7, 2)
-                    . " " . SubStr(mk, 9, 2) . ":" . SubStr(mk, 11, 2)
-            g_MpSnapLV.Add(, pretty, s["samples"], s["click_count"])
-            g_MpSnapIds.Push(s["id"])
+        try {
+            for s in MouseTrack_Snapshots(winId, 500) {
+                mk := s["minute_key"]
+                pretty := SubStr(mk, 1, 4) . "-" . SubStr(mk, 5, 2) . "-" . SubStr(mk, 7, 2)
+                        . " " . SubStr(mk, 9, 2) . ":" . SubStr(mk, 11, 2)
+                g_MpSnapLV.Add(, pretty, s["samples"], s["click_count"])
+                g_MpSnapIds.Push(s["id"])
+            }
+        } catch as err {
+            LogErrorToFile(err, "caught", "Mouse history snapshot list")
         }
     }
     Track_MpRender()
@@ -793,11 +797,15 @@ Track_KhLoadWindows(winId := 0) {
     items := ["(all windows)"]
     g_KhWinIds := [0]
     sel := 1
-    for w in TrackDB_TopWindows("all", 500) {
-        items.Push(TrackEllipsis(w["name"], 55) . "  [" . w["app"] . "]")
-        g_KhWinIds.Push(w["id"])
-        if (w["id"] = winId)
-            sel := g_KhWinIds.Length
+    try {
+        for w in TrackDB_TopWindows("all", 500) {
+            items.Push(TrackEllipsis(w["name"], 55) . "  [" . w["app"] . "]")
+            g_KhWinIds.Push(w["id"])
+            if (w["id"] = winId)
+                sel := g_KhWinIds.Length
+        }
+    } catch as err {
+        LogErrorToFile(err, "caught", "Keystroke history window list")
     }
     g_KhWinDD.Delete()
     g_KhWinDD.Add(items)
@@ -818,11 +826,15 @@ Track_KhOnWindow() {
     winId := Track_KhSelectedWinId()
     g_KhLV.Delete()
     g_KhSnapIds := []
-    for s in KeyTrack_Snapshots(winId, 1000) {
-        mk := s["minute_key"]
-        pretty := SubStr(mk, 5, 2) . "-" . SubStr(mk, 7, 2) . " " . SubStr(mk, 9, 2) . ":" . SubStr(mk, 11, 2)
-        g_KhLV.Add(, pretty, s["keystrokes"], Round(s["wpm"], 0))
-        g_KhSnapIds.Push(s["id"])
+    try {
+        for s in KeyTrack_Snapshots(winId, 1000) {
+            mk := s["minute_key"]
+            pretty := SubStr(mk, 5, 2) . "-" . SubStr(mk, 7, 2) . " " . SubStr(mk, 9, 2) . ":" . SubStr(mk, 11, 2)
+            g_KhLV.Add(, pretty, s["keystrokes"], Round(s["wpm"], 0))
+            g_KhSnapIds.Push(s["id"])
+        }
+    } catch as err {
+        LogErrorToFile(err, "caught", "Keystroke history snapshot list")
     }
     Track_KhClearEdits()
 }
@@ -841,7 +853,14 @@ Track_KhOnSnap(lv, item, selected) {
         return
     snapId := g_KhSnapIds[item]
     db := TrackDB()
-    s := db.QueryRow("SELECT * FROM key_snapshot WHERE id=?", snapId)
+    if !db
+        return
+    s := Map()
+    try s := db.QueryRow("SELECT * FROM key_snapshot WHERE id=?", snapId)
+    catch as err {
+        LogErrorToFile(err, "caught", "Keystroke snapshot detail")
+        return
+    }
     if !s.Count
         return
     g_KhEdits["text"].Value := s["text_typed"]
@@ -855,7 +874,14 @@ Track_KhOnSnap(lv, item, selected) {
 
 Track_KhHotkeys() {
     winId := Track_KhSelectedWinId()
-    rows := KeyTrack_TopHotkeys(winId, 200)
+    rows := []
+    try rows := KeyTrack_TopHotkeys(winId, 200)
+    catch as err {
+        Track_ShowTextPopup("Top Hotkeys", "Could not load hotkey stats:`n" . err.Message)
+        return
+    }
+    if !IsObject(rows)
+        rows := []
     out := "Combo`tCount`tLast`n"
     for r in rows
         out .= r["combo"] . "`t" . r["count"] . "`t" . r["last_ts"] . "`n"
@@ -864,7 +890,14 @@ Track_KhHotkeys() {
 
 Track_KhClips() {
     winId := Track_KhSelectedWinId()
-    rows := KeyTrack_RecentClips(300, winId)
+    rows := []
+    try rows := KeyTrack_RecentClips(300, winId)
+    catch as err {
+        Track_ShowTextPopup("Clipboard History", "Could not load clipboard log:`n" . err.Message)
+        return
+    }
+    if !IsObject(rows)
+        rows := []
     out := ""
     for r in rows
         out .= "[" . r["ts"] . "] (" . r["kind"] . ", " . r["length"] . ") "

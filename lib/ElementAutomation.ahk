@@ -273,19 +273,43 @@ MouseFeatures_JavaScript(feats, winName, size) {
     return out
 }
 
-; An AutoHotkey v2 array literal that drops straight into another script.
-MouseFeatures_Ahk(feats, winName) {
-    out := "; Interaction hotspots extracted by MacroAutomate - window: " . winName . "`n"
-    out .= "features := [`n"
-    for f in feats {
-        out .= "    Map(""kind"", """ . f["kind"] . """, "
-             . """relX"", " . f["rel_x"] . ", ""relY"", " . f["rel_y"] . ", "
-             . """weight"", " . f["weight"] . ", ""clicks"", " . f["clicks"] . "),`n"
-    }
-    out .= "]`n"
-    return out
+; Converts a value into a valid quoted AutoHotkey v2 string literal.
+; Example:
+;   Hello        -> "Hello"
+;   Say "Hello"  -> "Say ""Hello"""
+AhkStringLiteral(value) {
+    q := Chr(34)
+
+    ; Escape embedded quotation marks using AHK's doubled-quote syntax.
+    value := StrReplace(String(value), q, q . q)
+
+    return q . value . q
 }
 
+
+; Creates an AutoHotkey v2 array literal that can be dropped
+; directly into another script.
+MouseFeatures_Ahk(feats, winName) {
+    out := "; Interaction hotspots extracted by MacroAutomate - window: "
+        . winName
+        . "`n"
+
+    out .= "features := [`n"
+
+    for f in feats {
+        out .= "    Map("
+            . AhkStringLiteral("kind")   . ", " . AhkStringLiteral(f["kind"]) . ", "
+            . AhkStringLiteral("relX")   . ", " . f["rel_x"]                 . ", "
+            . AhkStringLiteral("relY")   . ", " . f["rel_y"]                 . ", "
+            . AhkStringLiteral("weight") . ", " . f["weight"]                . ", "
+            . AhkStringLiteral("clicks") . ", " . f["clicks"]
+            . "),`n"
+    }
+
+    out .= "]`n"
+
+    return out
+}
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; FILE WRITER
 ; ═══════════════════════════════════════════════════════════════════════════════

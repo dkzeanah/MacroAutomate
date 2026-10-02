@@ -72,6 +72,35 @@ CoordMode("ToolTip", "Screen") ; Tooltip positioning relative to screen
 #Include lib\ResearchPipeline.ahk
 #Include lib\TrackingDashboard.ahk
 
+; ═══════════════════════════════════════════════════════════════════════════════
+; APP LEARNER (v8): learn whole program interfaces into an object model, drive
+; them from a text DSL or a local LLM (Ollama). Acc.ahk supplies the MSAA
+; accessibility tree the learner walks.
+; ═══════════════════════════════════════════════════════════════════════════════
+#Include lib\Acc.ahk
+#Include lib\AppLearner.ahk
+
+; ═══════════════════════════════════════════════════════════════════════════════
+; SNAPSHOT RECOVERY (v8): trace a snapshot back to the page it came from -
+; live URL capture, filename clue extraction, Chrome history cross-reference,
+; searched with Everything 1.5 query syntax.
+; ═══════════════════════════════════════════════════════════════════════════════
+#Include lib\Everything3Client.ahk
+#Include lib\SnapshotRecovery.ahk
+; Attention/prominence measurement: which windows actually held focus,
+; watch time for media, and the learned adult-content filter.
+#Include lib\AttentionEngine.ahk
+; Repeatable region snips with OCR and a correction memory (Ctrl+Shift+1/2/3).
+#Include lib\SnipStudio.ahk
+; Smart parsing of a capture into individual questions, plus the review
+; roulette that resurfaces the ones still unanswered.
+#Include lib\SnipParse.ahk
+; Semantic layout: cluster a learned app's elements into panes and name them
+; (sidebar, editor, status bar) so automation can address regions, not pixels.
+#Include lib\WindowModel.ahk
+; Generic reflow for the tabs that were laid out with absolute coordinates.
+#Include lib\AutoFlow.ahk
+
 
 
 ; ═══════════════════════════════════════════════════════════════════════════════
@@ -6240,7 +6269,7 @@ MainGui.Add("Button", "x400 y2 w50 h20 cRed", "ABORT").OnEvent("Click", AbortSeq
 ; calendar section below already called TabCtrl.UseTab(12) - which left that UI
 ; attached to a tab that did not exist, so it never rendered. Declaring it here
 ; restores it. "Tracking" (tab 13) is the behavior-tracking subsystem.
-TabCtrl := MainGui.Add("Tab3", "x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking"])
+TabCtrl := MainGui.Add("Tab3", "x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking", "App Learner", "Snapshot Recovery"])
 
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; TAB 1: WORKFLOW
@@ -7157,6 +7186,22 @@ catch as err
 try Track_BuildTab(MainGui)
 catch as err
     LogErrorToFile(err, "caught", "Tracking tab construction")
+
+; ═══════════════════════════════════════════════════════════════════════════════
+; TAB 14: APP LEARNER (learn program interfaces -> object model -> DSL / Ollama)
+; ═══════════════════════════════════════════════════════════════════════════════
+TabCtrl.UseTab(14)
+try AppLearner_BuildTab(MainGui)
+catch as err
+    LogErrorToFile(err, "caught", "App Learner tab construction")
+
+; ═══════════════════════════════════════════════════════════════════════════════
+; TAB 15: SNAPSHOT RECOVERY (Everything search -> clues -> URL -> Chrome history)
+; ═══════════════════════════════════════════════════════════════════════════════
+TabCtrl.UseTab(15)
+try SnapRec_BuildTab(MainGui)
+catch as err
+    LogErrorToFile(err, "caught", "Snapshot Recovery tab construction")
 TabCtrl.UseTab(0)
 
 ; Initialize the workflow tab for the first action (button visibility, hints,
@@ -7165,7 +7210,38 @@ try OnActionChange()
 catch as err
     LogErrorToFile(err, "caught", "Workflow tab initial layout")
 
-MainGui.Show("w1050 h820")
+; Start maximised: the Snapshot Recovery and App Learner tabs carry wide
+; tables that are far more usable with the whole screen behind them.
+; Record every tab's designed geometry before the window is shown, so the
+; reflow has a baseline to scale from. Snapshot Recovery lays itself out and
+; is passed in as exempt.
+try {
+    ; Controls the hand-written GuiResize already repositions must be exempt,
+    ; or they get moved twice and end up on top of one another.
+    flowSkip := []
+    ; Only the controls GuiResize REPOSITIONS need exempting. The ones it merely
+    ; resizes (SeqLV, the status label, the group box) are fine to leave to the
+    ; reflow - exempting those pinned the status label on top of its buttons.
+    for , c in [SeqLoadBtn, SeqDeleteBtn, SeqRunBtn, SeqSimBtn
+              , SeqImportBtn, SeqExportBtn, SeqMawWriterBtn] {
+        try flowSkip.Push(c)
+    }
+    for , c in g_SnapRecCtl
+        flowSkip.Push(c)
+    AutoFlow_Init(MainGui, 0, 0, flowSkip)
+}
+catch as err
+    LogErrorToFile(err, "caught", "AutoFlow capture")
+
+MainGui.Show("w1050 h820 Maximize")
+
+; Show("...Maximize") applies the maximised state without raising a Size event,
+; so the first reflow never sees the real window and every tab stays laid out
+; for 1040px. Drive one pass explicitly from the actual client size.
+; Deferred: immediately after Show the window has not finished maximising, so
+; reading its client size then reports an intermediate value and the tabs are
+; laid out for a window narrower than the one on screen.
+SetTimer(AutoFlow_FirstPass, -250)
 
 ClickTimeSlot2(time) {
     ; Show input box for patient name and appointment type
@@ -8583,6 +8659,10 @@ GuiResize(thisGui, minMax, w, h) {
     if minMax = -1
         return
     try TabCtrl.Move(, , w - 10, h - 75)
+    ; Tabs that lay themselves out dynamically get told the new size.
+    try SnapRec_Layout(w - 20, h - 110)
+    ; Tabs that were laid out by hand get the inferred anchor treatment.
+    try AutoFlow_Resize(w - 10, h - 75)
     try {
         listW := Max(650, w - 250)
         listH := 103
@@ -17747,6 +17827,217 @@ Escape::DefModeCancel
 
 ^+f::FindText().Gui("Show")
 
+^+q::QuickOCRCapture()  ; Ctrl+Shift+Q = drag a box anywhere, OCR it, copy the text
+
+; Ctrl+Shift+A = the attention panel: which windows actually held focus,
+; watch time for media, ranked by measured prominence rather than by count.
+^+a::Attn_OpenPanel()
+
+; Ctrl+Shift+1 = snip the saved region, OCR it, confirm or correct the reading.
+;               The first press (no region yet) just asks you to drag one.
+; Ctrl+Shift+2 = view the last snip and every representation of it.
+; Ctrl+Shift+3 = redraw the region.
+^+1::Snip_Hotkey()
+^+2::Snip_ViewLast()
+^+3::Snip_PickRegion(false)
+^+4::Snip_OpenSettings()   ; capture/flash/parsing toggles and roulette timing
+^+5::Qa_OpenBank()         ; every parsed question, answered or not
+^+6::Qa_AskNow()           ; pull one unanswered question right now
+^+7::WinModel_OpenPanel()  ; window structure map for a learned app
+
+; ═══════════════════════════════════════════════════════════════════════════════
+; QUICK SCREEN OCR (Ctrl+Shift+Q)
+; ═══════════════════════════════════════════════════════════════════════════════
+; Press the hotkey anywhere, drag a box over any text on screen, and its text is
+; recognised, copied to the clipboard and shown in a small result window.
+;
+; Independent of the Live OCR tab - it works with the main window hidden - but it
+; reuses that tab's language/scale/grayscale settings when they are available.
+; Spans every monitor (the overlay covers the virtual desktop, not just the
+; primary screen).
+
+QuickOCRCapture(*) {
+    global g_LastOCRResult
+    static busy := false
+
+    if busy              ; one capture at a time
+        return
+    busy := true
+    try {
+        sel := QuickOCR_SelectRegion()
+        if sel.Count
+            QuickOCR_Run(sel)
+    } catch as err {
+        LogErrorToFile(err, "caught", "Quick OCR (Ctrl+Shift+Q)")
+        ShowStatus("Quick OCR failed: " . err.Message, "fail")
+    } finally {
+        busy := false
+    }
+}
+
+; Drag out a rectangle over the virtual desktop.
+; Returns Map(x, y, w, h) in screen coordinates, or an empty Map when cancelled.
+QuickOCR_SelectRegion() {
+    ; Virtual-desktop metrics so the overlay covers every monitor, not just the
+    ; primary one (A_ScreenWidth/Height describe the primary screen only).
+    vx := SysGet(76), vy := SysGet(77), vw := SysGet(78), vh := SysGet(79)
+
+    ; The dim sheet deliberately does NOT use +E0x20 (WS_EX_TRANSPARENT): it must
+    ; absorb the drag, otherwise the clicks fall through and press buttons in
+    ; whatever application is underneath.
+    overlay := Gui("+AlwaysOnTop -Caption +ToolWindow", "QuickOCROverlay")
+    overlay.BackColor := "101010"
+    overlay.Show("x" . vx . " y" . vy . " w" . vw . " h" . vh . " NoActivate")
+    WinSetTransparent(70, overlay)
+
+    ; The selection box IS click-through, so it never interrupts the drag.
+    selBox := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x20", "QuickOCRBox")
+    selBox.BackColor := "00C000"
+
+    ToolTip("Quick OCR - drag a box over the text"
+          . "`nESC or right-click cancels", vx + vw // 2 - 140, vy + 40)
+
+    rect := Map()
+    x1 := 0, y1 := 0, x2 := 0, y2 := 0
+
+    ; Wait for the drag to begin (or for a cancel).
+    while true {
+        if (GetKeyState("Escape", "P") || GetKeyState("RButton", "P"))
+            break
+        if GetKeyState("LButton", "P") {
+            MouseGetPos(&x1, &y1)
+            ; Track the rubber band until the button comes back up.
+            while GetKeyState("LButton", "P") {
+                if GetKeyState("Escape", "P") {
+                    x1 := 0, y1 := 0, x2 := 0, y2 := 0
+                    break
+                }
+                MouseGetPos(&x2, &y2)
+                bl := Min(x1, x2), bt := Min(y1, y2)
+                bw := Abs(x2 - x1), bh := Abs(y2 - y1)
+                if (bw > 2 && bh > 2) {
+                    selBox.Show("x" . bl . " y" . bt . " w" . bw . " h" . bh . " NoActivate")
+                    WinSetTransparent(120, selBox)
+                    ToolTip(bw . " x " . bh, x2 + 18, y2 + 18)
+                }
+                Sleep(16)
+            }
+            break
+        }
+        Sleep(10)
+    }
+
+    if (x1 || y1 || x2 || y2) {
+        rx := Min(x1, x2), ry := Min(y1, y2)
+        rw := Abs(x2 - x1), rh := Abs(y2 - y1)
+        if (rw >= 8 && rh >= 8)
+            rect := Map("x", rx, "y", ry, "w", rw, "h", rh)
+        else
+            ShowStatus("Quick OCR cancelled - selection too small", "fail")
+    }
+
+    ; Tear the overlay down and let the screen repaint BEFORE anything is
+    ; captured, or the dim sheet ends up inside the screenshot.
+    try selBox.Destroy()
+    try overlay.Destroy()
+    ToolTip()
+    Sleep(160)
+
+    return rect
+}
+
+; OCR one screen rectangle, copy the text, and show the result window.
+QuickOCR_Run(sel) {
+    global g_LastOCRResult
+
+    started := A_TickCount
+    result := OCR.FromRect(sel["x"], sel["y"], sel["w"], sel["h"], QuickOCR_Options())
+    elapsed := A_TickCount - started
+
+    g_LastOCRResult := result          ; keeps the Live OCR tab helpers usable
+    text := result.Text
+
+    if (Trim(text) = "") {
+        ShowStatus("Quick OCR: no text found in that area", "fail")
+        HighlightRegion(sel["x"], sel["y"], sel["w"], sel["h"], 1200, "highlight", "no text")
+        return
+    }
+
+    A_Clipboard := text
+    ShowStatus("Quick OCR: " . result.Words.Length . " words copied to clipboard", "ok")
+    QuickOCR_ShowResult(result, sel, elapsed)
+}
+
+; Language/scale/grayscale from the Live OCR tab when it exists; sensible
+; defaults otherwise. Quick captures default to scale 2 because they are
+; usually small patches of text, where upscaling markedly improves accuracy.
+QuickOCR_Options() {
+    global MainGui
+    opts := {scale: 2.0}
+    try {
+        sc := Float(MainGui["OCRScale"].Value)
+        if (sc > 0)
+            opts.scale := sc
+    }
+    try opts.grayscale := MainGui["OCRGrayscale"].Value
+    try {
+        lang := MainGui["OCRLang"].Text
+        if (lang != "")
+            opts.lang := lang
+    }
+    return opts
+}
+
+; Compact, always-on-top result window: the text is already on the clipboard,
+; this is for reading it, re-copying it, or grabbing another area.
+QuickOCR_ShowResult(result, sel, elapsed) {
+    static resultGui := ""
+
+    if IsObject(resultGui) {
+        try resultGui.Destroy()
+        resultGui := ""
+    }
+
+    text := result.Text
+    g := Gui("+AlwaysOnTop +Resize", "Quick OCR - " . result.Words.Length . " words")
+    g.MarginX := 10, g.MarginY := 10
+
+    info := g.Add("Text", "x10 y10 w520 cGray"
+        , result.Words.Length . " words, " . result.Lines.Length . " lines  |  "
+        . sel["w"] . " x " . sel["h"] . " at " . sel["x"] . "," . sel["y"]
+        . "  |  " . elapsed . " ms  |  copied to clipboard")
+
+    ed := g.Add("Edit", "x10 y32 w520 h220 Multi VScroll ReadOnly vQuickOCRText", text)
+    ed.SetFont("s10", "Consolas")
+
+    g.Add("Button", "x10 y262 w100 h26", "Copy Again").OnEvent("Click"
+        , (*) => (A_Clipboard := text, ShowStatus("Copied " . StrLen(text) . " chars", "ok")))
+    g.Add("Button", "x116 y262 w110 h26", "Show Region").OnEvent("Click"
+        , (*) => HighlightRegion(sel["x"], sel["y"], sel["w"], sel["h"], 1500, "highlight", "Quick OCR"))
+    g.Add("Button", "x232 y262 w120 h26", "New Capture ^+Q").OnEvent("Click"
+        , (*) => (g.Destroy(), SetTimer(() => QuickOCRCapture(), -120)))
+    g.Add("Button", "x358 y262 w80 h26 Default", "Close").OnEvent("Click", (*) => g.Destroy())
+
+    g.OnEvent("Escape", (*) => g.Destroy())
+    g.OnEvent("Close", (*) => g.Destroy())
+    g.OnEvent("Size", QuickOCR_ResultResize)
+    g.Show("w540 h300")
+    resultGui := g
+}
+
+QuickOCR_ResultResize(g, minMax, w, h) {
+    if (minMax = -1)
+        return
+    try g["QuickOCRText"].Move(, , w - 20, h - 90)
+    ; Keep the button row pinned to the bottom edge.
+    try {
+        for ctrl in g {
+            if (ctrl.Type = "Button")
+                ctrl.Move(, h - 38)
+        }
+    }
+}
+
 ; Clipboard Revolver hotkeys
 ^b::LoadRevolverFromSelection()   ; Copy + Parse + Load
 ^+b::FireAllShots()               ; Fire all shots (paste + Tab...)
@@ -17769,6 +18060,18 @@ Track_ToggleAllHotkey() {
         Track_StopAll()
     else
         Track_StartAll()
+}
+
+try Snip_RestoreState()   ; resume the question roulette if it was left on
+catch as err
+    LogErrorToFile(err, "caught", "Snip roulette restore")
+
+AutoFlow_FirstPass() {
+    try {
+        MainGui.GetClientPos(, , &cw, &ch)
+        if (cw > 0 && ch > 0)
+            GuiResize(MainGui, 0, cw, ch)
+    }
 }
 
 InitDB()            ; Open/create SQLite DB, create tables, import legacy .ini data if needed

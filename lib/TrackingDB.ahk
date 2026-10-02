@@ -23,7 +23,7 @@ global g_TrackAppCache := Map()            ; appKey  -> app_id
 global g_TrackWinCache := Map()            ; appId|name -> win_id
 
 ; Current schema version. Bump when adding tables/columns below.
-global TRACK_SCHEMA_VERSION := 3
+global TRACK_SCHEMA_VERSION := 4
 
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; LIFECYCLE
@@ -98,8 +98,32 @@ TrackDB_ApplySchema(db) {
     db.AddColumnIfMissing("mouse_snapshot", "dwell_count", "INTEGER NOT NULL DEFAULT 0")
     db.AddColumnIfMissing("key_snapshot", "wpm", "REAL NOT NULL DEFAULT 0")
     db.AddColumnIfMissing("snap_entry", "ocr_text", "TEXT")
+    ; Page identity recorded at capture time - see lib\SnapshotRecovery.ahk.
+    db.AddColumnIfMissing("snap_entry", "url", "TEXT")
+    db.AddColumnIfMissing("snap_entry", "url_source", "TEXT")
+    db.AddColumnIfMissing("snap_entry", "search_query", "TEXT")
+    db.AddColumnIfMissing("snap_entry", "visual_signature", "TEXT")
+    db.AddColumnIfMissing("snap_entry", "is_excluded", "INTEGER NOT NULL DEFAULT 0")
+    db.AddColumnIfMissing("snap_entry", "exclusion_reason", "TEXT")
+    db.Exec("CREATE INDEX IF NOT EXISTS ix_snap_excluded ON snap_entry(is_excluded)")
     db.AddColumnIfMissing("element", "role", "TEXT")
     db.AddColumnIfMissing("mouse_feature", "element_id", "INTEGER")
+
+    ; GlobalCoder's overlay is generated UI chrome, not recoverable work. Keep
+    ; the rule editable (rather than hard-coding the capture engine) so it can
+    ; be disabled from Snapshot Recovery if priorities change later.
+    db.Run("INSERT INTO snap_exclusion(kind,title_pattern,note,active,created_ts) "
+         . "SELECT 'window','GlobalCoder Overlay','Default requested exclusion',1,? "
+         . "WHERE NOT EXISTS (SELECT 1 FROM snap_exclusion "
+         . "WHERE kind='window' AND lower(title_pattern)=lower('GlobalCoder Overlay'))"
+         , TrackTS())
+    defaultRule := db.Scalar("SELECT id FROM snap_exclusion WHERE kind='window' "
+                           . "AND lower(title_pattern)=lower('GlobalCoder Overlay') LIMIT 1")
+    if defaultRule != "" {
+        db.Run("UPDATE snap_entry SET is_excluded=1, exclusion_reason=? "
+             . "WHERE lower(title) LIKE '%globalcoder overlay%' "
+             . "AND COALESCE(is_excluded,0)=0", "rule:" . defaultRule)
+    }
 
     db.Run("INSERT INTO meta(key,value) VALUES('schema_version',?) "
          . "ON CONFLICT(key) DO UPDATE SET value=excluded.value", TRACK_SCHEMA_VERSION)
@@ -272,9 +296,60 @@ TrackDB_SchemaStatements() {
     . "  bin_w        INTEGER,"
     . "  bin_h        INTEGER,"
     . "  threshold    TEXT,"
-    . "  ocr_text     TEXT)"
+    . "  ocr_text     TEXT,"
+    . "  url          TEXT,"
+    . "  url_source   TEXT,"
+    . "  search_query TEXT,"
+    . "  visual_signature TEXT,"
+    . "  is_excluded  INTEGER NOT NULL DEFAULT 0,"
+    . "  exclusion_reason TEXT)"
     , "CREATE INDEX IF NOT EXISTS ix_snap_cycle ON snap_entry(cycle_id)"
     , "CREATE INDEX IF NOT EXISTS ix_snap_win   ON snap_entry(win_id)"
+    ; Snapshot Recovery resolves an image on disk back to its row by path, once
+    ; per search result. Without this index each of those is a full scan of the
+    ; whole table, so a 1,000-result search turns into millions of row reads and
+    ; the window appears to hang.
+    , "CREATE INDEX IF NOT EXISTS ix_snap_path  ON snap_entry(image_path)"
+    ; Matching a history entry back to the snapshot that shows it looks up by
+    ; recorded URL first and window title second, once per listed row. Without
+    ; these each lookup scans the whole table and a 30-row match stalls.
+    , "CREATE INDEX IF NOT EXISTS ix_snap_url   ON snap_entry(url)"
+    , "CREATE INDEX IF NOT EXISTS ix_snap_title ON snap_entry(title)"
+    ; ─── User-managed filters for noisy/repeated snapshots ──────────────────
+    , "CREATE TABLE IF NOT EXISTS snap_exclusion ("
+    . "  id            INTEGER PRIMARY KEY AUTOINCREMENT,"
+    . "  kind          TEXT NOT NULL,"
+    . "  signature     TEXT,"
+    . "  tolerance     INTEGER NOT NULL DEFAULT 5,"
+    . "  exe           TEXT,"
+    . "  class         TEXT,"
+    . "  title_pattern TEXT,"
+    . "  note          TEXT,"
+    . "  active        INTEGER NOT NULL DEFAULT 1,"
+    . "  created_ts    TEXT,"
+    . "  match_count   INTEGER NOT NULL DEFAULT 0,"
+    . "  last_match_ts TEXT)"
+    , "CREATE INDEX IF NOT EXISTS ix_snap_exclusion_active "
+    . "ON snap_exclusion(active,kind)"
+
+    ; ─── Durable, append-only copy of Chrome visits from every profile ──────
+    , "CREATE TABLE IF NOT EXISTS chrome_history_archive ("
+    . "  id              INTEGER PRIMARY KEY AUTOINCREMENT,"
+    . "  profile         TEXT NOT NULL,"
+    . "  source_visit_id INTEGER,"
+    . "  visit_time      INTEGER NOT NULL,"
+    . "  visited_ts      TEXT,"
+    . "  url             TEXT NOT NULL,"
+    . "  title           TEXT,"
+    . "  search_term     TEXT,"
+    . "  visit_count     INTEGER NOT NULL DEFAULT 0,"
+    . "  first_import_ts TEXT,"
+    . "  last_import_ts  TEXT,"
+    . "  UNIQUE(profile,visit_time,url))"
+    , "CREATE INDEX IF NOT EXISTS ix_chrome_archive_time "
+    . "ON chrome_history_archive(visit_time DESC)"
+    , "CREATE INDEX IF NOT EXISTS ix_chrome_archive_title "
+    . "ON chrome_history_archive(title)"
 
     ; ─── Named, described elements consumable by the automation engine ──────
     , "CREATE TABLE IF NOT EXISTS element ("
@@ -716,14 +791,119 @@ TrackDB_AddSnapEntry(e) {
     db.Run("INSERT INTO snap_entry"
          . "(cycle_id,win_id,app_id,hwnd,title,exe,class,ts,x,y,w,h,"
          . " image_path,image_format,image_bytes,image_hash,b64,b64_len,"
-         . " bin_text,bin_w,bin_h,threshold,ocr_text) "
-         . "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+         . " bin_text,bin_w,bin_h,threshold,ocr_text,url,url_source,search_query,visual_signature) "
+         . "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
          , e["cycle_id"], e["win_id"], e["app_id"], e["hwnd"], e["title"], e["exe"], e["class"]
          , e["ts"], e["x"], e["y"], e["w"], e["h"]
          , e["image_path"], e["image_format"], e["image_bytes"], e["image_hash"]
          , e["b64"], e["b64_len"], e["bin_text"], e["bin_w"], e["bin_h"], e["threshold"]
-         , e.Has("ocr_text") ? e["ocr_text"] : "")
+         , e.Has("ocr_text") ? e["ocr_text"] : ""
+         , e.Has("url") ? e["url"] : ""
+         , e.Has("url_source") ? e["url_source"] : ""
+         , e.Has("search_query") ? e["search_query"] : ""
+         , e.Has("visual_signature") ? e["visual_signature"] : "")
     return db.LastInsertId()
+}
+
+; ═══════════════════════════════════════════════════════════════════════════════
+; SNAPSHOT EXCLUSIONS
+; ═══════════════════════════════════════════════════════════════════════════════
+
+; Add (or reactivate) a perceptual-image exclusion. The signature is a compact
+; 64-bit dHash written as sixteen hex characters by SnapshotEngine.ahk.
+TrackDB_AddSignatureExclusion(signature, tolerance := 5, note := "") {
+    db := TrackDB()
+    if !db || signature = ""
+        return 0
+    row := db.QueryRow("SELECT id FROM snap_exclusion WHERE kind='signature' "
+                     . "AND signature=? LIMIT 1", signature)
+    if row.Count {
+        db.Run("UPDATE snap_exclusion SET active=1,tolerance=?,note=? WHERE id=?"
+             , tolerance, note, row["id"])
+        return Integer(row["id"])
+    }
+    db.Run("INSERT INTO snap_exclusion(kind,signature,tolerance,note,active,created_ts) "
+         . "VALUES('signature',?,?,?,1,?)", signature, tolerance, note, TrackTS())
+    return db.LastInsertId()
+}
+
+; Window rules use case-insensitive substring matching for the title and exact
+; executable/class matches when those values are present.
+TrackDB_AddWindowExclusion(titlePattern, exe := "", class := "", note := "") {
+    db := TrackDB()
+    titlePattern := Trim(titlePattern)
+    if !db || (titlePattern = "" && exe = "" && class = "")
+        return 0
+    row := db.QueryRow("SELECT id FROM snap_exclusion WHERE kind='window' "
+                     . "AND lower(COALESCE(title_pattern,''))=lower(?) "
+                     . "AND lower(COALESCE(exe,''))=lower(?) "
+                     . "AND lower(COALESCE(class,''))=lower(?) LIMIT 1"
+                     , titlePattern, exe, class)
+    if row.Count {
+        db.Run("UPDATE snap_exclusion SET active=1,note=? WHERE id=?", note, row["id"])
+        return Integer(row["id"])
+    }
+    db.Run("INSERT INTO snap_exclusion(kind,title_pattern,exe,class,note,active,created_ts) "
+         . "VALUES('window',?,?,?,?,1,?)", titlePattern, exe, class, note, TrackTS())
+    return db.LastInsertId()
+}
+
+TrackDB_ActiveSignatureExclusions() {
+    db := TrackDB()
+    if !db
+        return []
+    return db.Query("SELECT id,signature,tolerance FROM snap_exclusion "
+                  . "WHERE active=1 AND kind='signature' AND signature<>''")
+}
+
+; Return the matching window rule, or an empty Map.
+TrackDB_FindWindowExclusion(title, exe := "", class := "") {
+    db := TrackDB()
+    if !db
+        return Map()
+    rows := db.Query("SELECT * FROM snap_exclusion WHERE active=1 AND kind='window'")
+    titleL := StrLower(title), exeL := StrLower(exe), classL := StrLower(class)
+    for r in rows {
+        pat := StrLower(r["title_pattern"])
+        ruleExe := StrLower(r["exe"])
+        ruleClass := StrLower(r["class"])
+        if (pat != "" && !InStr(titleL, pat))
+            continue
+        if (ruleExe != "" && ruleExe != exeL)
+            continue
+        if (ruleClass != "" && ruleClass != classL)
+            continue
+        return r
+    }
+    return Map()
+}
+
+TrackDB_BumpSnapshotExclusion(ruleId, count := 1) {
+    db := TrackDB()
+    if !db || !ruleId || count < 1
+        return false
+    db.Run("UPDATE snap_exclusion SET match_count=match_count+?,last_match_ts=? WHERE id=?"
+         , count, TrackTS(), ruleId)
+    return true
+}
+
+TrackDB_DisableSnapshotExclusion(ruleId) {
+    db := TrackDB()
+    if !db || !ruleId
+        return false
+    db.Begin()
+    try {
+        db.Run("UPDATE snap_exclusion SET active=0 WHERE id=?", ruleId)
+        ; Historical files were only hidden, never removed. Restore exactly the
+        ; rows hidden by this rule when the user disables it.
+        db.Run("UPDATE snap_entry SET is_excluded=0,exclusion_reason='' "
+             . "WHERE exclusion_reason=?", "rule:" . ruleId)
+        db.Commit()
+    } catch as err {
+        db.Rollback()
+        throw err
+    }
+    return true
 }
 
 TrackDB_CycleEntries(cycleId) {

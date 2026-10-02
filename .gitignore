@@ -219,6 +219,25 @@ __marimo__/
 # captured screenshots, or exported tracking data.
 data/
 
+# Machine-local workspace history and generated validation harnesses.
+# These contain absolute paths and/or disposable test output, not source.
+/ExplorerWorkspaceManager.ini
+/CustomMenuFiles/settings.ini
+/CustomMenuFiles/tools/ExplorerWorkspaceManager.ini
+/GlobalConsoleCommandMenu.ini
+/CustomMenuFiles/tools/GlobalConsoleCommandMenu.ini
+/_codex_*
+/_snaptest/
+
+# Real-person resume/profile fixtures and generated ATS measurements are local
+# data. Keep synthetic fixtures elsewhere if the project needs committed tests.
+/projs/Ollama_Job_Automation_Studio_v1.2/sample_data/
+
+# Portable workflows/spools saved at the repository root are user runtime data.
+# Curated examples belong under a named examples/test folder instead.
+/*.maw
+/*.mas
+
 # Heavy binaries, OCR models, databases, captures, backups (keep local only)
 *.zip
 *.exe
@@ -234,6 +253,14 @@ data/
 *.jpeg
 *.bmp
 *.pdf
+*.tmp
+*.temp
+*.dmp
+*.stackdump
+*.pem
+*.p12
+*.pfx
+*.key
 bin/
 logs/
 Screenshots/

@@ -239,6 +239,16 @@ Snap_CaptureWindow(cycleId, cycleDir, hwnd, index) {
     try title := WinGetTitle("ahk_id " . hwnd)
     try exe := WinGetProcessName("ahk_id " . hwnd)
     try class := WinGetClass("ahk_id " . hwnd)
+
+    ; Window exclusions are checked before any bitmap/OCR work. This is the
+    ; cheap path used for persistent UI overlays such as GlobalCoder Overlay.
+    windowRule := Map()
+    try windowRule := TrackDB_FindWindowExclusion(title, exe, class)
+    if windowRule.Count {
+        try TrackDB_BumpSnapshotExclusion(windowRule["id"])
+        return false
+    }
+
     WinGetPos(&wx, &wy, &ww, &wh, "ahk_id " . hwnd)
     if (ww < 1 || wh < 1)
         return false
@@ -267,6 +277,16 @@ Snap_CaptureWindow(cycleId, cycleDir, hwnd, index) {
         TrackLogError("Snap_Resolve", err)
     }
 
+    ; ─── Page identity: live URL + a searchable phrase from the title ────────
+    urlInfo := Map("url", "", "source", "")
+    try urlInfo := BrowserUrl_FromWindow(hwnd, exe)
+    catch as err
+        TrackLogError("Snap_BrowserUrl", err)
+    titleClue := Map("query", "")
+    try titleClue := SnapClue_FromTitle(title)
+    catch as err
+        TrackLogError("Snap_TitleClue", err)
+
     ; ─── 1. RAW IMAGE to disk ────────────────────────────────────────────────
     ext := (g_SnapImageFormat = "jpg") ? "jpg" : "png"
     fileName := Format("{:02d}", index) . "_" . TrackSafeName(title = "" ? exe : title)
@@ -282,6 +302,17 @@ Snap_CaptureWindow(cycleId, cycleDir, hwnd, index) {
     Gdip_DisposeImage(pBitmap)
     if !saveOk
         return false
+
+    ; A 64-bit perceptual dHash recognizes the same whole-window picture after
+    ; PNG recompression or small colour changes. Compare before base64, binary
+    ; conversion and OCR; excluded fresh captures never enter the archive.
+    visualSignature := Snap_VisualSignature(imgPath)
+    signatureRuleId := Snap_FindSignatureExclusion(visualSignature)
+    if signatureRuleId {
+        try FileDelete(imgPath)
+        try TrackDB_BumpSnapshotExclusion(signatureRuleId)
+        return false
+    }
 
     imgBytes := 0
     try imgBytes := FileGetSize(imgPath)
@@ -326,7 +357,15 @@ Snap_CaptureWindow(cycleId, cycleDir, hwnd, index) {
         "bin_w", bin["w"],
         "bin_h", bin["h"],
         "threshold", bin["threshold"],
-        "ocr_text", ocrText
+        "ocr_text", ocrText,
+        ; Page identity captured live: the address bar is read out of the
+        ; browser's accessibility tree right now, while the page is open. This
+        ; is what makes a snapshot traceable back to its source later on -
+        ; reconstructing it from a truncated filename afterwards is guesswork.
+        "url", urlInfo["url"],
+        "url_source", urlInfo["source"],
+        "search_query", titleClue["query"],
+        "visual_signature", visualSignature
     )
     try TrackDB_AddSnapEntry(entry)
     catch as err {
@@ -648,6 +687,84 @@ SnapGdip_GetPixel(pBitmap, x, y) {
 SnapGdip_Dispose(pBitmap) {
     if pBitmap
         DllCall("gdiplus\GdipDisposeImage", "Ptr", pBitmap)
+}
+
+; ═══════════════════════════════════════════════════════════════════════════════
+; WHOLE-IMAGE PERCEPTUAL SIGNATURES
+; ═══════════════════════════════════════════════════════════════════════════════
+
+; Difference hash: sample a 9x8 grid and encode whether each pixel is brighter
+; than its neighbour. The result is scale-independent and compact enough to
+; compare against every archived snapshot without storing another image.
+Snap_VisualSignature(path) {
+    if !FileExist(path)
+        return ""
+    pBitmap := SnapGdip_LoadFile(path)
+    if !pBitmap
+        return ""
+    w := 0, h := 0
+    SnapGdip_Dimensions(pBitmap, &w, &h)
+    if (w < 2 || h < 2) {
+        SnapGdip_Dispose(pBitmap)
+        return ""
+    }
+
+    hash := "", nibble := 0, nibbleBits := 0
+    row := 0
+    while (row < 8) {
+        sy := Round(row * (h - 1) / 7)
+        col := 0
+        while (col < 8) {
+            sx1 := Round(col * (w - 1) / 8)
+            sx2 := Round((col + 1) * (w - 1) / 8)
+            c1 := SnapGdip_GetPixel(pBitmap, sx1, sy)
+            c2 := SnapGdip_GetPixel(pBitmap, sx2, sy)
+            l1 := (((c1 >> 16) & 0xFF) * 38 + ((c1 >> 8) & 0xFF) * 75 + (c1 & 0xFF) * 15) >> 7
+            l2 := (((c2 >> 16) & 0xFF) * 38 + ((c2 >> 8) & 0xFF) * 75 + (c2 & 0xFF) * 15) >> 7
+            nibble := (nibble << 1) | (l1 > l2 ? 1 : 0)
+            nibbleBits++
+            if (nibbleBits = 4) {
+                hash .= Format("{:X}", nibble)
+                nibble := 0, nibbleBits := 0
+            }
+            col++
+        }
+        row++
+    }
+    SnapGdip_Dispose(pBitmap)
+    return hash
+}
+
+; Hamming distance between two sixteen-hex-character signatures.
+Snap_SignatureDistance(a, b) {
+    static pop := [0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4]
+    static hex := "0123456789ABCDEF"
+    a := StrUpper(a), b := StrUpper(b)
+    if (StrLen(a) != 16 || StrLen(b) != 16)
+        return 999
+    distance := 0
+    Loop 16 {
+        av := InStr(hex, SubStr(a, A_Index, 1)) - 1
+        bv := InStr(hex, SubStr(b, A_Index, 1)) - 1
+        if (av < 0 || bv < 0)
+            return 999
+        distance += pop[(av ^ bv) + 1]
+    }
+    return distance
+}
+
+; Return the first active signature rule within its configured tolerance.
+Snap_FindSignatureExclusion(signature) {
+    if signature = ""
+        return 0
+    rules := []
+    try rules := TrackDB_ActiveSignatureExclusions()
+    for r in rules {
+        tolerance := IsNumber(r["tolerance"]) ? Integer(r["tolerance"]) : 5
+        if (Snap_SignatureDistance(signature, r["signature"]) <= tolerance)
+            return Integer(r["id"])
+    }
+    return 0
 }
 
 ; ═══════════════════════════════════════════════════════════════════════════════

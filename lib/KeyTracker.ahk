@@ -473,6 +473,9 @@ KeyTrack_TopHotkeys(winId := 0, limit := 100) {
         return db.Query("SELECT combo, count, last_ts FROM hotkey_stat WHERE win_id=? "
                       . "ORDER BY count DESC LIMIT ?", winId, limit)
     }
+    ; All windows: aggregate the same combo across every window.
+    return db.Query("SELECT combo, SUM(count) AS count, MAX(last_ts) AS last_ts "
+                  . "FROM hotkey_stat GROUP BY combo ORDER BY count DESC LIMIT ?", limit)
 }
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; DASHBOARD COMPATIBILITY

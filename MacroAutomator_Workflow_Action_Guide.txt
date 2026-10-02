@@ -172,6 +172,53 @@ Create and test named patterns on the Patterns tab before using these actions.
     Timeout (optional): maximum milliseconds.
     Example: Pattern=LoadingSpinner, Timeout=10000
 
+16b. Find & Click Loop
+    Pattern (required): saved pattern name to find and click repeatedly.
+    Options (optional): a semicolon list of key=value pairs. When you select the
+    action the Options field is pre-filled with every knob at its default so you
+    can see and tweak what is available. Blank values are simply ignored.
+
+    Purpose: click MANY on-screen buttons that share one pattern, scrolling down
+    to reveal more, until the list runs out or a cap is hit. Ideal when each click
+    changes the clicked button's own look (e.g. Follow -> Following), so a fresh
+    search always lands on the next un-clicked one. Press ESC to abort at any time.
+
+    Options and defaults:
+      win=            lock to a window title: activate it, search ONLY inside it,
+                      and aim the scroll wheel at it. Blank = whole screen.
+      scroll=-3       wheel notches per scroll. Negative scrolls down, positive up.
+      settle=600      milliseconds to wait AFTER each click before searching again
+                      (give the page time to update the button it just changed).
+      scrollSettle=   milliseconds to wait after each scroll. Blank = same as settle.
+      maxClicks=90    stop after this many total clicks (hard safety cap).
+      maxScrolls=6    how many empty scrolls in a row mean "reached the end" and stop.
+      button=Left     Left or Right click.
+      clicks=1        clicks per find (2 = double-click each button).
+      top=            start at the top first: top=home sends Ctrl+Home, or a number
+                      like top=10 sends that many wheel-ups. Blank = start where you are.
+      focus=          click once before looping to focus the window/page:
+                      focus=x,y for a point, or focus=center for the window center.
+      popup=          title of an interrupting dialog (e.g. a Save window). If it
+                      appears mid-run, the loop handles it and then resumes. Blank
+                      = no popup handling.
+      popupDo=enter   what to do when the popup shows up:
+                        enter            press Enter (the usual default button)
+                        send:!s          send keys, e.g. Alt+S  (send:^s for Ctrl+S)
+                        pattern:SaveBtn  find & click a saved FindText pattern
+      tol=            FindText tolerance override. Blank = the Settings default.
+
+    How it stops: it clicks every match it can see, scrolls down when the view has
+    none left, and finishes when either maxScrolls empty scrolls happen in a row
+    (end of list) or maxClicks is reached.
+
+    Example (90 browser buttons, locked to Chrome, jump to top first, focus click):
+      Pattern=FollowButton
+      Options=win=Chrome; scroll=-3; settle=800; maxClicks=90; maxScrolls=6; top=home; focus=center
+
+    Example (same, but a Save dialog sometimes pops up - press Enter and resume):
+      Pattern=FollowButton
+      Options=win=Chrome; scroll=-3; settle=800; maxClicks=90; popup=Save; popupDo=enter
+
 
 KEYBOARD, TEXT, AND CLIPBOARD ACTIONS
 ------------------------------------

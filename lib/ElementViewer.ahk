@@ -736,7 +736,7 @@ Vw_OpenRawFile(*) {
     global g_VwEntry
     if (g_VwEntry.Count && g_VwEntry["image_path"] != "" && FileExist(g_VwEntry["image_path"]))
         try Run(g_VwEntry["image_path"])
-    else
+    ;else
         ShowStatus("No image file", "fail")
 }
 

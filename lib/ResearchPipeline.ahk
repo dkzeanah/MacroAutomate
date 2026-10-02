@@ -333,20 +333,30 @@ Research_ExtractUrls(text) {
     urls := []
     seen := Map()
     pos := 1
-    while (pos := RegExMatch(text, "https?://[^\s""'<>()\]}]+", &m, pos)) {
+
+    while (pos := RegExMatch(text, "https?://[^]\s`"'<>()}]+", &m, pos)) {
         u := m[0]
+
         ; Trim trailing punctuation that commonly clings to URLs in prose.
         u := RegExReplace(u, "[.,;:!?]+$")
+
+        ; Advance past the current match.
         pos += StrLen(m[0])
+
+        ; Ignore obviously invalid/short URLs.
         if (StrLen(u) < 12)
             continue
-        ; Skip Google's own chrome (result pages link back to google infra).
+
+        ; Skip Google's own infrastructure/result URLs.
         if (u ~= "i)google\.com/(search|imgres|url\?)")
             continue
+
+        ; Prevent duplicate URLs.
         if !seen.Has(u) {
             seen[u] := true
             urls.Push(u)
         }
     }
+
     return urls
 }
