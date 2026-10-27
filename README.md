@@ -7,7 +7,7 @@ AutoHotkey v2 automation toolkit: `macroautomerv7.ahk` is the main app (visual `
 | Path | Contents |
 |---|---|
 | root `*.ahk` | Main app (`macroautomerv7.ahk`) and the directly-includable libraries (`FindText.ahk`, `OCR.ahk`, `SQLiteDB.ahk`, `Acc.ahk`, `Vis2.ahk`, `AHKv2_Screenshotter.ahk`, `ahkmcodegen.ahk`). |
-| `lib/` | Supporting AHK modules — the behavior-tracking subsystem (`WindowTracker`, `MouseTracker`, `KeyTracker`, `SnapshotEngine`, `TrackingDB`, `TrackingDashboard`, …), screenshot tools, `Gdip_All`, `ImagePut`, `JSON`, and ahkmcodegen's `_*.ahk` helpers. |
+| `lib/` | Supporting AHK modules — the behavior-tracking subsystem (`WindowTracker`, `MouseTracker`, `KeyTracker`, `SnapshotEngine`, `TrackingDB`, `TrackingDashboard`, …); the automation/decision layer (`ElementAutomation`, `ElementSafety`, `TieredAutomation`, `ResearchPipeline`); screenshot tools, `Gdip_All`, `ImagePut`, `JSON`, and ahkmcodegen's `_*.ahk` helpers. |
 | `test/` | Everything not part of the shipping app: `tools/` (loose utilities), `variants/` (alternate copies of libraries), `macroautomator-history/` (older `MacroAutomator_*`/`macroautomerv7` versions), plus sample project folders and demo data. |
 | `*.md`, `*_GUIDE.txt` | Documentation — this file, [`TRACKING_GUIDE.md`](TRACKING_GUIDE.md), [`SPOOL_WORKFLOW_GUIDE.txt`](SPOOL_WORKFLOW_GUIDE.txt), [`VISUAL_GUIDE.txt`](VISUAL_GUIDE.txt), and the feature/action guides. |
 
@@ -342,6 +342,7 @@ See the preserved original project guide in [`ahkmcodegen_README.md`](ahkmcodege
 - [`Vis2_README.md`](Vis2_README.md): the original Vis2 guide formerly named `README.md` at the root.
 - [`AHKv2_Screenshot_Tools_README.md`](AHKv2_Screenshot_Tools_README.md): the screenshot tools guide formerly named `README (2).md`.
 - [`ahkmcodegen_README.md`](ahkmcodegen_README.md): the MCode generator guide formerly named `README (3).md`.
+- [`DAA_ARCHITECTURE.md`](DAA_ARCHITECTURE.md): the automation engine's design — the DAA learning core, the tiered "programmatic-expense hierarchy" (`TieredAutomation.ahk`), the element safety model (`ElementSafety.ahk`), and a detailed explanation of how Chrome is driven from the `.ahk` code (window-level control plus OCR/pixel/accessibility reading of the page).
 - [`Ollama_Job_Automation_Studio_README.md`](Ollama_Job_Automation_Studio_v1.2/Ollama_Job_Automation_Studio_README.md): the Ollama Job Automation Studio guide formerly named `README.md` in that project folder.
 
 The Ollama project is separate from the seven AutoHotkey components documented here.
