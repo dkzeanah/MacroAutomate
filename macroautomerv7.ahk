@@ -66,6 +66,7 @@ CoordMode("ToolTip", "Screen") ; Tooltip positioning relative to screen
 #Include lib\ElementAutomation.ahk
 #Include lib\ElementSafety.ahk
 #Include lib\TieredAutomation.ahk
+#Include lib\ExplorerAgent.ahk
 #Include lib\ElementViewer.ahk
 #Include lib\ResearchPipeline.ahk
 #Include lib\TrackingDashboard.ahk

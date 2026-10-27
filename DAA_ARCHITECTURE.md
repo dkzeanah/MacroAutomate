@@ -232,6 +232,28 @@ fields)" distinction, made enforceable. `Safety_AuditRegistry()` prints the whol
 element registry grouped by class so you can see, before letting the learner
 loose on a new app, what is off-limits.
 
+### The safe explorer (passive learning in action)
+
+File: **`lib/ExplorerAgent.ahk`**. This is the agent that *uses* the safety model
+to learn a window on its own. `Explore_Window("A")`:
+
+1. **Looks** — OCRs the window's screen rectangle (`OCR.FromRect`) and gets every
+   recognised word with its on-screen position.
+2. **Understands** — runs each word (with its line as context) through
+   `Safety_ClassifyName`, tagging it passive / input / volatile / unknown.
+3. **Catalogs & remembers** — returns the catalog and writes it to an
+   `explore_probe` table so knowledge of the window accumulates across runs.
+
+That default run **touches nothing** — no clicks, no typing — so it is safe on a
+logged-in page. Two behaviours are opt-in: `opts["hover"]` (move the mouse over
+controls — still non-destructive) and `opts["click"]` (**probe**). Probing is
+strictly gated: it clicks **only** controls classified `passive`, caps the count
+(`maxProbes`), presses Escape afterwards to collapse transient menus, and records
+whether the click changed the window. `Explore_Informative(window)` reads that
+evidence back — the passive controls that reliably reveal something — which is the
+engine's self-built cheat-sheet of what in a window is worth exploring. Volatile,
+input, and unknown controls are never auto-clicked, by any path.
+
 ---
 
 ## 5. The research coagulation loop

@@ -7,7 +7,7 @@ AutoHotkey v2 automation toolkit: `macroautomerv7.ahk` is the main app (visual `
 | Path | Contents |
 |---|---|
 | root `*.ahk` | Main app (`macroautomerv7.ahk`) and the directly-includable libraries (`FindText.ahk`, `OCR.ahk`, `SQLiteDB.ahk`, `Acc.ahk`, `Vis2.ahk`, `AHKv2_Screenshotter.ahk`, `ahkmcodegen.ahk`). |
-| `lib/` | Supporting AHK modules — the behavior-tracking subsystem (`WindowTracker`, `MouseTracker`, `KeyTracker`, `SnapshotEngine`, `TrackingDB`, `TrackingDashboard`, …); the automation/decision layer (`ElementAutomation`, `ElementSafety`, `TieredAutomation`, `ResearchPipeline`); screenshot tools, `Gdip_All`, `ImagePut`, `JSON`, and ahkmcodegen's `_*.ahk` helpers. |
+| `lib/` | Supporting AHK modules — the behavior-tracking subsystem (`WindowTracker`, `MouseTracker`, `KeyTracker`, `SnapshotEngine`, `TrackingDB`, `TrackingDashboard`, …); the automation/decision layer (`ElementAutomation`, `ElementSafety`, `TieredAutomation`, `ExplorerAgent`, `ResearchPipeline`); screenshot tools, `Gdip_All`, `ImagePut`, `JSON`, and ahkmcodegen's `_*.ahk` helpers. |
 | `test/` | Everything not part of the shipping app: `tools/` (loose utilities), `variants/` (alternate copies of libraries), `macroautomator-history/` (older `MacroAutomator_*`/`macroautomerv7` versions), plus sample project folders and demo data. |
 | `*.md`, `*_GUIDE.txt` | Documentation — this file, [`TRACKING_GUIDE.md`](TRACKING_GUIDE.md), [`SPOOL_WORKFLOW_GUIDE.txt`](SPOOL_WORKFLOW_GUIDE.txt), [`VISUAL_GUIDE.txt`](VISUAL_GUIDE.txt), and the feature/action guides. |
 
