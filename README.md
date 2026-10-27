@@ -1,6 +1,18 @@
 # MacroAutomate
 
-AutoHotkey v2 automation toolkit: `macroautomerv7.ahk` is the main app (visual `FindText` pattern matching, Windows OCR, SQLite-backed workflow/spool storage, behavior tracking). The root also ships seven reusable automation components plus their bundled dependencies — five include directly into an AutoHotkey v2 script, Vis2 requires AutoHotkey v1, and ahkmcodegen is a standalone v2 development tool.
+AutoHotkey v2 automation toolkit. The root also ships seven reusable automation components plus their bundled dependencies — five include directly into an AutoHotkey v2 script, Vis2 requires AutoHotkey v1, and ahkmcodegen is a standalone v2 development tool.
+
+> **Canonical build: `fan/` (`fan/MacroAutomator.ahk`).** The multi-file `/fan` project is the current app — one file per GUI tab, all sharing the root `lib/*.ahk`. See **[fan/README.md](fan/README.md)**. The old single-file main scripts are retired and renamed `*-sunset.ahk` (`macroautomaterv9-chatgpt-sunset.ahk`, `macroautomaterv9-deepseek-sunset.ahk`, `macroautomerv8-sunset.ahk`, `macroautomerv7-sunset.ahk`). The `Run_macroautomerv7_Logged.cmd` / `Run_macroautomerv8_Logged.cmd` launchers now **redirect to `/fan`**; `fan/Run_MacroAutomator_Logged.cmd` is the primary launcher.
+
+## LLM usage (DeepSeek) — quickstart
+
+The Study Assistant (tab 18) and Live Portal (tab 19) call **DeepSeek**. The study answer engine is **local-first**: it reuses verified answers and reasons over your ingested material, and only calls the API when local evidence is insufficient.
+
+- **Models:** `deepseek-v4-pro` (text reasoning) and `deepseek-flash` (vision — images, diagrams, uncertain OCR). The old `deepseek-v4-flash-vision-exp` name is a retired alias that now routes to `deepseek-flash`.
+- **API key — never stored in this repo.** Provide it either as the `DEEPSEEK_API_KEY` environment variable, or via the Study Assistant tab's **Save API key…** button, which stores it in **Windows Credential Manager** (target `MacroAutomator/DeepSeek`, DPAPI-protected per user). The key is never written to source, settings, SQLite, logs, screenshots, or request diagnostics. **Rotate any key that has been pasted into a chat or committed anywhere.**
+- **Controls:** a per-session **cost cap** (default `$2.00`), a **Test / probe** button (`GET /models`), retry/backoff on throttling, and cancel. A model answer is always provisional until you confirm it (or portal feedback confirms it).
+
+Full setup, the layered engine, vision, privacy, and the DeepSeek Bridge are documented in **[fan/README.md → LLM usage guide (DeepSeek)](fan/README.md#llm-usage-guide-deepseek)**.
 
 ## Repository structure
 

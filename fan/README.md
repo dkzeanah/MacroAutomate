@@ -242,6 +242,82 @@ the project root's `lib\` folder) are still included from the original project
 root via `..\`-relative `#Include` paths — they were already separate files and
 are shared, not copied.
 
+## LLM usage guide (DeepSeek)
+
+This is the practical setup + usage reference for the DeepSeek integration used
+by the Study Assistant (tab 18) and Live Portal (tab 19). The modules involved
+are `lib\StudyLLM.ahk` (provider), `lib\StudyDB.ahk` / `lib\StudyAssistant.ahk`
+(the answer engine + memory), `lib\StudyIngest.ahk` (material ingestion), and on
+the automation side `lib\StudyLive.ahk` / `lib\StudyComposer.ahk`.
+
+### 1. Provide the API key (never stored in the repo)
+
+The key is read, in order, from:
+
+1. the **`DEEPSEEK_API_KEY`** environment variable, else
+2. **Windows Credential Manager**, generic target **`MacroAutomator/DeepSeek`**
+   (DPAPI-protected per user).
+
+Set it once via the Study Assistant tab's **Save API key…** button (writes it to
+Credential Manager) or by exporting the environment variable. It is never written
+to source, `settings`, SQLite, logs, screenshots, reports, or request
+diagnostics. **Rotate any key that has appeared in a chat message or a commit.**
+Use **Forget key** to remove the stored credential.
+
+### 2. Models
+
+| Purpose | Model ID | Notes |
+|---|---|---|
+| Hard text reasoning | `deepseek-v4-pro` | text only, 1M context |
+| Images / diagrams / uncertain OCR | `deepseek-flash` | vision + text |
+
+The requested `deepseek-v4-flash-vision-exp` name is a **retired alias** that now
+routes to `deepseek-flash`; the app sends the current name. **Test / probe**
+(`GET /models`) confirms the key works and lists the models your account can see.
+
+### 3. How the answer engine uses the model (local-first)
+
+`Study_Answer()` tries these in order and stops at the first that succeeds, so the
+API is a *fallback*, not the default path (spec section 4):
+
+1. a **verified** exact answer for this question — reused with **no API call**
+   ("learn once");
+2. a verified **near-duplicate** question;
+3. **local deduction** over ingested passages + concept relationships;
+4. **DeepSeek** fallback — text, or the **vision** model when a cropped
+   screenshot matters (figure/diagram/chart/table questions, or short/garbled
+   OCR);
+5. otherwise **abstain** and ask you to verify by hand.
+
+A model answer is always a **candidate** until you confirm it (or, in the live
+layer, until portal feedback confirms it). Confirmed answers are reused for free
+thereafter. Images are sent only when needed, as a cropped PNG encoded to a
+base64 data URL, alongside the relevant text/source snippets.
+
+### 4. Cost, limits and cancellation
+
+- **Session cost cap** (Study Assistant tab, default `$2.00`): once the estimated
+  spend hits it, no new API call starts and the portal/UI is left untouched.
+- **Retry/backoff** on HTTP 429 / 5xx; **Cancel request** aborts an in-flight
+  call. Timeouts are set for both text and the slower vision calls.
+- Each call records model ID, token counts and an estimated cost (never the key).
+
+### 5. Turn it on (study layer, no automation)
+
+1. Run `fan\MacroAutomator.ahk`, open **Study Assistant** (tab 18).
+2. **Save API key…**, then **Test / probe** to confirm reachability.
+3. **Import file / Import PDF / Paste notes** to build material; optionally
+   **Read-along** a book on a side monitor.
+4. Select a captured question and **Answer (local evidence only)** or **Answer
+   (allow DeepSeek)**. Review the evidence/confidence, then **Confirm** /
+   **Dispute** / **Mark wrong** / **Edit answer**.
+5. Export a study guide, Anki flashcards, a missed-question list, or concepts;
+   `Ctrl+Shift+8` surfaces the next spaced-review card.
+
+The live automation layer (tab 19) reuses this exact engine — see the Study
+Assistant and DeepSeek Bridge sections below for the session, composer and
+console details.
+
 ## Real-Time Study Assistant
 
 Two new tabs implement `REALTIME_STUDY_ASSISTANT_SPEC.md` (see that file for the
