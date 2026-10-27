@@ -362,6 +362,7 @@ Env_HotMapActive() {
         ShowStatus("Env map: " . (fm.Has("error") ? fm["error"] : "failed"), "fail")
         return
     }
+    try Know_PersistEnvMap(fm)   ; accumulate in the Knowledge dashboard
     json := Env_ToJson(fm)
     try A_Clipboard := json
     path := Env_ExportJson(fm)

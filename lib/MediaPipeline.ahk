@@ -136,20 +136,33 @@ Media_ResolveExe(name, settingKey) {
 Media_FfmpegAvailable() => Media_FfmpegExe() != ""
 
 ; Run an exe with an argument line, capturing combined stdout+stderr.
-; Returns Map(code, out).
+; Returns Map(code, out). The command is written to a temporary .cmd file and
+; run from there, which avoids the nested-quote breakage of `cmd /c "" ... ""`
+; when the arguments themselves contain quoted paths and filter expressions.
 Media_RunCapture(exe, argsLine) {
     out := Map("code", -1, "out", "")
     if (exe = "" || !FileExist(exe))
         return out
-    tmp := Media_TempDir() . "\run_" . A_TickCount . "_" . Random(1000, 9999) . ".txt"
-    cmd := A_ComSpec . ' /c ""' . exe . '" ' . argsLine . ' > "' . tmp . '" 2>&1"'
-    code := -1
-    try code := RunWait(cmd, , "Hide")
-    out["code"] := code
-    if FileExist(tmp) {
-        try out["out"] := FileRead(tmp)
-        try FileDelete(tmp)
+    stamp := A_TickCount . "_" . Random(1000, 9999)
+    d := Media_TempDir()
+    outFile := d . "\run_" . stamp . ".txt"
+    batFile := d . "\run_" . stamp . ".cmd"
+    try {
+        f := FileOpen(batFile, "w")
+        f.Write("@echo off`r`n")
+        f.Write('"' . exe . '" ' . argsLine . ' > "' . outFile . '" 2>&1`r`n')
+        f.Close()
+    } catch {
+        return out
     }
+    code := -1
+    try code := RunWait(A_ComSpec . ' /c "' . batFile . '"', , "Hide")
+    out["code"] := code
+    if FileExist(outFile) {
+        try out["out"] := FileRead(outFile)
+    }
+    try FileDelete(outFile)
+    try FileDelete(batFile)
     return out
 }
 
@@ -199,7 +212,7 @@ Media_ExtractFrames(path, fps := 1, maxFrames := 240) {
         return (out["error"] := "source not found: " . path, out)
     dir := Media_TempDir() . "\frames_" . A_TickCount
     try DirCreate(dir)
-    args := '-hide_banner -y -i "' . path . '" -vf fps=' . fps
+    args := '-y -i "' . path . '" -vf fps=' . fps
           . ' -frames:v ' . maxFrames . ' -q:v 3 "' . dir . '\frame_%06d.jpg"'
     r := Media_RunCapture(exe, args)
     frames := Media_CollectFrames(dir, "frame_", fps)
@@ -221,8 +234,10 @@ Media_ExtractSceneFrames(path, threshold := 0.3, maxFrames := 120) {
         return (out["error"] := "source not found", out)
     dir := Media_TempDir() . "\scenes_" . A_TickCount
     try DirCreate(dir)
-    args := '-hide_banner -y -i "' . path . '" '
-          . '-vf "select=' . "'gt(scene," . threshold . ")'" . ',showinfo" '
+    ; Escape the comma inside gt(scene,THRESH) so ffmpeg does not read it as a
+    ; filter separator. No single quotes (they do not survive the Windows shell).
+    args := '-y -i "' . path . '" '
+          . '-vf "select=gt(scene\,' . threshold . '),showinfo" '
           . '-vsync vfr -frames:v ' . maxFrames . ' "' . dir . '\scene_%06d.jpg"'
     r := Media_RunCapture(exe, args)
     ; pts_time values appear in showinfo stderr, one per emitted frame, in order.
@@ -233,8 +248,10 @@ Media_ExtractSceneFrames(path, threshold := 0.3, maxFrames := 120) {
         pos += StrLen(m[0])
     }
     files := Media_ListSorted(dir, "scene_")
+    ; A video with no hard cuts yields no scene frames - fall back to 1 FPS
+    ; sampling so the analysis still runs instead of failing.
     if !files.Length
-        return (out["error"] := "no scene frames (ffmpeg code " . r["code"] . ")", out)
+        return Media_ExtractFrames(path, 1, maxFrames)
     frames := []
     for i, f in files {
         frames.Push(Map("idx", i, "ts_ms", (i <= times.Length ? times[i] : 0), "path", f))
@@ -525,7 +542,7 @@ Media_ContactSheet(jobId, cols := 5, outPath := "") {
     if (outPath = "")
         outPath := Media_OutDir() . "\contactsheet_" . jobId . ".jpg"
     ; Use the glob of the source dir (frames share one dir per extraction run).
-    args := '-hide_banner -y -pattern_type sequence -i "' . srcDir . '\frame_%06d.jpg" '
+    args := '-y -pattern_type sequence -i "' . srcDir . '\frame_%06d.jpg" '
           . '-vf "scale=320:-1,tile=' . cols . 'x' . rows . '" -frames:v 1 -q:v 3 "' . outPath . '"'
     r := Media_RunCapture(exe, args)
     return FileExist(outPath)
@@ -546,12 +563,12 @@ Media_HighlightClip(srcPath, startMs, endMs, outPath := "") {
     if (outPath = "")
         outPath := Media_OutDir() . "\clip_" . startMs . "_" . endMs . ".mp4"
     ss := Format("{:.3f}", startMs / 1000.0)
-    args := '-hide_banner -y -ss ' . ss . ' -i "' . srcPath . '" -t '
+    args := '-y -ss ' . ss . ' -i "' . srcPath . '" -t '
           . Format("{:.3f}", dur) . ' -c copy "' . outPath . '"'
     r := Media_RunCapture(exe, args)
     if !FileExist(outPath) {
         ; stream-copy can fail on non-keyframe cuts; re-encode as a fallback
-        args := '-hide_banner -y -ss ' . ss . ' -i "' . srcPath . '" -t '
+        args := '-y -ss ' . ss . ' -i "' . srcPath . '" -t '
               . Format("{:.3f}", dur) . ' -c:v libx264 -c:a aac "' . outPath . '"'
         r := Media_RunCapture(exe, args)
     }

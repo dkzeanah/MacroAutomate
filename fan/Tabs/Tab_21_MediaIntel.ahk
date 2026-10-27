@@ -104,6 +104,8 @@ MediaIntel_BuildTab(g) {
     g_MediaCtl["mapWin"].OnEvent("Click", (*) => MediaUI_MapActive())
     g_MediaCtl["mapRegion"].OnEvent("Click", (*) => MediaUI_MapRegion())
     g_MediaCtl["mapImg"].OnEvent("Click", (*) => MediaUI_MapImage())
+    ; Selecting a region flashes it on screen - a "playback" to validate the map.
+    g_MediaCtl["regions"].OnEvent("ItemSelect", (lv, r, sel) => (sel ? MediaUI_RegionSelected(r) : 0))
     g_MediaCtl["envExport"].OnEvent("Click", (*) => MediaUI_EnvExport())
     g_MediaCtl["ffsave"].OnEvent("Click", (*) => MediaUI_SaveFfmpeg())
     g_MediaCtl["probe"].OnEvent("Click", (*) => MediaUI_Probe())
@@ -350,6 +352,7 @@ MediaUI_ShowMap(fm) {
         return
     }
     g_MediaEnvMap := fm
+    try Know_PersistEnvMap(fm)   ; accumulate in the Knowledge dashboard
     ; optional DeepSeek refine
     extra := ""
     if (g_MediaCtl["envRefine"].Value && StudyLLM_HasKey() && fm.Has("image") && fm["image"] != "") {
@@ -381,6 +384,26 @@ MediaUI_EnvExport() {
 MediaUI_EnvStatus(msg) {
     global g_MediaCtl
     try g_MediaCtl["envStatus"].Value := msg
+}
+
+; Playback: flash the selected region's bounds on screen so you can confirm the
+; map lines up with the real element. Screen-anchored maps (window/region) only.
+MediaUI_RegionSelected(row) {
+    global g_MediaEnvMap
+    if (!IsObject(g_MediaEnvMap) || !g_MediaEnvMap.Has("regions"))
+        return
+    regs := g_MediaEnvMap["regions"]
+    if (row < 1 || row > regs.Length)
+        return
+    rg := regs[row]
+    if (g_MediaEnvMap.Has("kind") && g_MediaEnvMap["kind"] = "image") {
+        MediaUI_EnvStatus("Region " . rg["id"] . " [" . rg["role"]
+            . "] - image map has no screen position to flash")
+        return
+    }
+    try FlashHighlight(rg["x"], rg["y"], rg["w"], rg["h"], 3, 220, "match")
+    MediaUI_EnvStatus("Playback: region " . rg["id"] . " [" . rg["role"] . "]  "
+        . rg["x"] . "," . rg["y"] . " " . rg["w"] . "x" . rg["h"])
 }
 
 ; ── settings ──────────────────────────────────────────────────────────────
