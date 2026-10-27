@@ -1,0 +1,12 @@
+{
+  "source": "C:\\Users\\Don\\Desktop\\a-llm-harness-custom",
+  "destination": "C:\\Users\\Don\\Desktop\\aAutomateMacro\\fan\\harness",
+  "mode": "independent copy, originals retained",
+  "runtime": "C:\\Users\\Don\\Desktop\\aAutomateMacro\\fan\\harness\\.venv\\Scripts\\python.exe",
+  "database_roots_rebased": true,
+  "ui": "independent Python application; no Atlas tab in MacroAutomator",
+  "launchers": [
+    "fan/OpenCodeIndex.cmd",
+    "fan/harness/Harness.bat"
+  ]
+}

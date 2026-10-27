@@ -1,0 +1,263 @@
+# SideLearner configuration. Copy to config.yaml (`sl init`) and edit.
+# Everything is local-first: no provider, no problem — routing, planning,
+# skills and heuristics still work; models only enrich.
+
+workspace: "."
+
+# Where captured media (screens, audio, camera), session logs and run state live.
+vault_dir: vault
+
+# ---------------------------------------------------------------------------
+# Providers: any OpenAI-compatible endpoint (Ollama, LM Studio, vLLM, OpenAI,
+# DeepSeek), Anthropic, or CLI agents (Claude Code / Codex) as delegatable
+# coding agents. `tier` drives routing: local < budget < best.
+# ---------------------------------------------------------------------------
+providers:
+  # --- local models via Ollama (http://localhost:11434) -------------------
+  ollama-text:
+    kind: openai_compat
+    base_url: http://localhost:11434/v1
+    api_key: ollama
+    model: llama3.2            # any chat model you pulled: qwen2.5, phi4, ...
+    tier: local
+    tags: [local, private]
+    capabilities: [text]
+
+  ollama-embed:
+    kind: openai_compat
+    base_url: http://localhost:11434/v1
+    api_key: ollama
+    model: nomic-embed-text   # ollama pull nomic-embed-text
+    tier: local
+    capabilities: [text, embed]
+
+  # --- optional vision model for screen/camera description -----------------
+  ollama-vision:
+    kind: openai_compat
+    base_url: http://localhost:11434/v1
+    api_key: ollama
+    model: llama3.2-vision     # or llava, qwen2.5vl
+    tier: local
+    enabled: false             # enable after `ollama pull llama3.2-vision`
+    capabilities: [text, vision]
+
+  # --- hosted APIs (pay-per-use, no monthly subscription needed) ----------
+  deepseek:
+    kind: openai_compat
+    base_url: https://api.deepseek.com/v1
+    api_key: ${DEEPSEEK_API_KEY}
+    model: deepseek-chat
+    tier: budget
+    capabilities: [text]
+
+  openai:
+    kind: openai_compat
+    base_url: https://api.openai.com/v1
+    api_key: ${OPENAI_API_KEY}
+    model: gpt-4o-mini
+    tier: best
+    enabled: false
+    capabilities: [text, vision]
+    stt_model: whisper-1      # enables audio transcription when enabled: true
+    # capabilities: [text, vision, audio]
+
+  anthropic:
+    kind: anthropic
+    api_key: ${ANTHROPIC_API_KEY}
+    model: claude-sonnet-4-20250514
+    tier: best
+    enabled: false
+    capabilities: [text, vision]
+
+  # --- CLI agents: delegate whole coding tasks to other AI systems --------
+  claude-cli:
+    kind: cli_agent
+    flavor: claude
+    permission_mode: plan      # plan | accept_edits | bypass
+    enabled: true              # only usable when `claude` is on PATH
+
+  codex-cli:
+    kind: cli_agent
+    flavor: codex
+    permission_mode: workspace # read_only | workspace | full | ask
+    enabled: true              # only usable when `codex` is on PATH
+
+# ---------------------------------------------------------------------------
+# Pre-LLM router: intent rules + exemplar kNN + tier selection.
+# ---------------------------------------------------------------------------
+router:
+  min_confidence: 0.25
+  tier_fallback: true
+  # Optional extra labeled examples steering the kNN vote:
+  # exemplars:
+  #   - { text: "reconcile the bank statement", intent: workflow, tier: local }
+
+# ---------------------------------------------------------------------------
+# Agent loop (SideLearner's own reasoning scaffolding).
+# ---------------------------------------------------------------------------
+agent:
+  max_steps: 12
+  max_tokens_out: 2048
+  temperature: 0.2
+  compact_at_tokens: 48000
+  ask_permission: false        # set true (or use `sl chat --ask`) to confirm risky tools
+  retrieve_facts: true         # inject relevant twin knowledge into tasks
+  verify_cmd: null             # e.g. "python -m pytest -q" — run after file writes
+  # cli_delegate:               # delegate code_edit tasks to a CLI agent
+  #   agent: codex-cli
+
+# ---------------------------------------------------------------------------
+# Autonomy: the self-directed learning loop (sl run / sl daemon).
+# prompt_mode "ask" (early phase): asks when a pattern is uncertain. After
+# auto_confidence identical confirmations it stops asking — input needs
+# shrink as the twin grows more decisive.
+# ---------------------------------------------------------------------------
+autonomy:
+  enabled: true
+  interval_s: 20.0
+  prompt_mode: ask             # ask | observe (never prompt)
+  screenshot_on_start: true    # analyze the screen immediately on start
+  vision_on_change: true       # periodic screenshot -> vision model -> twin
+  vision_interval_s: 60.0
+  pattern_threshold: 2         # app appearances before it counts as a pattern
+  auto_confidence: 2           # identical confirmations -> auto-answer forever
+  max_open_prompts: 3
+
+# ---------------------------------------------------------------------------
+# Perception: always-on watchers. Local-first; nothing leaves the machine
+# unless vision/transcription providers are explicitly enabled.
+# ---------------------------------------------------------------------------
+perception:
+  screen:
+    enabled: true
+    interval_s: 1.5
+    change_threshold: 0.10
+    max_images: 200
+    ocr:
+      enabled: false           # requires tesseract binary + pytesseract
+      interval_s: 30.0
+    vision:
+      enabled: false           # describe frames via a vision provider
+  window:
+    enabled: true
+    interval_s: 1.0
+  audio:
+    enabled: true
+    sample_rate: 16000
+    block_ms: 30
+    vad_energy: 0.015
+    min_speech_s: 0.4
+    max_speech_s: 30.0
+    silence_s: 0.9            # retained for older configurations
+    long_pause_s: 4.0         # finalize one continuous file after this gap
+    capture_mode: loopback     # desktop playback mix, without interfering
+    loopback: true             # legacy alias for capture_mode: loopback
+    fallback_to_mic: false     # fail closed rather than recording the room
+    transcribe: true
+    partial_every_s: 1.5       # update live overlay while speech continues
+    stt:
+      backend: auto            # faster_whisper locally, audio provider fallback
+      model: small.en          # downloaded once by faster-whisper
+      device: auto             # auto | cpu | cuda
+      compute_type: int8
+      language: null           # null auto-detects; use en to force English
+    max_wavs: 100
+  camera:
+    enabled: false             # set true to enable the always-on camera watcher
+    index: 0
+    interval_s: 2.0
+    face_detect: false
+    max_images: 100
+    vision:
+      enabled: false
+
+# Native always-on-top Windows captions. Toggle at runtime from the dashboard.
+captions:
+  enabled: false
+  position: bottom             # bottom | top
+  font_size: 24
+  max_chars: 280
+  opacity: 0.88
+
+# ---------------------------------------------------------------------------
+# Memory: ledger + knowledge-graph digital twin.
+# ---------------------------------------------------------------------------
+memory:
+  db: memory.db
+  merge_similarity: 0.88
+  query_similarity: 0.25
+  fact_min_confidence: 0.3
+  decay_days: 14.0
+  gap_minutes: 10.0            # learning window before an observation becomes a gap
+  max_facts: 20000
+  auto_compress_every: 60.0
+  compress_min_items: 3
+
+# ---------------------------------------------------------------------------
+# Tools policy.
+# ---------------------------------------------------------------------------
+tools:
+  fs:
+    roots: ["."]               # all fs access stays inside these roots
+    max_read_bytes: 1000000
+  shell:
+    enabled: true
+    timeout_s: 300
+    allowlist: []              # e.g. [python, git, pip] — empty = no allowlist
+    denylist: [format, shutdown, "rm -rf /", "rm -rf ~"]
+  desktop:
+    control_enabled: false     # mouse/keyboard injection is opt-in
+  browser:
+    enabled: true              # set false to disable all browser automation, including MCP Playwright
+
+# ---------------------------------------------------------------------------
+# Business profile: hyper-tune routing + skills for one business.
+# ---------------------------------------------------------------------------
+business:
+  name: accounting-firm        # shown in the agent's system prompt
+  domain: "Public accounting: bookkeeping, invoicing, reconciliations, month-end close"
+  vocabulary:                  # words that push routing toward workflow skills
+    - invoice
+    - reconcile
+    - reconciliation
+    - month-end
+    - payroll
+    - ledger
+    - client
+  workflow_dirs: ["skills/examples"]
+  prompt: "Follow the firm's procedures. When processing financial data, never invent numbers: only report what tool outputs actually contain."
+  # Knowledge hierarchy: facts are classified into these domains.
+  taxonomy:
+    - { name: bookkeeping, keywords: [invoice, reconcile, ledger, quickbooks, payroll, expense, account, statement, tax] }
+    - { name: clients, keywords: [client, customer, vendor, supplier, contact, contract, proposal, meeting, call] }
+    - { name: procedures, keywords: [procedure, process, workflow, step, deploy, run, build, configure, install, checklist] }
+    - { name: tools, keywords: [app, tool, software, vscode, chrome, browser, editor, plugin, shortcut] }
+    - { name: development, keywords: [code, function, class, script, bug, git, repo, test, api, python, commit] }
+
+logging:
+  level: INFO
+  file: null
+
+# ---------------------------------------------------------------------------
+# MCP servers: external tool servers (e.g. Playwright browser automation).
+# If a Playwright MCP server is already running, SideLearner will use it
+# instead of requiring the playwright Python package.
+# ---------------------------------------------------------------------------
+mcp_servers:
+  playwright:
+    enabled: true
+    command: ["npx", "-y", "@anthropic-ai/playwright-mcp-server"]
+    # Alternative: connect to an already-running SSE server:
+    # url: http://localhost:3001/sse
+    timeout: 30.0
+
+# ---------------------------------------------------------------------------
+# Web dashboard: optional FastAPI GUI for status, twin, prompts, chat, skills.
+# The daemon runs fine without it; start it with `sl web start`.
+# ---------------------------------------------------------------------------
+web:
+  enabled: false
+  host: 127.0.0.1
+  port: 8080
+  require_token: false   # set true and provide token to gate write APIs
+  token: null

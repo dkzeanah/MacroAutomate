@@ -78,8 +78,10 @@ BrowserUrl_FromWindow(hwnd, exe := "") {
     best := ""
     try {
         el := root.FindElement({Role: 42}, 4, 1, 0, 12)
-        if IsObject(el)
+        if IsObject(el) {
             try best := Trim(el.Value)
+            out["element"] := el
+        }
     }
     if !BrowserUrl_LooksLikeUrl(best) {
         ; Fallback for layouts where the first text element is not the address
@@ -104,6 +106,7 @@ BrowserUrl_FromWindow(hwnd, exe := "") {
                 if (score > bestScore) {
                     bestScore := score
                     best := val
+                    out["element"] := el2
                 }
             }
         }
@@ -114,7 +117,9 @@ BrowserUrl_FromWindow(hwnd, exe := "") {
     if (best != "") {
         ; Chromium hides the scheme in the omnibox; put it back so the stored
         ; value is a usable link.
-        if !(best ~= "i)^[a-z][a-z0-9+.-]*://")
+        if (best ~= "i)^[a-z]:[/\\]")
+            best := "file:///" . StrReplace(best, "\", "/")
+        else if !(best ~= "i)^[a-z][a-z0-9+.-]*://")
             best := "https://" . best
         out["url"] := best
         out["source"] := "acc"
@@ -125,6 +130,8 @@ BrowserUrl_FromWindow(hwnd, exe := "") {
 ; Does this address-bar value actually look like a location? Guards against
 ; picking up a page search box or a half-typed query.
 BrowserUrl_LooksLikeUrl(v) {
+    if (v ~= "i)^[a-z]:[/\\]")
+        return true
     if (v = "" || InStr(v, " "))
         return false
     if (v ~= "i)^[a-z][a-z0-9+.-]*://\S+")
@@ -289,13 +296,14 @@ ChromeHist_ProfileDirs() {
     return dirs
 }
 
-; Copy one locked Chrome profile database to our data directory. WAL side-files
+; Copy one locked Chrome profile database to the session cache. WAL side-files
 ; travel with it so visits made moments ago are visible in the copy.
 ChromeHist_CopyProfile(profileDir) {
     global DATA_DIR
     SplitPath(profileDir, &profile)
     safe := RegExReplace(profile, "[^A-Za-z0-9_.-]", "_")
-    dest := DATA_DIR . "\chrome_history_" . safe . ".db"
+    SplitPath(Photo_TempPath("db"),, &cacheDir)
+    dest := cacheDir . "\chrome_history_" . safe . ".db"
     ; Chrome may run History in WAL or rollback-journal mode. Copying whichever
     ; side-file exists means a copy taken mid-commit is rolled back to a
     ; consistent state when opened, instead of reading half a transaction.
@@ -1087,6 +1095,10 @@ SnapRec_Search() {
     query := Trim(g_SnapRecQuery.Value)
     if (query = "")
         return
+    if TrackDB_Ready() {
+        SnapRec_SearchDatabase(query)
+        return
+    }
 
     ; Expand any ".." path segments typed into the query (Everything's search
     ; syntax cannot resolve them itself, so such queries return nothing).
@@ -1182,13 +1194,53 @@ SnapRec_Search() {
         . images . " snapshot images listed. Select one to see its evidence." . indexNote
 }
 
+SnapRec_SearchDatabase(query) {
+    global g_SnapRecLV, g_SnapRecRows, g_SnapRecStatus, g_SnapRecUrlOnly
+    sql := "SELECT id,title,exe,class,ts,x,y,w,h,url,url_source,search_query,ocr_text,image_path,image_bytes,image_format,visual_signature FROM snap_entry WHERE COALESCE(is_excluded,0)=0"
+    args := []
+    if RegExMatch(query, "i)\bdc:(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?", &dateRange) {
+        sql .= " AND date(ts)>=? AND date(ts)<=?"
+        args.Push(dateRange[1]), args.Push(dateRange[2] != "" ? dateRange[2] : dateRange[1])
+    }
+    if g_SnapRecUrlOnly
+        sql .= " AND url<>''"
+    if InStr(query, "size:>800kb")
+        sql .= " AND image_bytes>819200"
+    terms := Trim(RegExReplace(query, 'i)(?:\b(?:ancestor|path|parent|folder):(?:"[^"]*"|\S+)|\b(?:file:|dc:\S+|size:\S+))', ""))
+    if terms != "" {
+        sql .= " AND ("
+        for i, term in StrSplit(terms, "|") {
+            sql .= (i > 1 ? " OR " : "") . "(title LIKE ? OR search_query LIKE ? OR exe LIKE ?)"
+            needle := "%" . Trim(term, ' "') . "%"
+            args.Push(needle), args.Push(needle), args.Push(needle)
+        }
+        sql .= ")"
+    }
+    rows := TrackDB().Query(sql . " ORDER BY id DESC LIMIT 1000", args*)
+    g_SnapRecRows := [], g_SnapRecLV.Delete()
+    for entry in rows {
+        clue := SnapClue_FromTitle(entry["title"])
+        clue["app"] := entry["exe"]
+        if entry["search_query"] != ""
+            clue["query"] := entry["search_query"]
+        record := Map("path", "snapshot:" . entry["id"], "file", entry["title"] . "." . entry["image_format"], "ts", entry["ts"], "clue", clue, "url", entry["url"], "entry", entry)
+        g_SnapRecRows.Push(record)
+        g_SnapRecLV.Add(, entry["ts"], clue["query"], clue["site"], entry["url"], clue["app"], g_SnapRecRows.Length)
+    }
+    g_SnapRecStatus.Value := rows.Length . " database photos listed. Select one to view its evidence."
+}
+
 SnapRec_Selected() {
     global g_SnapRecLV, g_SnapRecRows
     row := g_SnapRecLV.GetNext()
     if (!row)
         return Map()
     idx := Integer(g_SnapRecLV.GetText(row, 6))
-    return (idx >= 1 && idx <= g_SnapRecRows.Length) ? g_SnapRecRows[idx] : Map()
+    if idx < 1 || idx > g_SnapRecRows.Length
+        return Map()
+    record := g_SnapRecRows[idx].Clone()
+    record["path"] := Photo_Path(record["path"])
+    return record
 }
 
 SnapRec_OnSelect(lvRow) {

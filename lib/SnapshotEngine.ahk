@@ -4,9 +4,8 @@
 ; Every 5 minutes (configurable) the engine walks every visible top-level
 ; window and, for each, produces THREE linked representations of the same frame:
 ;
-;   1. RAW IMAGE   a full-resolution .png saved to a known, tracked path
-;                  (data\tracking\snapshots\<cycle>\<n>_<window>.png)
-;   2. BASE64      the raw file's bytes, base64-encoded, stored as text in the DB
+;   1. RAW IMAGE   a temporary full-resolution frame used during processing
+;   2. BASE64      the image bytes stored as text in SQLite, the durable photo
 ;   3. BINARY      a thresholded 1-bit "FindText image" in the exact
 ;                  |<>*threshold$W.base64 format FindText itself emits, so it can
 ;                  be pasted straight into a FindText pattern
@@ -47,9 +46,7 @@ global g_SnapOnCycleDone := ""          ; Optional callback(cycleId) after a cyc
 Snap_Init() {
     global g_SnapDir, DATA_DIR
     g_SnapDir := DATA_DIR . "\tracking\snapshots"
-    if !DirExist(g_SnapDir) {
-        try DirCreate(g_SnapDir)
-    }
+    return TrackDB_Ready()
 }
 
 Snap_Start() {
@@ -59,7 +56,8 @@ Snap_Start() {
         if !TrackDB_Init()
             return false
     }
-    Snap_Init()
+    if !Snap_Init()
+        return false
     if g_SnapOn
         return true
 
@@ -112,6 +110,8 @@ Snap_RunCycleNow(note := "") {
 
     if g_SnapBusy
         return 0
+    if !Snap_Init()
+        return 0
     if !TrackDB_Ready()
         return 0
 
@@ -154,11 +154,7 @@ Snap_RunCycleNow(note := "") {
     if !cycleId
         return 0
 
-    Snap_Init()
-    cycleDir := g_SnapDir . "\" . cycleId
-    if !DirExist(cycleDir) {
-        try DirCreate(cycleDir)
-    }
+    cycleDir := ""
 
     g_SnapCycleId := cycleId
     g_SnapQueue := queue
@@ -291,7 +287,9 @@ Snap_CaptureWindow(cycleId, cycleDir, hwnd, index) {
     ext := (g_SnapImageFormat = "jpg") ? "jpg" : "png"
     fileName := Format("{:02d}", index) . "_" . TrackSafeName(title = "" ? exe : title)
               . "." . ext
-    imgPath := cycleDir . "\" . fileName
+    imgPath := Photo_TempPath(ext)
+    ; Image processing can use a scratch file; persistence is Base64 only.
+    cleanup := {__Delete: (*) => FileExist(imgPath) ? FileDelete(imgPath) : 0}
 
     pBitmap := 0
     try pBitmap := Gdip_BitmapFromScreen(capX . "|" . capY . "|" . capW . "|" . capH)
@@ -318,8 +316,11 @@ Snap_CaptureWindow(cycleId, cycleDir, hwnd, index) {
     try imgBytes := FileGetSize(imgPath)
 
     ; ─── 2. BASE64 of the raw file ───────────────────────────────────────────
-    b64 := ""
-    try b64 := TrackBase64EncodeFile(imgPath)
+    b64 := TrackBase64EncodeFile(imgPath)
+    if b64 = ""
+        return false
+    ; Historical image_hash is a cheap prefix/path fingerprint, not a content
+    ; hash. Storage maintenance uses a separate full-file SHA-256 for transfers.
     imgHash := TrackHash(b64 = "" ? imgPath : SubStr(b64, 1, 4096))
 
     ; ─── 3. BINARY (FindText image form) ─────────────────────────────────────
@@ -347,7 +348,7 @@ Snap_CaptureWindow(cycleId, cycleDir, hwnd, index) {
         "class", class,
         "ts", TrackTS(),
         "x", capX, "y", capY, "w", capW, "h", capH,
-        "image_path", imgPath,
+        "image_path", "",
         "image_format", ext,
         "image_bytes", imgBytes,
         "image_hash", imgHash,
@@ -367,7 +368,12 @@ Snap_CaptureWindow(cycleId, cycleDir, hwnd, index) {
         "search_query", titleClue["query"],
         "visual_signature", visualSignature
     )
-    try TrackDB_AddSnapEntry(entry)
+    try {
+        id := TrackDB_AddSnapEntry(entry)
+        if !id
+            return false
+        LearningValidation_Event("Snapshots", "stored", "Snapshot #" . id . " saved as Base64", Map("x", capX, "y", capY, "w", capW, "h", capH), hwnd)
+    }
     catch as err {
         TrackLogError("Snap_AddEntry", err)
         return false

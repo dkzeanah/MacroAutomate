@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-06",
+  "outcome": "PASS",
+  "audit": "C:\\Users\\Don\\Desktop\\aAutomateMacro\\fan\\logs\\study\\20261006-172236-58087140.jsonl",
+  "pages": [
+    {
+      "stage": 1,
+      "solutions": [
+        {
+          "x": "7"
+        }
+      ],
+      "feedback": "Correct answer observed by Windows OCR"
+    },
+    {
+      "stage": 2,
+      "solutions": [
+        {
+          "x": "2"
+        },
+        {
+          "x": "3"
+        }
+      ],
+      "feedback": "Correct answer observed by Windows OCR"
+    },
+    {
+      "stage": 3,
+      "solutions": [
+        {
+          "x": "4",
+          "y": "3"
+        }
+      ],
+      "feedback": "Correct answer observed by Windows OCR"
+    },
+    {
+      "stage": 4,
+      "solutions": [
+        {
+          "x": "4"
+        }
+      ],
+      "feedback": "Correct answer observed by Windows OCR"
+    }
+  ],
+  "audit_events": 1321,
+  "typo_corrections": 9,
+  "pointer_waypoints": 443,
+  "bounded_overshoots": 30,
+  "real_provider_attempts": 9,
+  "estimated_cost_usd": 0.016529159999999998,
+  "automated_checks": {
+    "controller": 59,
+    "memory": 16,
+    "intelligence": 18,
+    "provider": 12,
+    "algebra": 27,
+    "total": 132
+  },
+  "input_driver": "Production AutoHotkey StudyComposer controller; no ChatGPT mouse/keyboard actions",
+  "proofs": [
+    "math_demo_validation.jpg",
+    "math_solver_validation.jpg",
+    "math_console_validation.jpg"
+  ],
+  "scope": "Four exact local practice URLs; CAS proves the transcribed real-domain equation."
+}

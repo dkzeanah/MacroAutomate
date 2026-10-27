@@ -59,8 +59,8 @@ ShowStepPreview(stepData) {
         tip .= "Window: " . stepData["qualWindow"] . "`n"
 
     MouseGetPos(&mx, &my)
-    ToolTip(tip, mx + 20, my + 20)
-    SetTimer(() => ToolTip(), -g_Settings["PreviewTooltipDuration"])
+    TrackToolTip(tip, mx + 20, my + 20)
+    SetTimer(() => TrackToolTip(), -g_Settings["PreviewTooltipDuration"])
 }
 
 Tab_Workflow_Build() {
@@ -1228,7 +1228,7 @@ GetWorkflowActionNames() {
         "Click Element", "Hover Element", "Wait Element", "Replay Window Mouse",
         "Research Search", "Research Capture Links", "Research Launch Next", "Research Add Insight",
         ; ─── Timing & Notices ────────────────────────────────────
-        "Wait", "Show Notification"
+        "Wait", "Show Notification", "Learned Rehearsal Step"
     ]
 }
 
@@ -1286,6 +1286,8 @@ MakeActionSpec(targetLabel, targetHint, paramLabel, paramHint, example, helpText
 
 GetWorkflowActionSpec(action) {
     switch action {
+        case "Learned Rehearsal Step":
+            return MakeActionSpec("","","Saved step","JSON","procedure + step","Replays a saved observed token only in its isolated Learning Workbench fixture.",false,true,false,true,"param")
         case "Click":
             return MakeActionSpec("Position", "name / x,y / demo:key", "Click count", "optional", "Position=demo:notepadedit; count=1", "Uses saved/raw coordinates or a control in the built-in Demo Lab.", true, false, true, true, "target")
         case "Double Click", "Triple Click", "Right Click":
@@ -2025,9 +2027,9 @@ ExportWorkflowData(name, seq) {
     output .= "`r`n[END]`r`n"
 
     try {
-        if FileExist(selectedFile)
-            FileDelete(selectedFile)
-        FileAppend(output, selectedFile, "UTF-8")
+        if FanFileExist(selectedFile)
+            FanFileDelete(selectedFile)
+        FanFileAppend(output, selectedFile, "UTF-8")
         ShowStatus("Exported workflow: " . name, "ok")
         MsgBox("Workflow exported successfully.`n`n" . selectedFile, "Export Complete", "Iconi")
         return true
@@ -2263,7 +2265,7 @@ ReadMawWorkflowFile(selectedFile, &workflowName, &seqData, &errorMessage) {
     workflowName := ""
     seqData := Map()
     errorMessage := ""
-    try content := FileRead(selectedFile, "UTF-8")
+    try content := FanFileRead(selectedFile, "UTF-8")
     catch as err {
         errorMessage := "Could not read the selected file.`n`n" . err.Message
         return false
@@ -2345,7 +2347,7 @@ ImportWorkflow(*) {
     if selectedFile = ""
         return ""
 
-    try content := FileRead(selectedFile, "UTF-8")
+    try content := FanFileRead(selectedFile, "UTF-8")
     catch as err {
         LogErrorToFile(err, "caught", "Read imported workflow")
         MsgBox("Could not read the selected workflow.`n`n" . err.Message, "Import Failed", "Iconx")
@@ -2811,7 +2813,7 @@ SimulateSequence(steps, speedMultiplier := 1.0) {
 
     ; Clear any existing tooltips
     Loop 20
-        ToolTip(, , , A_Index)
+        TrackToolTip(, , , A_Index)
 
     g_SimulationTooltipIndex := 1
 
@@ -2875,7 +2877,7 @@ ShowSimulationTooltip(text, x, y, duration := 3000) {
     offsetX := Mod(g_SimulationTooltipIndex - 1, 5) * 10
     offsetY := (g_SimulationTooltipIndex - 1) * 18
 
-    ToolTip(text, x + 15 + offsetX, y + 15 + offsetY, tipIndex)
+    TrackToolTip(text, x + 15 + offsetX, y + 15 + offsetY, tipIndex)
 
     ; Schedule this specific tooltip to clear
     clearFunc := ClearSpecificTooltip.Bind(tipIndex)
@@ -2889,13 +2891,13 @@ ShowSimulationTooltip(text, x, y, duration := 3000) {
 
 ; Clear a specific tooltip by index
 ClearSpecificTooltip(index) {
-    ToolTip(, , , index)
+    TrackToolTip(, , , index)
 }
 
 ; Clear all simulation tooltips
 ClearAllSimTooltips() {
     Loop 20
-        ToolTip(, , , A_Index)
+        TrackToolTip(, , , A_Index)
 }
 
 

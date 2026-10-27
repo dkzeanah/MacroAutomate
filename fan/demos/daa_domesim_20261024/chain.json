@@ -1,0 +1,5617 @@
+{
+  "ok": true,
+  "chain": {
+    "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+    "created_at": "2026-10-24T10:11:49.891762+00:00",
+    "max_steps": 512,
+    "step_count": 78,
+    "status": "active"
+  },
+  "steps": [
+    {
+      "id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 1,
+      "parent_id": "",
+      "branch": "",
+      "origin": "pre_llm",
+      "tool": "daa_unit_run",
+      "arguments": {
+        "name": "DomeSim feature tour",
+        "inputs": {
+          "hwnd": 333580,
+          "manual": false
+        }
+      },
+      "started_at": "2026-10-24T10:11:49.891762+00:00",
+      "finished_at": "2026-10-24T10:13:52.749127+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "name": "DomeSim feature tour",
+        "revision": 1,
+        "completed": [
+          "prepare_window",
+          "cue_intro",
+          "nav_presentation_lab",
+          "cue_presentation_lab",
+          "nav_presenter_video_studio",
+          "cue_presenter_video_studio",
+          "nav_dome_layer_studio",
+          "cue_dome_layer_studio",
+          "nav_dome_creator",
+          "cue_dome_creator",
+          "nav_dome_home_assembly_line",
+          "cue_dome_home_assembly_line"
+        ],
+        "verified": true,
+        "last_result": {
+          "ok": true,
+          "cue": "Story Editor form visible; final stop of the tour, inspection only, no story edits or publish executed. The tour ends here.",
+          "verified": true,
+          "note": "Pause/gate completed; narration itself was not recorded or verified."
+        },
+        "llm_calls": 0,
+        "note": "Verified means the listed explicit checks passed, not complete application coverage.",
+        "knowledge_reuse": {
+          "id": 60,
+          "mode": "reuse",
+          "reason": "daa_unit_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "6401c8c9b8ab4d29926cefce4e61a57f",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 2,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "prepare",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAAWindowPrepare.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "exe": "python.exe"
+        },
+        "wait": true,
+        "timeout_seconds": 30
+      },
+      "started_at": "2026-10-24T10:11:49.945690+00:00",
+      "finished_at": "2026-10-24T10:11:50.827713+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "8c9dc2e2130d4a04a6cca1b99a377072",
+        "name": "DAAWindowPrepare.ahk",
+        "pid": 2780,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 0.75,
+        "stdout": "WINDOW_READY\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 41,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "8c9dc2e2130d4a04a6cca1b99a377072"
+    },
+    {
+      "id": "05a794de911c4b3694c17117a2f48aae",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 3,
+      "parent_id": "6401c8c9b8ab4d29926cefce4e61a57f",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "hwnd": 333580,
+        "label": "Verified exact target visible/maximized",
+        "phase": "after"
+      },
+      "started_at": "2026-10-24T10:11:50.702651+00:00",
+      "finished_at": "2026-10-24T10:11:50.739588+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "05a794de911c4b3694c17117a2f48aae",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 3,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "cdd33fb612974fcf91a245d4ac78e0d2",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 4,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "intro",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "Safe launcher-form tour of DomeSim Studio: each stop only selects and inspects one feature form; no rendering, export, or run job is executed. The operator may narrate between stops; Continue advances the tour.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:11:50.881516+00:00",
+      "finished_at": "2026-10-24T10:11:51.973830+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "Safe launcher-form tour of DomeSim Studio: each stop only selects and inspects one feature form; no rendering, export, or run job is executed. The operator may narrate between stops; Continue advances the tour.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "17338e9eb16344729beabfc39762fbf7",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 5,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Presentation Lab",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAADomeSimNavigate.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "label": "Presentation Lab"
+        },
+        "wait": true,
+        "timeout_seconds": 90
+      },
+      "started_at": "2026-10-24T10:11:52.035059+00:00",
+      "finished_at": "2026-10-24T10:12:02.343448+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "428786e33e404e56adf053f14e6c6c00",
+        "name": "DAADomeSimNavigate.ahk",
+        "pid": 17512,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 10.109,
+        "stdout": "NAV_VERIFIED:Presentation Lab\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 42,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "428786e33e404e56adf053f14e6c6c00"
+    },
+    {
+      "id": "8d3b1bbd8d3e45b9bac884485cfd582d",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 6,
+      "parent_id": "17338e9eb16344729beabfc39762fbf7",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_probe",
+      "arguments": {
+        "hwnd": 333580
+      },
+      "started_at": "2026-10-24T10:11:52.502023+00:00",
+      "finished_at": "2026-10-24T10:11:54.512031+00:00",
+      "status": "executed",
+      "result": {
+        "browser_context_unknown": 0,
+        "frame": {
+          "frame_id": "fan_20261024101153_2709078_41",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 0
+        },
+        "menu_signature": "",
+        "menus": [],
+        "note": "Cheap live identity/schema/tab probe. Coverage is bounded; historical coordinates are not current input targets.",
+        "ok": 1,
+        "probe_only": 1,
+        "tabs": [],
+        "url": ""
+      },
+      "run_id": ""
+    },
+    {
+      "id": "2fe5ce6aa6de448b8c12b344eb2bf16f",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 7,
+      "parent_id": "17338e9eb16344729beabfc39762fbf7",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_search",
+      "arguments": {
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_presentationlab",
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:11:54.584165+00:00",
+      "finished_at": "2026-10-24T10:11:55.720271+00:00",
+      "status": "executed",
+      "result": {
+        "err0": 0,
+        "err1": 0,
+        "frame": {
+          "frame_id": "fan_20261024101155_2710921_42",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "library": "FindText",
+        "matches": [],
+        "name": "DAADomeNav20261024_presentationlab",
+        "ok": 1,
+        "text": "|<DAADomeNav20261024_presentationlab>**50$124.000000000007k000001s0zk000000y0DH0001s04U230000003E0Zw0005U0G0/rzz7twzxrzTbtzUK7xDkjTD6liPnnltysrb1MMwX2xoMT3UsC63VC1kA5X1k6/rDCvwtbRvrQtnCEK/nD8jRZvjLyxozNHDBt1MzhwW3qED70vLL1ZAYmY5XUmG9zFDzAzhRNaInH+EK9nB8jh5yQnyprjNnDAd1MbAwWkoHzvzvLStjCwmY5zwnm/3FksT3hSM7YwD+EEQH8swDXzzjzrzzzyzrj1zzzz8",
+        "total_matches": 0,
+        "truncated": 0,
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "a28eee34c16e41938eb5504db44357c3",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 8,
+      "parent_id": "17338e9eb16344729beabfc39762fbf7",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "hwnd": 333580,
+        "include_image": 0,
+        "include_ocr": 1,
+        "limit": 60,
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:11:55.772940+00:00",
+      "finished_at": "2026-10-24T10:11:57.323399+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "",
+        "frame": {
+          "frame_id": "fan_20261024101156_2711781_43",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "",
+        "ok": 1,
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "ff55949e02a146e5a4fb91b01a471849",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 9,
+      "parent_id": "17338e9eb16344729beabfc39762fbf7",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_capture",
+      "arguments": {
+        "description": "DomeSim Studio navigation only: Presentation Lab; observed sidebar OCR; always verify resulting heading",
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_presentationlab",
+        "region": {
+          "h": 20,
+          "w": 126,
+          "x": 76,
+          "y": 258
+        },
+        "threshold": "**50"
+      },
+      "started_at": "2026-10-24T10:11:57.412656+00:00",
+      "finished_at": "2026-10-24T10:11:58.018142+00:00",
+      "status": "failed",
+      "result": {
+        "error": "Pattern exists; choose another name or set overwrite=true",
+        "location": "C:\\Users\\Don\\Desktop\\aAutomateMacro\\lib\\FanBridgeVision.ahk:671",
+        "ok": 0,
+        "operation": "FanVision_PatternCapture",
+        "tool": "fan_pattern_capture"
+      },
+      "run_id": ""
+    },
+    {
+      "id": "37102810664a4ad0a9ec649b21741f33",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 10,
+      "parent_id": "17338e9eb16344729beabfc39762fbf7",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "fresh zoned OCR; frame fan_20261024101153_2709078_41",
+        "hwnd": 333580,
+        "label": "Select navigation: Presentation Lab",
+        "phase": "before",
+        "x": 139,
+        "y": 268
+      },
+      "started_at": "2026-10-24T10:11:58.073632+00:00",
+      "finished_at": "2026-10-24T10:11:58.116637+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "37102810664a4ad0a9ec649b21741f33",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 10,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "487f9c658d0d4030974e7d4977a0bb94",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 11,
+      "parent_id": "17338e9eb16344729beabfc39762fbf7",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "grid": 0,
+        "hwnd": 333580,
+        "include_image": 1,
+        "include_ocr": 1,
+        "limit": 100
+      },
+      "started_at": "2026-10-24T10:11:59.090575+00:00",
+      "finished_at": "2026-10-24T10:12:01.643145+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101159_2715265_44_legend.png",
+        "annotated_photo_ref": "photo:3298",
+        "frame": {
+          "frame_id": "fan_20261024101159_2715265_44",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101159_2715265_44.png",
+        "ok": 1,
+        "photo_ref": "photo:3297",
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "bac9e5765fe4451cbde2347299c00b84",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 12,
+      "parent_id": "17338e9eb16344729beabfc39762fbf7",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "Zoned OCR heading in frame fan_20261024101159_2715265_44",
+        "hwnd": 333580,
+        "label": "Verified feature heading: Presentation Lab",
+        "phase": "after",
+        "x": 139,
+        "y": 268
+      },
+      "started_at": "2026-10-24T10:12:02.210558+00:00",
+      "finished_at": "2026-10-24T10:12:02.248035+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "bac9e5765fe4451cbde2347299c00b84",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 12,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "2cf93739986645ac8b4d95e8b3b62ced",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 13,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Presentation Lab",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "Presentation Lab form selected and visible; inspection only, no presentation or export executed.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:12:02.389339+00:00",
+      "finished_at": "2026-10-24T10:12:03.477355+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "Presentation Lab form selected and visible; inspection only, no presentation or export executed.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "3a0b435b560a4d99a2edef5a5c75d7d3",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 14,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Presenter & Video Studio",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAADomeSimNavigate.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "label": "Presenter & Video Studio"
+        },
+        "wait": true,
+        "timeout_seconds": 90
+      },
+      "started_at": "2026-10-24T10:12:03.536922+00:00",
+      "finished_at": "2026-10-24T10:12:15.513244+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "6493fad2dc79459cbfb97ea989ccc01c",
+        "name": "DAADomeSimNavigate.ahk",
+        "pid": 24796,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 11.781,
+        "stdout": "NAV_VERIFIED:Presenter & Video Studio\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 43,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.; this source was already credited in this task; repeated use receives no additional source-generation estimate",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "6493fad2dc79459cbfb97ea989ccc01c"
+    },
+    {
+      "id": "483b9765e5a24d6da7b2f6ee53ad2f73",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 15,
+      "parent_id": "3a0b435b560a4d99a2edef5a5c75d7d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_probe",
+      "arguments": {
+        "hwnd": 333580
+      },
+      "started_at": "2026-10-24T10:12:04.005843+00:00",
+      "finished_at": "2026-10-24T10:12:06.225749+00:00",
+      "status": "executed",
+      "result": {
+        "browser_context_unknown": 0,
+        "frame": {
+          "frame_id": "fan_20261024101204_2720109_45",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 0
+        },
+        "menu_signature": "",
+        "menus": [],
+        "note": "Cheap live identity/schema/tab probe. Coverage is bounded; historical coordinates are not current input targets.",
+        "ok": 1,
+        "probe_only": 1,
+        "tabs": [],
+        "url": ""
+      },
+      "run_id": ""
+    },
+    {
+      "id": "c2d59a33374e48f2af968cebdbcad4f4",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 16,
+      "parent_id": "3a0b435b560a4d99a2edef5a5c75d7d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_search",
+      "arguments": {
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_presentervideostudio",
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:12:06.270674+00:00",
+      "finished_at": "2026-10-24T10:12:07.409529+00:00",
+      "status": "executed",
+      "result": {
+        "err0": 0,
+        "err1": 0,
+        "frame": {
+          "frame_id": "fan_20261024101206_2722546_46",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "library": "FindText",
+        "matches": [],
+        "name": "DAADomeNav20261024_presentervideostudio",
+        "ok": 1,
+        "text": "|<DAADomeNav20261024_presentervideostudio>**50$187.00000000000000000S1s00000000Ts07w0000003U000TU7Ut0Y0001zQ00BY0330000001s000Mk2MrUG0001Uy006y011k000001g0008A1Ank90001sRU03L00jTzyzjvzrzjw5rkmPvwjtz0LyzSTjjwLibXsSD9kwSa2vc9hbWSDkk/y6hQ6S7/rDDvyxbRxrD13Y4SnjAzrgAzjKvnCxZvibRuQnipvi1Vm3ANbaRrq33rfNxaSGNqHjziPrOxq1qN1aQrHCvP1nupgqnB91e87XkRfh0u0rUUP+P9URYUDROqHNgYjZ5zSzypqjx0PRUCZAwryykxihvDgnmK2WTTNzOvnyUBww3CaSNxCM/rStXaMt/1FUcC3hQQ7E71m1aHVC2kQ43XUs3C1bUwMIBUyzD3s1Ul0TBMxVQA23tlqDpVXkQDvwzzTxzQ0TzUD7jyzbw1zDztzyTY",
+        "total_matches": 0,
+        "truncated": 0,
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "5d8dee10a22443cda577667612c5be6a",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 17,
+      "parent_id": "3a0b435b560a4d99a2edef5a5c75d7d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "hwnd": 333580,
+        "include_image": 0,
+        "include_ocr": 1,
+        "limit": 60,
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:12:07.455887+00:00",
+      "finished_at": "2026-10-24T10:12:09.768226+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "",
+        "frame": {
+          "frame_id": "fan_20261024101207_2723468_47",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "",
+        "ok": 1,
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "f3445859d04d40649faf8b5e4fff729c",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 18,
+      "parent_id": "3a0b435b560a4d99a2edef5a5c75d7d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_capture",
+      "arguments": {
+        "description": "DomeSim Studio navigation only: Presenter & Video Studio; observed sidebar OCR; always verify resulting heading",
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_presentervideostudio",
+        "region": {
+          "h": 18,
+          "w": 189,
+          "x": 76,
+          "y": 296
+        },
+        "threshold": "**50"
+      },
+      "started_at": "2026-10-24T10:12:09.891197+00:00",
+      "finished_at": "2026-10-24T10:12:10.651778+00:00",
+      "status": "failed",
+      "result": {
+        "error": "Pattern exists; choose another name or set overwrite=true",
+        "location": "C:\\Users\\Don\\Desktop\\aAutomateMacro\\lib\\FanBridgeVision.ahk:671",
+        "ok": 0,
+        "operation": "FanVision_PatternCapture",
+        "tool": "fan_pattern_capture"
+      },
+      "run_id": ""
+    },
+    {
+      "id": "ba9852ff36164c7f8f7870bc9db5ec10",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 19,
+      "parent_id": "3a0b435b560a4d99a2edef5a5c75d7d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "fresh zoned OCR; frame fan_20261024101204_2720109_45",
+        "hwnd": 333580,
+        "label": "Select navigation: Presenter & Video Studio",
+        "phase": "before",
+        "x": 170,
+        "y": 305
+      },
+      "started_at": "2026-10-24T10:12:10.701353+00:00",
+      "finished_at": "2026-10-24T10:12:10.748777+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "ba9852ff36164c7f8f7870bc9db5ec10",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 19,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "9727b2748dde44dc99658f1d14acd7ef",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 20,
+      "parent_id": "3a0b435b560a4d99a2edef5a5c75d7d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "grid": 0,
+        "hwnd": 333580,
+        "include_image": 1,
+        "include_ocr": 1,
+        "limit": 100
+      },
+      "started_at": "2026-10-24T10:12:11.555493+00:00",
+      "finished_at": "2026-10-24T10:12:14.993629+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101211_2727671_48_legend.png",
+        "annotated_photo_ref": "photo:3300",
+        "frame": {
+          "frame_id": "fan_20261024101211_2727671_48",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101211_2727671_48.png",
+        "ok": 1,
+        "photo_ref": "photo:3299",
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "c2cf952746584f7d81ddf6c581352e3e",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 21,
+      "parent_id": "3a0b435b560a4d99a2edef5a5c75d7d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "Zoned OCR heading in frame fan_20261024101211_2727671_48",
+        "hwnd": 333580,
+        "label": "Verified feature heading: Presenter & Video Studio",
+        "phase": "after",
+        "x": 170,
+        "y": 305
+      },
+      "started_at": "2026-10-24T10:12:15.385669+00:00",
+      "finished_at": "2026-10-24T10:12:15.416169+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "c2cf952746584f7d81ddf6c581352e3e",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 21,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "17de5a6e855e4d8889189bf67618127c",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 22,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Presenter & Video Studio",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "Presenter & Video Studio form visible; inspection only, no recording, streaming, or export executed.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:12:15.584886+00:00",
+      "finished_at": "2026-10-24T10:12:16.675349+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "Presenter & Video Studio form visible; inspection only, no recording, streaming, or export executed.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "4ab6ae554b20465885a7998eb0779fad",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 23,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Dome Layer Studio",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAADomeSimNavigate.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "label": "Dome Layer Studio"
+        },
+        "wait": true,
+        "timeout_seconds": 90
+      },
+      "started_at": "2026-10-24T10:12:16.743519+00:00",
+      "finished_at": "2026-10-24T10:12:24.254475+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "1e015145178c4f5b8f3710297750d19c",
+        "name": "DAADomeSimNavigate.ahk",
+        "pid": 27676,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 7.282,
+        "stdout": "NAV_VERIFIED:Dome Layer Studio\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 45,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.; this source was already credited in this task; repeated use receives no additional source-generation estimate",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "1e015145178c4f5b8f3710297750d19c"
+    },
+    {
+      "id": "6f30c9a0e7e64565893bd4f302a5a29d",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 24,
+      "parent_id": "4ab6ae554b20465885a7998eb0779fad",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_probe",
+      "arguments": {
+        "hwnd": 333580
+      },
+      "started_at": "2026-10-24T10:12:17.237266+00:00",
+      "finished_at": "2026-10-24T10:12:18.554535+00:00",
+      "status": "executed",
+      "result": {
+        "browser_context_unknown": 0,
+        "frame": {
+          "frame_id": "fan_20261024101217_2733375_49",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 0
+        },
+        "menu_signature": "",
+        "menus": [],
+        "note": "Cheap live identity/schema/tab probe. Coverage is bounded; historical coordinates are not current input targets.",
+        "ok": 1,
+        "probe_only": 1,
+        "tabs": [],
+        "url": ""
+      },
+      "run_id": ""
+    },
+    {
+      "id": "63f1b080132340d496af3636b4841f0d",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 25,
+      "parent_id": "4ab6ae554b20465885a7998eb0779fad",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_search",
+      "arguments": {
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_domelayerstudio",
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:12:18.626183+00:00",
+      "finished_at": "2026-10-24T10:12:19.682356+00:00",
+      "status": "executed",
+      "result": {
+        "err0": 0,
+        "err1": 0,
+        "frame": {
+          "frame_id": "fan_20261024101219_2735046_50",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "library": "FindText",
+        "matches": [
+          {
+            "bounds": {
+              "h": 19,
+              "w": "141",
+              "x": 77,
+              "y": 370
+            },
+            "center": {
+              "x": 147,
+              "y": 379
+            },
+            "crosses_zone_boundary": 0,
+            "id": "DAADomeNav20261024_domelayerstudio",
+            "pattern": "DAADomeNav20261024_domelayerstudio",
+            "source": "[retained separately]",
+            "zone_id": "middle-left"
+          }
+        ],
+        "name": "DAADomeNav20261024_domelayerstudio",
+        "ok": 1,
+        "text": "|<DAADomeNav20261024_domelayerstudio>**50$141.000000000000000000007y01zU000000s0000007s000y00Dy000000DU000001zy004k010w000001c000000QCE00bk0/tbxzzDkB1zxvxz2TrxvwyzVPZVzCT31cMQhlz8HI4dMiy6/Atb49tAB2tpAn72CnZCRrYlMaCNnaRVcLavaNsNyQdbatv/4nnCQrgB3zrRzA3nmZBwrPNNaGNGa1VcMCvUN07aIdgav//Ann+IrwB2xlRz83gmbBgrPNTCCNGaT1jrb7jd0TaQvbitv9ltb+ItsByQcgz83ynXCxril0vVtGb11Ushgkt0MD7/siy6DwDxvrjsDzzdbzs3zTzvzyzU00000000007A0000000000000000000000X00000000000000000000004s0000000000000000000000y000000000004",
+        "total_matches": 1,
+        "truncated": 0,
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        },
+        "knowledge_reuse": {
+          "id": 44,
+          "mode": "reuse",
+          "reason": "fan_pattern_search:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "bfb620cc7c3e4d9ca556d4b84562ad43",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 26,
+      "parent_id": "4ab6ae554b20465885a7998eb0779fad",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "live FindText match of retained sidebar pattern; frame fan_20261024101217_2733375_49",
+        "hwnd": 333580,
+        "label": "Select navigation: Dome Layer Studio",
+        "phase": "before",
+        "x": 147,
+        "y": 379
+      },
+      "started_at": "2026-10-24T10:12:19.732602+00:00",
+      "finished_at": "2026-10-24T10:12:19.772126+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "bfb620cc7c3e4d9ca556d4b84562ad43",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 26,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "ed95386845f44d2ea371c93df0026701",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 27,
+      "parent_id": "4ab6ae554b20465885a7998eb0779fad",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "grid": 0,
+        "hwnd": 333580,
+        "include_image": 1,
+        "include_ocr": 1,
+        "limit": 100
+      },
+      "started_at": "2026-10-24T10:12:20.628216+00:00",
+      "finished_at": "2026-10-24T10:12:23.401826+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101220_2736734_51_legend.png",
+        "annotated_photo_ref": "photo:3302",
+        "frame": {
+          "frame_id": "fan_20261024101220_2736734_51",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101220_2736734_51.png",
+        "ok": 1,
+        "photo_ref": "photo:3301",
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "e75cd2809fe54fcebef95fd943d2a4a2",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 28,
+      "parent_id": "4ab6ae554b20465885a7998eb0779fad",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "Zoned OCR heading in frame fan_20261024101220_2736734_51",
+        "hwnd": 333580,
+        "label": "Verified feature heading: Dome Layer Studio",
+        "phase": "after",
+        "x": 147,
+        "y": 379
+      },
+      "started_at": "2026-10-24T10:12:24.080394+00:00",
+      "finished_at": "2026-10-24T10:12:24.127982+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "e75cd2809fe54fcebef95fd943d2a4a2",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 28,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "fa0056f9287b40d8a1013ca16aeb5414",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 29,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Dome Layer Studio",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "Dome Layer Studio form visible; inspection only, no layer edits or rendering executed.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:12:24.325121+00:00",
+      "finished_at": "2026-10-24T10:12:25.421842+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "Dome Layer Studio form visible; inspection only, no layer edits or rendering executed.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "497f484b72fa4fe6a27ba45154fe2155",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 30,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Dome Creator",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAADomeSimNavigate.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "label": "Dome Creator"
+        },
+        "wait": true,
+        "timeout_seconds": 90
+      },
+      "started_at": "2026-10-24T10:12:25.491737+00:00",
+      "finished_at": "2026-10-24T10:12:41.818144+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "a1af299935104b86b57a1488b5a914a2",
+        "name": "DAADomeSimNavigate.ahk",
+        "pid": 29172,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 16.156,
+        "stdout": "NAV_VERIFIED:Dome Creator\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 47,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.; this source was already credited in this task; repeated use receives no additional source-generation estimate",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "a1af299935104b86b57a1488b5a914a2"
+    },
+    {
+      "id": "9fba83b05b144fe2ac300cd1d13952e9",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 31,
+      "parent_id": "497f484b72fa4fe6a27ba45154fe2155",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_probe",
+      "arguments": {
+        "hwnd": 333580
+      },
+      "started_at": "2026-10-24T10:12:25.948178+00:00",
+      "finished_at": "2026-10-24T10:12:33.940840+00:00",
+      "status": "executed",
+      "result": {
+        "browser_context_unknown": 0,
+        "frame": {
+          "frame_id": "fan_20261024101226_2742578_52",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 0
+        },
+        "menu_signature": "",
+        "menus": [],
+        "note": "Cheap live identity/schema/tab probe. Coverage is bounded; historical coordinates are not current input targets.",
+        "ok": 1,
+        "probe_only": 1,
+        "tabs": [],
+        "url": ""
+      },
+      "run_id": ""
+    },
+    {
+      "id": "0ea2660150f14519b016c936f96533e5",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 32,
+      "parent_id": "497f484b72fa4fe6a27ba45154fe2155",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_search",
+      "arguments": {
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_domecreator",
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:12:34.008798+00:00",
+      "finished_at": "2026-10-24T10:12:35.804798+00:00",
+      "status": "executed",
+      "result": {
+        "err0": 0,
+        "err1": 0,
+        "frame": {
+          "frame_id": "fan_20261024101234_2750562_53",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "library": "FindText",
+        "matches": [
+          {
+            "bounds": {
+              "h": 14,
+              "w": "107",
+              "x": 77,
+              "y": 480
+            },
+            "center": {
+              "x": 130,
+              "y": 487
+            },
+            "crosses_zone_boundary": 0,
+            "id": "DAADomeNav20261024_domecreator",
+            "pattern": "DAADomeNav20261024_domecreator",
+            "source": "[retained separately]",
+            "zone_id": "middle-left"
+          }
+        ],
+        "name": "DAADomeNav20261024_domecreator",
+        "ok": 1,
+        "text": "|<DAADomeNav20261024_domecreator>**50$107.Dy0000001z0000w000QC000000730001s000UC000000A40002M001TBzjztz0nvzzTyvyzmnD3mQz63AxD6kkSDdZWRtbCxq6kNxryvnrD/4nnCQrgB0rLjxrjisK9aaQtbMO1gbTv+PRUgn9AdH0kq3F0s6Iam1PaSNGazViSWzrgdxY2yQQmZAy3jp4zjNtn841w3Z+Q43UeA70ssCEA7ABvrw831yQD7tszUTsDvrjTk3ysTryyzj2",
+        "total_matches": 1,
+        "truncated": 0,
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        },
+        "knowledge_reuse": {
+          "id": 46,
+          "mode": "reuse",
+          "reason": "fan_pattern_search:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "f56e534ee56243d8b02f031b42043498",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 33,
+      "parent_id": "497f484b72fa4fe6a27ba45154fe2155",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "live FindText match of retained sidebar pattern; frame fan_20261024101226_2742578_52",
+        "hwnd": 333580,
+        "label": "Select navigation: Dome Creator",
+        "phase": "before",
+        "x": 130,
+        "y": 487
+      },
+      "started_at": "2026-10-24T10:12:35.863059+00:00",
+      "finished_at": "2026-10-24T10:12:35.901711+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "f56e534ee56243d8b02f031b42043498",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 33,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "0a7b6b2d65b4496aba19c0ad8885827f",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 34,
+      "parent_id": "497f484b72fa4fe6a27ba45154fe2155",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "grid": 0,
+        "hwnd": 333580,
+        "include_image": 1,
+        "include_ocr": 1,
+        "limit": 100
+      },
+      "started_at": "2026-10-24T10:12:36.822783+00:00",
+      "finished_at": "2026-10-24T10:12:41.254523+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101237_2753343_54_legend.png",
+        "annotated_photo_ref": "photo:3304",
+        "frame": {
+          "frame_id": "fan_20261024101237_2753343_54",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101237_2753343_54.png",
+        "ok": 1,
+        "photo_ref": "photo:3303",
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "e61ef647c0ea4753be4ea83642750822",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 35,
+      "parent_id": "497f484b72fa4fe6a27ba45154fe2155",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "Zoned OCR heading in frame fan_20261024101237_2753343_54",
+        "hwnd": 333580,
+        "label": "Verified feature heading: Dome Creator",
+        "phase": "after",
+        "x": 130,
+        "y": 487
+      },
+      "started_at": "2026-10-24T10:12:41.680705+00:00",
+      "finished_at": "2026-10-24T10:12:41.716400+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "e61ef647c0ea4753be4ea83642750822",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 35,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "7b6e77f2291c4780ba443455fcd34b14",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 36,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Dome Creator",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "Dome Creator form visible; inspection only, no creation or export job executed.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:12:41.898982+00:00",
+      "finished_at": "2026-10-24T10:12:42.987867+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "Dome Creator form visible; inspection only, no creation or export job executed.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "f4a51e738b90455bac648b07bbdb9a7d",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 37,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Dome Home Assembly Line",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAADomeSimNavigate.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "label": "Dome Home Assembly Line"
+        },
+        "wait": true,
+        "timeout_seconds": 90
+      },
+      "started_at": "2026-10-24T10:12:43.038342+00:00",
+      "finished_at": "2026-10-24T10:12:52.574469+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "8e5881a47df6446d8efddb9bbc0bf776",
+        "name": "DAADomeSimNavigate.ahk",
+        "pid": 21252,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 9.375,
+        "stdout": "NAV_VERIFIED:Dome Home Assembly Line\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 49,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.; this source was already credited in this task; repeated use receives no additional source-generation estimate",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "8e5881a47df6446d8efddb9bbc0bf776"
+    },
+    {
+      "id": "c6ea56054274469d9fd8a2e35468b4db",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 38,
+      "parent_id": "f4a51e738b90455bac648b07bbdb9a7d",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_probe",
+      "arguments": {
+        "hwnd": 333580
+      },
+      "started_at": "2026-10-24T10:12:43.495364+00:00",
+      "finished_at": "2026-10-24T10:12:44.668819+00:00",
+      "status": "executed",
+      "result": {
+        "browser_context_unknown": 0,
+        "frame": {
+          "frame_id": "fan_20261024101243_2759562_55",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 0
+        },
+        "menu_signature": "",
+        "menus": [],
+        "note": "Cheap live identity/schema/tab probe. Coverage is bounded; historical coordinates are not current input targets.",
+        "ok": 1,
+        "probe_only": 1,
+        "tabs": [],
+        "url": ""
+      },
+      "run_id": ""
+    },
+    {
+      "id": "6c422babf40c4ad8bd8dae47325fe259",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 39,
+      "parent_id": "f4a51e738b90455bac648b07bbdb9a7d",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_search",
+      "arguments": {
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_domehomeassemblyline",
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:12:44.734901+00:00",
+      "finished_at": "2026-10-24T10:12:47.688921+00:00",
+      "status": "executed",
+      "result": {
+        "err0": 0,
+        "err1": 0,
+        "frame": {
+          "frame_id": "fan_20261024101245_2761562_56",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "library": "FindText",
+        "matches": [
+          {
+            "bounds": {
+              "h": 19,
+              "w": "202",
+              "x": 77,
+              "y": 515
+            },
+            "center": {
+              "x": 178,
+              "y": 524
+            },
+            "crosses_zone_boundary": 0,
+            "id": "DAADomeNav20261024_domehomeassemblyline",
+            "pattern": "DAADomeNav20261024_domehomeassemblyline",
+            "source": "[retained separately]",
+            "zone_id": "middle-left"
+          }
+        ],
+        "name": "DAADomeNav20261024_domehomeassemblyline",
+        "ok": 1,
+        "text": "|<DAADomeNav20261024_domehomeassemblyline>**50$202.0000000000000000000000007US000S000zk000000QC0000001k000000S1s0710003zU000003sw000000DU000001M5U0S400087U00000B2E000001a0000005UK018S000jazrzwzUo9TnzyTU6QzjnxzzLxTS4XzwzWr/3yQz63EbVeCP30NL7VMxbDEx78GBoT7/Atb4NtgByQnXSxo3NPxzAl6QNoQV8r8tggH7AtnCkrvbiQvjMBbDLwnCQnnRa4XRnCGlAwnbBv30CyPriz0qRxTzwtnTBqMGBrDz/AmH+IkABzv9hOs47zwzD0mZBYrN18qIsAhnDAdHTko9japfjsM3yjTz+IqnSY4XNHzmyQQmZAy3EaSvKiz3jjnxrodHDRtkHxZAy9ntb+ItsB2QnhOxwAyTDrDmZAtqa1DqItwURkwdHUUq9sOpfkEa9Vky7+IoBOM43RPknz3zSxvy1sxzDSxz3szxzTzjTzbfUTzxvz000000000000000000000000003g000000000000000000000000000000009k00000000000000000000000000000000a000000000000000000000000000000003k000002",
+        "total_matches": 1,
+        "truncated": 0,
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        },
+        "knowledge_reuse": {
+          "id": 48,
+          "mode": "reuse",
+          "reason": "fan_pattern_search:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "7f3d59c64a7e4d4785c705f861d635ee",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 40,
+      "parent_id": "f4a51e738b90455bac648b07bbdb9a7d",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "live FindText match of retained sidebar pattern; frame fan_20261024101243_2759562_55",
+        "hwnd": 333580,
+        "label": "Select navigation: Dome Home Assembly Line",
+        "phase": "before",
+        "x": 178,
+        "y": 524
+      },
+      "started_at": "2026-10-24T10:12:47.744309+00:00",
+      "finished_at": "2026-10-24T10:12:47.777843+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "7f3d59c64a7e4d4785c705f861d635ee",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 40,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "6ea008daaffb471bbc1962df568af000",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 41,
+      "parent_id": "f4a51e738b90455bac648b07bbdb9a7d",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "grid": 0,
+        "hwnd": 333580,
+        "include_image": 1,
+        "include_ocr": 1,
+        "limit": 100
+      },
+      "started_at": "2026-10-24T10:12:48.561614+00:00",
+      "finished_at": "2026-10-24T10:12:52.035101+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101248_2764671_57_legend.png",
+        "annotated_photo_ref": "photo:3306",
+        "frame": {
+          "frame_id": "fan_20261024101248_2764671_57",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101248_2764671_57.png",
+        "ok": 1,
+        "photo_ref": "photo:3305",
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "85ffae8af0904e06bdedfa9cc94fd8fb",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 42,
+      "parent_id": "f4a51e738b90455bac648b07bbdb9a7d",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "Zoned OCR heading in frame fan_20261024101248_2764671_57",
+        "hwnd": 333580,
+        "label": "Verified feature heading: Dome Home Assembly Line",
+        "phase": "after",
+        "x": 178,
+        "y": 524
+      },
+      "started_at": "2026-10-24T10:12:52.457928+00:00",
+      "finished_at": "2026-10-24T10:12:52.487419+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "85ffae8af0904e06bdedfa9cc94fd8fb",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 42,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "fd5c4937115e4e2aa0dbcfcc8e0eaa2b",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 43,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Dome Home Assembly Line",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "Dome Home Assembly Line form visible; inspection only, no assembly job executed.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:12:52.640982+00:00",
+      "finished_at": "2026-10-24T10:12:53.751915+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "Dome Home Assembly Line form visible; inspection only, no assembly job executed.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "653b774089264254b4a43fc1707b34d3",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 44,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Assembly Line Lite",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAADomeSimNavigate.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "label": "Assembly Line Lite"
+        },
+        "wait": true,
+        "timeout_seconds": 90
+      },
+      "started_at": "2026-10-24T10:12:53.812551+00:00",
+      "finished_at": "2026-10-24T10:13:02.268228+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "3f555d38e52e4933831d7f8696ab9f9e",
+        "name": "DAADomeSimNavigate.ahk",
+        "pid": 2576,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 8.281,
+        "stdout": "NAV_VERIFIED:Assembly Line Lite\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 51,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.; this source was already credited in this task; repeated use receives no additional source-generation estimate",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "3f555d38e52e4933831d7f8696ab9f9e"
+    },
+    {
+      "id": "20adbace53ed44e3bd2fc0ffd2cf3829",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 45,
+      "parent_id": "653b774089264254b4a43fc1707b34d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_probe",
+      "arguments": {
+        "hwnd": 333580
+      },
+      "started_at": "2026-10-24T10:12:54.268433+00:00",
+      "finished_at": "2026-10-24T10:12:56.505838+00:00",
+      "status": "executed",
+      "result": {
+        "browser_context_unknown": 0,
+        "frame": {
+          "frame_id": "fan_20261024101254_2770421_58",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 0
+        },
+        "menu_signature": "",
+        "menus": [],
+        "note": "Cheap live identity/schema/tab probe. Coverage is bounded; historical coordinates are not current input targets.",
+        "ok": 1,
+        "probe_only": 1,
+        "tabs": [],
+        "url": ""
+      },
+      "run_id": ""
+    },
+    {
+      "id": "cf1fa267cfc54c8684ecc1de773372a3",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 46,
+      "parent_id": "653b774089264254b4a43fc1707b34d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_search",
+      "arguments": {
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_assemblylinelite",
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:12:56.587450+00:00",
+      "finished_at": "2026-10-24T10:12:57.600563+00:00",
+      "status": "executed",
+      "result": {
+        "err0": 0,
+        "err1": 0,
+        "frame": {
+          "frame_id": "fan_20261024101257_2772890_59",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "library": "FindText",
+        "matches": [
+          {
+            "bounds": {
+              "h": 19,
+              "w": "138",
+              "x": 75,
+              "y": 551
+            },
+            "center": {
+              "x": 144,
+              "y": 560
+            },
+            "crosses_zone_boundary": 0,
+            "id": "DAADomeNav20261024_assemblylinelite",
+            "pattern": "DAADomeNav20261024_assemblylinelite",
+            "source": "[retained separately]",
+            "zone_id": "middle-left"
+          }
+        ],
+        "name": "DAADomeNav20261024_assemblylinelite",
+        "ok": 1,
+        "text": "|<DAADomeNav20261024_assemblylinelite>**50$138.000000003UC000S00001k00000000007US000S00001s000y0000004UG01wG0007VDU00m0000004UG01cS0004Vx000n7vyzDzozHnlcTzbs4Vxrs1nAD6lyASXmSlcTliA4VsSA15gC7UsAS1mSlcH0wA4VEQA1BfwzCtriSnQlcHCtq4VRtq3BfwxSvriqnBVcHSvo4VRPo3TwTD0upgan5VcHOs44VRM420rjnDupiqn51cHOvy4VRPy60zhnTupiynn1iHOvw4lRvw6zTjvDupiymn1jnOxw6zRxw4n8SDkupiXmm1UnOw463SQ47XzzyzzzzzSm1zzvrw7zzzw00000000001a0000000000000000000003Y0000000000000000000002A0000000000000000000003s00000000000U",
+        "total_matches": 1,
+        "truncated": 0,
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        },
+        "knowledge_reuse": {
+          "id": 50,
+          "mode": "reuse",
+          "reason": "fan_pattern_search:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "953d518a1d8e415fb7ee589994af7462",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 47,
+      "parent_id": "653b774089264254b4a43fc1707b34d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "live FindText match of retained sidebar pattern; frame fan_20261024101254_2770421_58",
+        "hwnd": 333580,
+        "label": "Select navigation: Assembly Line Lite",
+        "phase": "before",
+        "x": 144,
+        "y": 560
+      },
+      "started_at": "2026-10-24T10:12:57.663786+00:00",
+      "finished_at": "2026-10-24T10:12:57.715552+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "953d518a1d8e415fb7ee589994af7462",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 47,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "87388a8e4fba46bda7bafa3d5b715884",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 48,
+      "parent_id": "653b774089264254b4a43fc1707b34d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "grid": 0,
+        "hwnd": 333580,
+        "include_image": 1,
+        "include_ocr": 1,
+        "limit": 100
+      },
+      "started_at": "2026-10-24T10:12:58.476194+00:00",
+      "finished_at": "2026-10-24T10:13:01.737165+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101258_2774562_60_legend.png",
+        "annotated_photo_ref": "photo:3308",
+        "frame": {
+          "frame_id": "fan_20261024101258_2774562_60",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101258_2774562_60.png",
+        "ok": 1,
+        "photo_ref": "photo:3307",
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "6d705f00d1fb4907bc460e7a80e9126b",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 49,
+      "parent_id": "653b774089264254b4a43fc1707b34d3",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "Zoned OCR heading in frame fan_20261024101258_2774562_60",
+        "hwnd": 333580,
+        "label": "Verified feature heading: Assembly Line Lite",
+        "phase": "after",
+        "x": 144,
+        "y": 560
+      },
+      "started_at": "2026-10-24T10:13:02.120472+00:00",
+      "finished_at": "2026-10-24T10:13:02.165915+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "6d705f00d1fb4907bc460e7a80e9126b",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 49,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "0feb1b12c0414d94960e97242c1e4bbc",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 50,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Assembly Line Lite",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "Assembly Line Lite form visible; inspection only, no lite assembly job executed.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:13:02.314896+00:00",
+      "finished_at": "2026-10-24T10:13:03.388143+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "Assembly Line Lite form visible; inspection only, no lite assembly job executed.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "df59f349a2f844218d6de3fdc67686b5",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 51,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Local Voice Studio",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAADomeSimNavigate.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "label": "Local Voice Studio"
+        },
+        "wait": true,
+        "timeout_seconds": 90
+      },
+      "started_at": "2026-10-24T10:13:03.463875+00:00",
+      "finished_at": "2026-10-24T10:13:12.601658+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "936144a75ec0472c9ddd9cd97fdf488d",
+        "name": "DAADomeSimNavigate.ahk",
+        "pid": 7984,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 8.89,
+        "stdout": "NAV_VERIFIED:Local Voice Studio\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 53,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.; this source was already credited in this task; repeated use receives no additional source-generation estimate",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "936144a75ec0472c9ddd9cd97fdf488d"
+    },
+    {
+      "id": "069eea0eb79346ee9ffaa792446f7c98",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 52,
+      "parent_id": "df59f349a2f844218d6de3fdc67686b5",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_probe",
+      "arguments": {
+        "hwnd": 333580
+      },
+      "started_at": "2026-10-24T10:13:04.026303+00:00",
+      "finished_at": "2026-10-24T10:13:05.482511+00:00",
+      "status": "executed",
+      "result": {
+        "browser_context_unknown": 0,
+        "frame": {
+          "frame_id": "fan_20261024101304_2780109_61",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 0
+        },
+        "menu_signature": "",
+        "menus": [],
+        "note": "Cheap live identity/schema/tab probe. Coverage is bounded; historical coordinates are not current input targets.",
+        "ok": 1,
+        "probe_only": 1,
+        "tabs": [],
+        "url": ""
+      },
+      "run_id": ""
+    },
+    {
+      "id": "5dc571b18e1a4e6a918d799ca6f6ca01",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 53,
+      "parent_id": "df59f349a2f844218d6de3fdc67686b5",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_search",
+      "arguments": {
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_localvoicestudio",
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:13:05.555649+00:00",
+      "finished_at": "2026-10-24T10:13:07.224304+00:00",
+      "status": "executed",
+      "result": {
+        "err0": 0,
+        "err1": 0,
+        "frame": {
+          "frame_id": "fan_20261024101306_2782093_62",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "library": "FindText",
+        "matches": [
+          {
+            "bounds": {
+              "h": 15,
+              "w": "136",
+              "x": 77,
+              "y": 624
+            },
+            "center": {
+              "x": 145,
+              "y": 631
+            },
+            "crosses_zone_boundary": 0,
+            "id": "DAADomeNav20261024_localvoicestudio",
+            "pattern": "DAADomeNav20261024_localvoicestudio",
+            "source": "[retained separately]",
+            "zone_id": "middle-left"
+          }
+        ],
+        "name": "DAADomeNav20261024_localvoicestudio",
+        "ok": 1,
+        "text": "|<DAADomeNav20261024_localvoicestudio>**50$136.000001w0003s00000003z00w00006lsC09U003zw009Y03k0000O4lc0y000QCk00bk0/00001cF4U1k001UNU02S00g7wTzyVYqzjTzs4zjvrvxz2ksvXVu2PT7bXkkHIAdsiy6/6QtzvcAxnqRyR1bzmbSPrggPviTiUnbTNbPq77b+PviymlBglyu1gthaNiECCIdgavP/4amC3c6mYqN61USNGamPgggHvBriUA+TNaPw7tZCPviqmzbCRSu0lgtaTbkDaQtbitv871w4/c3AsCQ7110MM72vkMsSCsszk7llzMy463nnqDzXXzTlzzy0S3ywzTkDtzzTzbwU",
+        "total_matches": 1,
+        "truncated": 0,
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        },
+        "knowledge_reuse": {
+          "id": 52,
+          "mode": "reuse",
+          "reason": "fan_pattern_search:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "996d68a8f92d44259bf9f120e965782a",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 54,
+      "parent_id": "df59f349a2f844218d6de3fdc67686b5",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "live FindText match of retained sidebar pattern; frame fan_20261024101304_2780109_61",
+        "hwnd": 333580,
+        "label": "Select navigation: Local Voice Studio",
+        "phase": "before",
+        "x": 145,
+        "y": 631
+      },
+      "started_at": "2026-10-24T10:13:07.302547+00:00",
+      "finished_at": "2026-10-24T10:13:07.343257+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "996d68a8f92d44259bf9f120e965782a",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 54,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "16acd89ee35e4b79a3a21fc96dbbced6",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 55,
+      "parent_id": "df59f349a2f844218d6de3fdc67686b5",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "grid": 0,
+        "hwnd": 333580,
+        "include_image": 1,
+        "include_ocr": 1,
+        "limit": 100
+      },
+      "started_at": "2026-10-24T10:13:08.224225+00:00",
+      "finished_at": "2026-10-24T10:13:11.819021+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101308_2784421_63_legend.png",
+        "annotated_photo_ref": "photo:3310",
+        "frame": {
+          "frame_id": "fan_20261024101308_2784421_63",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101308_2784421_63.png",
+        "ok": 1,
+        "photo_ref": "photo:3309",
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "7f6a069470404f34af79f4c7952c1ec2",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 56,
+      "parent_id": "df59f349a2f844218d6de3fdc67686b5",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "Zoned OCR heading in frame fan_20261024101308_2784421_63",
+        "hwnd": 333580,
+        "label": "Verified feature heading: Local Voice Studio",
+        "phase": "after",
+        "x": 145,
+        "y": 631
+      },
+      "started_at": "2026-10-24T10:13:12.416349+00:00",
+      "finished_at": "2026-10-24T10:13:12.462976+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "7f6a069470404f34af79f4c7952c1ec2",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 56,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "d0b8f0ff3dcd43f986ff18f41b59f483",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 57,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Local Voice Studio",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "Local Voice Studio form visible; inspection only, no audio capture or processing executed.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:13:12.682029+00:00",
+      "finished_at": "2026-10-24T10:13:13.786222+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "Local Voice Studio form visible; inspection only, no audio capture or processing executed.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "66bfc27150ab461692e59cb4596be728",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 58,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Project Utilities",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAADomeSimNavigate.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "label": "Project Utilities"
+        },
+        "wait": true,
+        "timeout_seconds": 90
+      },
+      "started_at": "2026-10-24T10:13:13.851038+00:00",
+      "finished_at": "2026-10-24T10:13:26.256967+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "2bc896cd011f4fe2937ba9c4d2c8fabe",
+        "name": "DAADomeSimNavigate.ahk",
+        "pid": 2508,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 12.219,
+        "stdout": "NAV_VERIFIED:Project Utilities\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 55,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.; this source was already credited in this task; repeated use receives no additional source-generation estimate",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "2bc896cd011f4fe2937ba9c4d2c8fabe"
+    },
+    {
+      "id": "1d9ed91b7ae84909952b04dcd43b3b32",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 59,
+      "parent_id": "66bfc27150ab461692e59cb4596be728",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_probe",
+      "arguments": {
+        "hwnd": 333580
+      },
+      "started_at": "2026-10-24T10:13:14.343630+00:00",
+      "finished_at": "2026-10-24T10:13:16.219770+00:00",
+      "status": "executed",
+      "result": {
+        "browser_context_unknown": 0,
+        "frame": {
+          "frame_id": "fan_20261024101314_2790625_64",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 0
+        },
+        "menu_signature": "",
+        "menus": [],
+        "note": "Cheap live identity/schema/tab probe. Coverage is bounded; historical coordinates are not current input targets.",
+        "ok": 1,
+        "probe_only": 1,
+        "tabs": [],
+        "url": ""
+      },
+      "run_id": ""
+    },
+    {
+      "id": "88e9195b75214003a9030a6ca47ea695",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 60,
+      "parent_id": "66bfc27150ab461692e59cb4596be728",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_search",
+      "arguments": {
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_projectutilities",
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:13:16.297031+00:00",
+      "finished_at": "2026-10-24T10:13:19.187140+00:00",
+      "status": "executed",
+      "result": {
+        "err0": 0,
+        "err1": 0,
+        "frame": {
+          "frame_id": "fan_20261024101317_2793125_65",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "library": "FindText",
+        "matches": [
+          {
+            "bounds": {
+              "h": 19,
+              "w": "110",
+              "x": 77,
+              "y": 696
+            },
+            "center": {
+              "x": 132,
+              "y": 705
+            },
+            "crosses_zone_boundary": 0,
+            "id": "DAADomeNav20261024_projectutilities",
+            "pattern": "DAADomeNav20261024_projectutilities",
+            "source": "[retained separately]",
+            "zone_id": "bottom-left"
+          }
+        ],
+        "name": "DAADomeNav20261024_projectutilities",
+        "ok": 1,
+        "text": "|<DAADomeNav20261024_projectutilities>**50$110.000070000000Tr0s0000001s0000004zsP000zk00G007USDxBrok008A007U01M5WNTTZw002xzztvwTrVMazrxyzbsjT73Tli4MK9VRy6gP2/r1UxsT165WMnRXC3kWxnvrQvbrVMawrRnCPsjRZwrSn5UK9ZBqIryy8DFNBkAVM5WNHRZA3lWToLnRzAK1RaIrNHDrgjh4wrTvZkHtbBqQnsv/3FjRvyTS6yPnRbCzymkoQDS2ltVkT4rSHksQwDXzqzjzsDyzzzzjzy0000xU0000000000000000Cs00000000000000002A00000000000000000y00000000000008",
+        "total_matches": 1,
+        "truncated": 0,
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        },
+        "knowledge_reuse": {
+          "id": 54,
+          "mode": "reuse",
+          "reason": "fan_pattern_search:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "5f61ae5cb83d433b9589ee2e4b61496d",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 61,
+      "parent_id": "66bfc27150ab461692e59cb4596be728",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "live FindText match of retained sidebar pattern; frame fan_20261024101314_2790625_64",
+        "hwnd": 333580,
+        "label": "Select navigation: Project Utilities",
+        "phase": "before",
+        "x": 132,
+        "y": 705
+      },
+      "started_at": "2026-10-24T10:13:19.246774+00:00",
+      "finished_at": "2026-10-24T10:13:19.292769+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "5f61ae5cb83d433b9589ee2e4b61496d",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 61,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "36c146ec840c4021af15c78564e5b871",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 62,
+      "parent_id": "66bfc27150ab461692e59cb4596be728",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "grid": 0,
+        "hwnd": 333580,
+        "include_image": 1,
+        "include_ocr": 1,
+        "limit": 100
+      },
+      "started_at": "2026-10-24T10:13:20.186404+00:00",
+      "finished_at": "2026-10-24T10:13:25.429464+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101320_2796343_66_legend.png",
+        "annotated_photo_ref": "photo:3312",
+        "frame": {
+          "frame_id": "fan_20261024101320_2796343_66",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101320_2796343_66.png",
+        "ok": 1,
+        "photo_ref": "photo:3311",
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "cbd141dcb40a4d079cb1176b5ee2b188",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 63,
+      "parent_id": "66bfc27150ab461692e59cb4596be728",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "Zoned OCR heading in frame fan_20261024101320_2796343_66",
+        "hwnd": 333580,
+        "label": "Verified feature heading: Project Utilities",
+        "phase": "after",
+        "x": 132,
+        "y": 705
+      },
+      "started_at": "2026-10-24T10:13:26.064721+00:00",
+      "finished_at": "2026-10-24T10:13:26.112952+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "cbd141dcb40a4d079cb1176b5ee2b188",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 63,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "2811bc98f5bc498f99a1aade2e9d1473",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 64,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Project Utilities",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "Project Utilities form visible; inspection only, no maintenance or export actions executed.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:13:26.339055+00:00",
+      "finished_at": "2026-10-24T10:13:27.456598+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "Project Utilities form visible; inspection only, no maintenance or export actions executed.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "a4736b43d45e4e6aa2a32fd5343a9ce4",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 65,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "2 Trees Book Studio",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAADomeSimNavigate.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "label": "2 Trees Book Studio"
+        },
+        "wait": true,
+        "timeout_seconds": 90
+      },
+      "started_at": "2026-10-24T10:13:27.542225+00:00",
+      "finished_at": "2026-10-24T10:13:38.167556+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "3a8851011f65430db3d140a147a5941b",
+        "name": "DAADomeSimNavigate.ahk",
+        "pid": 26220,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 10.359,
+        "stdout": "NAV_VERIFIED:2 Trees Book Studio\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 57,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.; this source was already credited in this task; repeated use receives no additional source-generation estimate",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "3a8851011f65430db3d140a147a5941b"
+    },
+    {
+      "id": "519fbef622144fd7b943910416be39bd",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 66,
+      "parent_id": "a4736b43d45e4e6aa2a32fd5343a9ce4",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_probe",
+      "arguments": {
+        "hwnd": 333580
+      },
+      "started_at": "2026-10-24T10:13:28.108185+00:00",
+      "finished_at": "2026-10-24T10:13:31.563501+00:00",
+      "status": "executed",
+      "result": {
+        "browser_context_unknown": 0,
+        "frame": {
+          "frame_id": "fan_20261024101328_2804406_67",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 0
+        },
+        "menu_signature": "",
+        "menus": [],
+        "note": "Cheap live identity/schema/tab probe. Coverage is bounded; historical coordinates are not current input targets.",
+        "ok": 1,
+        "probe_only": 1,
+        "tabs": [],
+        "url": ""
+      },
+      "run_id": ""
+    },
+    {
+      "id": "d0a4a6a306954ea796f6316b7a825a76",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 67,
+      "parent_id": "a4736b43d45e4e6aa2a32fd5343a9ce4",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_search",
+      "arguments": {
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_2treesbookstudio",
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:13:31.644418+00:00",
+      "finished_at": "2026-10-24T10:13:32.739331+00:00",
+      "status": "executed",
+      "result": {
+        "err0": 0,
+        "err1": 0,
+        "frame": {
+          "frame_id": "fan_20261024101332_2807984_68",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "library": "FindText",
+        "matches": [
+          {
+            "bounds": {
+              "h": 15,
+              "w": "150",
+              "x": 77,
+              "y": 406
+            },
+            "center": {
+              "x": 152,
+              "y": 413
+            },
+            "crosses_zone_boundary": 0,
+            "id": "DAADomeNav20261024_2treesbookstudio",
+            "pattern": "DAADomeNav20261024_2treesbookstudio",
+            "source": "[retained separately]",
+            "zone_id": "middle-left"
+          }
+        ],
+        "name": "DAADomeNav20261024_2treesbookstudio",
+        "ok": 1,
+        "text": "|<DAADomeNav20261024_2treesbookstudio>**50$150.0000000000000000000001r00000000000000001s000003zU0DsDzk00000zk00180TzU03NU0AAA0U00000kM00180kR003TU0DoDjzzlyTUrdz7x/kjxyQzLDkDo0awwPbsUrfXiDCEjsTzlTMM0o0YosT1kUrj1w7AEiMOpUNkA1o0YnniNbUriQtndkbxurDNXY7g0YqrixbUkwynvfUsxOqPNbY6M0YYkC1lkrgamPa0TROqHNYYAk0YYryzSkrgqnPX07RPqPNaY/U0YYryzCkriyvvdVzRvqTNbYTy0YYvzzykriQtnAszRzbSNrYM60YYMD3lkkTXyDCNUyQ5WNsQTy0wwDvzzUzlz7xzszrzzzzTsU",
+        "total_matches": 1,
+        "truncated": 0,
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        },
+        "knowledge_reuse": {
+          "id": 56,
+          "mode": "reuse",
+          "reason": "fan_pattern_search:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "844145d888494d45853607b54da0f7ae",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 68,
+      "parent_id": "a4736b43d45e4e6aa2a32fd5343a9ce4",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "live FindText match of retained sidebar pattern; frame fan_20261024101328_2804406_67",
+        "hwnd": 333580,
+        "label": "Select navigation: 2 Trees Book Studio",
+        "phase": "before",
+        "x": 152,
+        "y": 413
+      },
+      "started_at": "2026-10-24T10:13:32.783187+00:00",
+      "finished_at": "2026-10-24T10:13:32.815967+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "844145d888494d45853607b54da0f7ae",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 68,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "a632b72c55c34499840e55b6a0aea7dc",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 69,
+      "parent_id": "a4736b43d45e4e6aa2a32fd5343a9ce4",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "grid": 0,
+        "hwnd": 333580,
+        "include_image": 1,
+        "include_ocr": 1,
+        "limit": 100
+      },
+      "started_at": "2026-10-24T10:13:33.836310+00:00",
+      "finished_at": "2026-10-24T10:13:37.295139+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101334_2809906_69_legend.png",
+        "annotated_photo_ref": "photo:3314",
+        "frame": {
+          "frame_id": "fan_20261024101334_2809906_69",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101334_2809906_69.png",
+        "ok": 1,
+        "photo_ref": "photo:3313",
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "ab7d12cbd1dd4e52aaabc75565fe9d8e",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 70,
+      "parent_id": "a4736b43d45e4e6aa2a32fd5343a9ce4",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "Zoned OCR heading in frame fan_20261024101334_2809906_69",
+        "hwnd": 333580,
+        "label": "Verified feature heading: 2 Trees Book Studio",
+        "phase": "after",
+        "x": 152,
+        "y": 413
+      },
+      "started_at": "2026-10-24T10:13:37.993383+00:00",
+      "finished_at": "2026-10-24T10:13:38.043111+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "ab7d12cbd1dd4e52aaabc75565fe9d8e",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 70,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "5a5e3231f2f24790ae400c021111b9ff",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 71,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "2 Trees Book Studio",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "2 Trees Book Studio form visible; inspection only, no book job or export executed.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:13:38.249144+00:00",
+      "finished_at": "2026-10-24T10:13:39.366625+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "2 Trees Book Studio form visible; inspection only, no book job or export executed.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "54d5afa4309b4fcd902cc7e6cf2362a2",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 72,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Story Editor",
+      "origin": "tool:daa_unit_run",
+      "tool": "ahk_script_run",
+      "arguments": {
+        "name": "DAADomeSimNavigate.ahk",
+        "inputs": {
+          "hwnd": 333580,
+          "label": "Story Editor"
+        },
+        "wait": true,
+        "timeout_seconds": 90
+      },
+      "started_at": "2026-10-24T10:13:39.445397+00:00",
+      "finished_at": "2026-10-24T10:13:51.438141+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "run_id": "6a2f02d08ada4aee96b5f35ad66a080f",
+        "name": "DAADomeSimNavigate.ahk",
+        "pid": 31692,
+        "status": "complete",
+        "exit_code": 0,
+        "timed_out": false,
+        "duration_seconds": 11.797,
+        "stdout": "NAV_VERIFIED:Story Editor\n",
+        "stderr": "",
+        "verification": "Actual process exit and captured output.",
+        "knowledge_reuse": {
+          "id": 59,
+          "mode": "reuse",
+          "reason": "ahk_script_run:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.; this source was already credited in this task; repeated use receives no additional source-generation estimate",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": "6a2f02d08ada4aee96b5f35ad66a080f"
+    },
+    {
+      "id": "93272f14d4714ec0858fb0b0f8af4c54",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 73,
+      "parent_id": "54d5afa4309b4fcd902cc7e6cf2362a2",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_probe",
+      "arguments": {
+        "hwnd": 333580
+      },
+      "started_at": "2026-10-24T10:13:39.901665+00:00",
+      "finished_at": "2026-10-24T10:13:41.268107+00:00",
+      "status": "executed",
+      "result": {
+        "browser_context_unknown": 0,
+        "frame": {
+          "frame_id": "fan_20261024101340_2815937_70",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 0
+        },
+        "menu_signature": "",
+        "menus": [],
+        "note": "Cheap live identity/schema/tab probe. Coverage is bounded; historical coordinates are not current input targets.",
+        "ok": 1,
+        "probe_only": 1,
+        "tabs": [],
+        "url": ""
+      },
+      "run_id": ""
+    },
+    {
+      "id": "4be2b50689734818a64613f5d8f7f43e",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 74,
+      "parent_id": "54d5afa4309b4fcd902cc7e6cf2362a2",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_pattern_search",
+      "arguments": {
+        "hwnd": 333580,
+        "name": "DAADomeNav20261024_storyeditor",
+        "region": {
+          "h": 622,
+          "w": 278,
+          "x": 19,
+          "y": 173
+        }
+      },
+      "started_at": "2026-10-24T10:13:41.334148+00:00",
+      "finished_at": "2026-10-24T10:13:44.634478+00:00",
+      "status": "executed",
+      "result": {
+        "err0": 0,
+        "err1": 0,
+        "frame": {
+          "frame_id": "fan_20261024101342_2818250_71",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 622,
+            "w": 278,
+            "x": 19,
+            "y": 173
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "library": "FindText",
+        "matches": [
+          {
+            "bounds": {
+              "h": 19,
+              "w": "89",
+              "x": 77,
+              "y": 334
+            },
+            "center": {
+              "x": 121,
+              "y": 343
+            },
+            "crosses_zone_boundary": 1,
+            "id": "DAADomeNav20261024_storyeditor",
+            "pattern": "DAADomeNav20261024_storyeditor",
+            "source": "[retained separately]",
+            "zone_id": "middle-left"
+          }
+        ],
+        "name": "DAADomeNav20261024_storyeditor",
+        "ok": 1,
+        "text": "|<DAADomeNav20261024_storyeditor>**50$89.0000000001zU000DvU0000Tw3Ns000sTU0000w84ns001Uv00001UE9yk002zrzrzjXTjnxzyzZz3kx1O4Us6EwDF9zTQtvaBzjArriSMSxxrrMM6SNjDQksxPPgikkAonOyPUSuqLFB1jt9apYq3hphiX+2EHnBftg5vjDR6A6zbaPnrM8771u4EA3UAlkSkETD3yBUM5XvlkrUzrrwsH0zvzzzzD000003Y00000000000004M0000000000000DU0000000000000S000000001",
+        "total_matches": 1,
+        "truncated": 0,
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        },
+        "knowledge_reuse": {
+          "id": 58,
+          "mode": "reuse",
+          "reason": "fan_pattern_search:saved_revision_1",
+          "estimated_text_tokens_saved": "[retained separately]",
+          "estimated_baseline_tokens": "[retained separately]",
+          "estimated_returned_tokens": "[retained separately]",
+          "avoided_vision_calls": 0,
+          "method": "Counterfactual estimate from saved source/map text at ceil(chars/4), less returned tool text. No claim that a rewrite would actually have occurred; excludes image and reasoning tokens. Execution and semantic verification are separate from reference reuse.",
+          "source_ref": "[retained separately]"
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "78411ae42fb946fc88073204da0e0bd1",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 75,
+      "parent_id": "54d5afa4309b4fcd902cc7e6cf2362a2",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "live FindText match of retained sidebar pattern; frame fan_20261024101340_2815937_70",
+        "hwnd": 333580,
+        "label": "Select navigation: Story Editor",
+        "phase": "before",
+        "x": 121,
+        "y": 343
+      },
+      "started_at": "2026-10-24T10:13:44.684238+00:00",
+      "finished_at": "2026-10-24T10:13:44.718127+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "78411ae42fb946fc88073204da0e0bd1",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 75,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "5aa154d0f524461fb2870d965a116511",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 76,
+      "parent_id": "54d5afa4309b4fcd902cc7e6cf2362a2",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "fan_window_inspect",
+      "arguments": {
+        "grid": 0,
+        "hwnd": 333580,
+        "include_image": 1,
+        "include_ocr": 1,
+        "limit": 100
+      },
+      "started_at": "2026-10-24T10:13:45.551968+00:00",
+      "finished_at": "2026-10-24T10:13:50.607534+00:00",
+      "status": "executed",
+      "result": {
+        "annotated_image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101345_2821578_72_legend.png",
+        "annotated_photo_ref": "photo:3316",
+        "frame": {
+          "frame_id": "fan_20261024101345_2821578_72",
+          "hwnd": 333580,
+          "title": "DomeSim Studio",
+          "exe": "python.exe",
+          "region": {
+            "h": 1020,
+            "w": 1920,
+            "x": 0,
+            "y": 0
+          },
+          "foreground": 1,
+          "geometry_stable": 1,
+          "content_stable": 1
+        },
+        "image_path": "C:\\Users\\Don\\AppData\\Local\\Temp\\FanPhotos-26692-2402750\\fan_20261024101345_2821578_72.png",
+        "ok": 1,
+        "photo_ref": "photo:3315",
+        "warnings": [],
+        "zones": {
+          "coordinates": "physical_screen_pixels",
+          "created_before_ocr": 1,
+          "reading_order": "Grid metadata is row-major. Text groups use their top-left bounds, then lines top-to-bottom/left-to-right. This is a spatial convention, not inferred document semantics.",
+          "sections": [],
+          "zones": [
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 0
+              },
+              "id": "top-left",
+              "reading_order": 1,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 0
+              },
+              "id": "top-center",
+              "reading_order": 2,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 0
+              },
+              "id": "top-right",
+              "reading_order": 3,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 340
+              },
+              "id": "middle-left",
+              "reading_order": 4,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 340
+              },
+              "id": "middle-center",
+              "reading_order": 5,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 340
+              },
+              "id": "middle-right",
+              "reading_order": 6,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 0,
+                "y": 680
+              },
+              "id": "bottom-left",
+              "reading_order": 7,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 640,
+                "y": 680
+              },
+              "id": "bottom-center",
+              "reading_order": 8,
+              "source_kind": "[retained separately]"
+            },
+            {
+              "bounds": {
+                "h": 340,
+                "w": 640,
+                "x": 1280,
+                "y": 680
+              },
+              "id": "bottom-right",
+              "reading_order": 9,
+              "source_kind": "[retained separately]"
+            }
+          ]
+        }
+      },
+      "run_id": ""
+    },
+    {
+      "id": "096ae08955af44b9918f650f5d6d8127",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 77,
+      "parent_id": "54d5afa4309b4fcd902cc7e6cf2362a2",
+      "branch": "",
+      "origin": "ahk",
+      "tool": "daa_trace",
+      "arguments": {
+        "evidence": "Zoned OCR heading in frame fan_20261024101345_2821578_72",
+        "hwnd": 333580,
+        "label": "Verified feature heading: Story Editor",
+        "phase": "after",
+        "x": 121,
+        "y": 343
+      },
+      "started_at": "2026-10-24T10:13:51.239362+00:00",
+      "finished_at": "2026-10-24T10:13:51.301702+00:00",
+      "status": "executed",
+      "result": {
+        "ok": true,
+        "recorded": true,
+        "chain_step": {
+          "id": "096ae08955af44b9918f650f5d6d8127",
+          "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+          "number": 77,
+          "tool": "daa_trace",
+          "branch": ""
+        },
+        "note": "Caller-reported action marker; after-phase is not independent verification."
+      },
+      "run_id": ""
+    },
+    {
+      "id": "9bad176d95854b649feae3cc046a2df1",
+      "task_id": "f5be5aeb93d54f548da1dc0bb8d8d1cb",
+      "number": 78,
+      "parent_id": "56a9509a49d24fafb8fb9c23bb1fbc2b",
+      "branch": "Story Editor",
+      "origin": "tool:daa_unit_run",
+      "tool": "daa_cue",
+      "arguments": {
+        "text": "Story Editor form visible; final stop of the tour, inspection only, no story edits or publish executed. The tour ends here.",
+        "seconds": 1,
+        "wait_for_continue": false,
+        "timeout_seconds": 300
+      },
+      "started_at": "2026-10-24T10:13:51.518923+00:00",
+      "finished_at": "2026-10-24T10:13:52.622884+00:00",
+      "status": "verified",
+      "result": {
+        "ok": true,
+        "cue": "Story Editor form visible; final stop of the tour, inspection only, no story edits or publish executed. The tour ends here.",
+        "verified": true,
+        "note": "Pause/gate completed; narration itself was not recorded or verified."
+      },
+      "run_id": ""
+    }
+  ],
+  "cursor": 78,
+  "has_more": false,
+  "note": "Numbers count attempted gateway interactions, including nested tools. Executed is not semantic verification; branch return is an explicit recorded action."
+}

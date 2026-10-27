@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sidelearner"
+version = "0.1.0"
+description = "SideLearner — a self-hosted LLM harness that perceives your desktop, distills observations into a knowledge-graph digital twin, and automates coding and business workflows with local-first AI."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "pyyaml>=6.0",
+    "numpy>=1.24",
+    "pillow>=10.0",
+    "mss>=9.0",
+    "openai>=1.30",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+full = [
+    "sounddevice>=0.4.6",
+    "soundcard>=0.4.6; sys_platform == 'win32'",
+    "faster-whisper>=1.0",
+    "opencv-python-headless>=4.9",
+    "pyautogui>=0.9.54",
+    "pywin32>=306; sys_platform == 'win32'",
+    "pytesseract>=0.3.10",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "python-multipart>=0.0.9",
+]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+sl = "sidelearner.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["sidelearner*"]

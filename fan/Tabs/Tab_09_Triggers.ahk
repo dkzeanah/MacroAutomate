@@ -62,11 +62,11 @@ Tab_Triggers_Build() {
 LoadNotificationTriggers() {
     global g_NotificationTriggers, TRIGGERS_FILE
 
-    if !FileExist(TRIGGERS_FILE)
+    if !FanFileExist(TRIGGERS_FILE)
         return
 
     try {
-        content := FileRead(TRIGGERS_FILE, "UTF-8")
+        content := FanFileRead(TRIGGERS_FILE, "UTF-8")
 
         for line in StrSplit(content, "`n", "`r") {
             if line = "" || SubStr(line, 1, 1) = ";"
@@ -107,9 +107,9 @@ SaveNotificationTriggers() {
     }
 
     try {
-        if FileExist(TRIGGERS_FILE)
-            FileDelete(TRIGGERS_FILE)
-        FileAppend(output, TRIGGERS_FILE, "UTF-8")
+        if FanFileExist(TRIGGERS_FILE)
+            FanFileDelete(TRIGGERS_FILE)
+        FanFileAppend(output, TRIGGERS_FILE, "UTF-8")
     }
 }
 GenerateTimeSlots() {
@@ -502,7 +502,7 @@ ExecuteTriggerAction2(trigger) {
         case "Play Sound":
             ; Play a sound file or system beep
             try {
-                if FileExist(params) {
+                if FanFileExist(params) {
                     SoundPlay(params)
                 } else {
                     ; Parse as frequency,duration
@@ -519,7 +519,7 @@ ExecuteTriggerAction2(trigger) {
                 logFile := params != "" ? params : "trigger_log.txt"
                 timestamp := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
                 logEntry := timestamp . " - Trigger: " . trigger["name"] . "`n"
-                FileAppend(logEntry, logFile)
+                FanFileAppend(logEntry, logFile)
             }
     }
 }
@@ -557,7 +557,7 @@ ExecuteTriggerAction(trigger) {
         case "Write to Log":
             logFile := A_ScriptDir . "\data\trigger_log.txt"
             entry := FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss") . " | " . trigger["name"] . " | " . trigger["params"] . "`n"
-            FileAppend(entry, logFile, "UTF-8")
+            FanFileAppend(entry, logFile, "UTF-8")
             ShowNotificationBasic("Trigger Action", "Written to log", 2000)
     }
 
@@ -572,8 +572,8 @@ ViewTriggerLog(*) {
 
     logFile := A_ScriptDir . "\data\trigger_log.txt"
 
-    if FileExist(logFile) {
-        Run(logFile)
+    if FanFileExist(logFile) {
+        FanFile_View(logFile)
     } else {
         MsgBox("Trigger log file does not exist yet", "Trigger Log", "Iconi")
     }
@@ -584,8 +584,8 @@ ClearTriggerLog(*) {
 
     result := MsgBox("Clear trigger log file?", "Confirm", "YesNo Icon?")
     if result = "Yes" {
-        if FileExist(logFile)
-            FileDelete(logFile)
+        if FanFileExist(logFile)
+            FanFileDelete(logFile)
         MsgBox("Trigger log cleared", "Success", "Iconi")
     }
 }

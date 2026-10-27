@@ -9,15 +9,15 @@
 SaveSettings() {
     global g_Settings, SETTINGS_FILE
     for k, v in g_Settings
-        IniWrite(v, SETTINGS_FILE, "Settings", k)
+        FanIniWrite(v, SETTINGS_FILE, "Settings", k)
 }
 
 LoadSettings() {
     global g_Settings, SETTINGS_FILE
-    if !FileExist(SETTINGS_FILE)
+    if !FanFileExist(SETTINGS_FILE)
         return
     for k, def in g_Settings.Clone()
-        g_Settings[k] := IsNumber(def) ? Number(IniRead(SETTINGS_FILE, "Settings", k, def)) : IniRead(SETTINGS_FILE, "Settings", k, def)
+        g_Settings[k] := IsNumber(def) ? Number(FanIniRead(SETTINGS_FILE, "Settings", k, def)) : FanIniRead(SETTINGS_FILE, "Settings", k, def)
 }
 
 Tab_Settings_Build() {
@@ -100,6 +100,8 @@ Tab_Settings_Build() {
     MainGui.Add("Text", "x390 y410", "REVOLVER (Clipboard tab):")
     MainGui.Add("Text", "x390 y425", "  Configure field order with ▲▼ buttons")
     MainGui.Add("Text", "x390 y445", "VISUAL: Green=OK, Blue=Progress, Red=Fail")
+
+    FanData_SettingsBuild(MainGui)
 
 
 }

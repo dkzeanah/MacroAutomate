@@ -1,3 +1,4 @@
+﻿#Include %A_LineFile%\..\..\..\lib\WorkflowPatterns.ahk
 ; ===============================================================================
 ; Tabs\Tab_02_Patterns.ahk
 ; TAB 2 Patterns: definition mode, capture, preview, FindText helpers
@@ -70,7 +71,7 @@ UpdateDefinitionMode() {
             } else {
                 DefModeIndicator.Value := "Definition Mode OFF"
                 DefModeIndicator.Opt("cGray BackgroundDefault")
-                ToolTip()
+                TrackToolTip()
             }
         }
     }
@@ -91,8 +92,8 @@ ShowDefModeTooltip() {
     tip .= "K = Send Keys`n"
     tip .= "M = Menu Select`n"
     tip .= "ESC = Cancel/Hide"
-    ToolTip(tip, x + 20, y + 20)
-    SetTimer(() => ToolTip(), -g_Settings["PreviewTooltipDuration"])
+    TrackToolTip(tip, x + 20, y + 20)
+    SetTimer(() => TrackToolTip(), -g_Settings["PreviewTooltipDuration"])
 }
 
 ; Definition mode handlers
@@ -281,7 +282,7 @@ DefModeCancel() {
     global g_DefModeDragging
     g_DefModeDragging := false
     HideMarker()
-    ToolTip()
+    TrackToolTip()
 }
 
 ; Auto-capture pattern at coordinates
@@ -368,8 +369,8 @@ ShowPatternPreviewTooltip(patternName, x := "", y := "") {
     if x = ""
         MouseGetPos(&x, &y)
 
-    ToolTip(tip, x + 20, y + 20)
-    SetTimer(() => ToolTip(), -g_Settings["PreviewTooltipDuration"])
+    TrackToolTip(tip, x + 20, y + 20)
+    SetTimer(() => TrackToolTip(), -g_Settings["PreviewTooltipDuration"])
 }
 
 ; Convert pattern to compact visual preview (improved)
@@ -447,7 +448,7 @@ ShowFullPatternPreview(patternName) {
     patternData := g_Patterns[patternName]
     code := patternData["text"]
     desc := patternData.Has("desc") ? patternData["desc"] : ""
-    screenshotPath := patternData.Has("screenshot") ? patternData["screenshot"] : ""
+    screenshotPath := Photo_Path(patternData.Get("screenshot", ""))
     captureX := patternData.Has("captureX") ? patternData["captureX"] : 0
     captureY := patternData.Has("captureY") ? patternData["captureY"] : 0
     captureWindow := patternData.Has("captureWindow") ? patternData["captureWindow"] : ""
@@ -482,7 +483,7 @@ ShowFullPatternPreview(patternName) {
     previewGui.SetFont("s9", "Segoe UI")
     previewGui.Add("GroupBox", "ys x440 w200 h170", "Screenshot")
 
-    if screenshotPath != "" && FileExist(screenshotPath) {
+    if screenshotPath != "" && FanFileExist(screenshotPath) {
         previewGui.Add("Picture", "xp+50 yp+20 w100 h100 Border", screenshotPath)
         previewGui.Add("Button", "xp-25 y+10 w150 h22", "Open Image").OnEvent("Click", (*) => Run(screenshotPath))
     } else {
@@ -518,34 +519,8 @@ ShowFullPatternPreview(patternName) {
 ; FINDTEXT PATTERN FUNCTIONS
 ; =============================================================================
 
-FindPatternOnScreen(patternName, tolerance := "") {
-    global g_Patterns, g_Settings
+; FindPatternOnScreen is shared with native fixtures in lib/WorkflowPatterns.ahk.
 
-    if !g_Patterns.Has(patternName)
-        return Map("found", false)
-
-    patternData := g_Patterns[patternName]
-    patternText := patternData["text"]
-
-    if tolerance = ""
-        tolerance := g_Settings["FindTextTolerance"]
-
-    ok := FindText(&outX, &outY, , , , , tolerance, tolerance, patternText)
-
-    if ok && ok.Length > 0 {
-        return Map(
-            "found", true,
-            "x", ok[1].x,
-            "y", ok[1].y,
-            "mx", ok[1].mx,
-            "my", ok[1].my,
-            "w", ok[1].w,
-            "h", ok[1].h
-        )
-    }
-
-    return Map("found", false)
-}
 
 TestPatternByName(patternName) {
     global g_Patterns, g_Settings
@@ -562,7 +537,7 @@ TestPatternByName(patternName) {
     ok := FindText(&outX, &outY, , , , , tolerance, tolerance, code)
 
     if ok && ok.Length > 0 {
-        FindText().MouseTip(ok[1].mx, ok[1].my)
+        LearningValidation_Match(ok[1].mx, ok[1].my)
         ShowStatus("FOUND: " . patternName . " @ " . ok[1].mx . "," . ok[1].my, "ok")
         return true
     }
@@ -615,69 +590,8 @@ WaitForPatternGone(patternName, timeout := 0, tolerance := "") {
     return false
 }
 
-FindAndClickPattern(patternName, button := "Left", clickCount := 1, tolerance := "") {
-    global g_Settings, g_AbortSequence, g_LastClickX, g_LastClickY, g_Patterns
+; FindAndClickPattern is shared with native fixtures in lib/WorkflowPatterns.ahk.
 
-    ; Strip [P] prefix if present
-    patternName := StrReplace(patternName, "[P] ", "")
-
-    ; Check qualifier first if pattern has one
-    if g_Patterns.Has(patternName) {
-        qualifier := g_Patterns[patternName].Has("qualifier") ? g_Patterns[patternName]["qualifier"] : ""
-        if qualifier != "" {
-            if !CheckPatternQualifier(qualifier) {
-                ShowStatus("Qualifier not found: " . qualifier, "fail")
-                return false
-            }
-            ShowStatus("Qualifier OK: " . qualifier, "ok")
-        }
-    }
-
-    ShowStatus("Finding: " . patternName, "wait")
-
-    Loop g_Settings["MaxRetries"] {
-        if g_AbortSequence
-            return false
-
-        result := FindPatternOnScreen(patternName, tolerance)
-
-        if result["found"] {
-            x := result["mx"]
-            y := result["my"]
-
-            if g_Settings["FailsafeCheckCloseButton"] && IsNearCloseButton(x, y) {
-                ShowStatus("Failsafe: Near close button", "fail")
-                return false
-            }
-
-            Sleep(g_Settings["PreActionDelay"])
-            MouseMove(x, y, 5)
-            Sleep(50)
-
-            MouseGetPos(&actualX, &actualY)
-            if Abs(actualX - x) > 5 || Abs(actualY - y) > 5 {
-                ShowStatus("Position verify failed", "retry")
-                continue
-            }
-
-            Click(x, y, button, clickCount)
-            g_LastClickX := x
-            g_LastClickY := y
-            Sleep(g_Settings["PostActionDelay"])
-
-            ShowStatus("Clicked: " . patternName . " @ " . x . "," . y, "ok")
-            return true
-        }
-
-        if A_Index < g_Settings["MaxRetries"] {
-            ShowStatus("Retry " . A_Index . "/" . g_Settings["MaxRetries"], "retry")
-            Sleep(200)
-        }
-    }
-
-    ShowStatus("Not found: " . patternName, "fail")
-    return false
-}
 
 ; ─────────────────────────────────────────────────────────────────────────────
 ; FindClickScrollLoop - repeatedly find a pattern and click every instance,
@@ -1175,7 +1089,7 @@ RecapturePatternScreenshot(name) {
     y := ok[1].my
 
     ; Capture screenshot
-    screenshotPath := CapturePatternScreenshot(x, y, name)
+    screenshotPath := CapturePatternScreenshot(name, x, y)
     if screenshotPath != "" {
         patternData["screenshot"] := screenshotPath
         patternData["captureX"] := x
@@ -1344,7 +1258,7 @@ PreviewSelectedPattern(*) {
     data := g_Patterns[name]
     code := data["text"]
     desc := data.Has("desc") ? data["desc"] : ""
-    screenshotPath := data.Has("screenshot") ? data["screenshot"] : ""
+    screenshotPath := Photo_Path(data.Get("screenshot", ""))
     captureX := data.Has("captureX") ? data["captureX"] : 0
     captureY := data.Has("captureY") ? data["captureY"] : 0
     captureWindow := data.Has("captureWindow") ? data["captureWindow"] : ""
@@ -1361,7 +1275,7 @@ PreviewSelectedPattern(*) {
     PatternPreviewEdit.Value := preview
 
     ; Image preview
-    if screenshotPath != "" && FileExist(screenshotPath) {
+    if screenshotPath != "" && FanFileExist(screenshotPath) {
         try PatternImageBox.Value := screenshotPath
     } else {
         try PatternImageBox.Value := ""
@@ -1438,7 +1352,7 @@ SavePattern(*) {
             ; Found! Get coordinates and window
             captureX := ok[1].mx
             captureY := ok[1].my
-            FindText().MouseTip(captureX, captureY)
+            LearningValidation_Match(captureX, captureY)
 
             ; Get window under that point
             hwnd := DllCall("WindowFromPoint", "Int64", (captureY << 32) | (captureX & 0xFFFFFFFF), "Ptr")
@@ -1500,7 +1414,7 @@ TestPattern(*) {
     tolerance := g_Settings["FindTextTolerance"]
     ok := FindText(&outX, &outY, , , , , tolerance, tolerance, code)
     if ok && ok.Length > 0 {
-        FindText().MouseTip(ok[1].mx, ok[1].my)
+        LearningValidation_Match(ok[1].mx, ok[1].my)
         StatusBar.SetText("FOUND at " . ok[1].mx . "," . ok[1].my)
     } else {
         MsgBoxTop("Pattern NOT FOUND!`n`nTry: Adjust tolerance or recapture.", "Not Found")
@@ -1550,8 +1464,8 @@ EditPattern(*) {
     PatternDescEdit.Value := data.Has("desc") ? data["desc"] : ""
 
     ; Load image preview if exists
-    screenshotPath := data.Has("screenshot") ? data["screenshot"] : ""
-    if screenshotPath != "" && FileExist(screenshotPath) {
+    screenshotPath := Photo_Path(data.Get("screenshot", ""))
+    if screenshotPath != "" && FanFileExist(screenshotPath) {
         try PatternImageBox.Value := screenshotPath
     } else {
         try PatternImageBox.Value := ""
@@ -1652,13 +1566,13 @@ CaptureScreenshotNow(*) {
     foundY := ok[1].my
 
     ; Flash the location briefly
-    FindText().MouseTip(foundX, foundY)
+    LearningValidation_Match(foundX, foundY)
 
     ; Capture screenshot at found location
     path := CapturePatternScreenshot(name, foundX, foundY)
 
-    if path != "" && FileExist(path) {
-        try PatternImageBox.Value := path
+    if path != "" && Photo_Path(path) != "" {
+        try PatternImageBox.Value := Photo_Path(path)
         StatusBar.SetText("Screenshot captured at " . foundX . "," . foundY)
     }
 }
@@ -1683,9 +1597,9 @@ ViewPatternImage(*) {
     if !g_Patterns.Has(name)
         return
 
-    screenshotPath := g_Patterns[name].Has("screenshot") ? g_Patterns[name]["screenshot"] : ""
+    screenshotPath := Photo_Path(g_Patterns[name].Get("screenshot", ""))
 
-    if screenshotPath = "" || !FileExist(screenshotPath) {
+    if screenshotPath = "" || !FanFileExist(screenshotPath) {
         MsgBoxTop("No screenshot for this pattern.`n`nUse '📷 Find' or 'Add Screenshot' to capture one.`n(Pattern must be visible on screen)", "No Image")
         return
     }
@@ -1735,13 +1649,13 @@ RecaptureScreenshot(*) {
     foundY := ok[1].my
 
     ; Flash the location
-    FindText().MouseTip(foundX, foundY)
+    LearningValidation_Match(foundX, foundY)
 
     ; Capture screenshot at found location
     path := CapturePatternScreenshot(name, foundX, foundY)
 
-    if path != "" && FileExist(path) {
-        try PatternImageBox.Value := path
+    if path != "" && Photo_Path(path) != "" {
+        try PatternImageBox.Value := Photo_Path(path)
 
         ; Update existing pattern if it exists
         if g_Patterns.Has(name) {
@@ -1787,12 +1701,12 @@ AddScreenshotToPattern(*) {
     foundY := ok[1].my
 
     ; Flash the location
-    FindText().MouseTip(foundX, foundY)
+    LearningValidation_Match(foundX, foundY)
 
     ; Capture screenshot at found location
     path := CapturePatternScreenshot(name, foundX, foundY)
 
-    if path != "" && FileExist(path) {
+    if path != "" && Photo_Path(path) != "" {
         g_Patterns[name]["screenshot"] := path
         ; Also update capture coordinates
         g_Patterns[name]["captureX"] := foundX
@@ -1827,7 +1741,7 @@ QuickCapturePattern(*) {
     Sleep(200)
 
     ; Show instructions
-    ToolTip("QUICK CAPTURE`n`nDrag to select region...`nESC to cancel", A_ScreenWidth // 2 - 100, 50)
+    TrackToolTip("QUICK CAPTURE`n`nDrag to select region...`nESC to cancel", A_ScreenWidth // 2 - 100, 50)
 
     ; Wait for mouse down
     g_QuickCaptureActive := true
@@ -1839,7 +1753,7 @@ QuickCapturePattern(*) {
     KeyWait("LButton", "D")
 
     if !g_QuickCaptureActive {
-        ToolTip()
+        TrackToolTip()
         MainGui.Show()
         return
     }
@@ -1866,7 +1780,7 @@ QuickCapturePattern(*) {
             g_QuickCaptureOverlay.Show("x" . x . " y" . y . " w" . w . " h" . h . " NoActivate")
         }
 
-        ToolTip("Selecting: " . w . " x " . h, currentX + 15, currentY + 15)
+        TrackToolTip("Selecting: " . w . " x " . h, currentX + 15, currentY + 15)
         Sleep(16)
     }
 
@@ -1875,7 +1789,7 @@ QuickCapturePattern(*) {
 
     ; Clean up overlay
     try g_QuickCaptureOverlay.Destroy()
-    ToolTip()
+    TrackToolTip()
 
     ; Remove ESC hotkey
     try Hotkey("Escape", "Off")
@@ -1948,7 +1862,7 @@ QuickCapturePattern(*) {
 
     ; Capture screenshot
     screenshotPath := CapturePatternScreenshot(suggestedName, centerX, centerY)
-    if screenshotPath != "" && FileExist(screenshotPath) {
+    if screenshotPath != "" && FanFileExist(screenshotPath) {
         try PatternImageBox.Value := screenshotPath
     }
 
@@ -1961,7 +1875,7 @@ CancelQuickCapture(*) {
     g_QuickCaptureActive := false
     try g_QuickCaptureOverlay.Destroy()
     try Hotkey("Escape", "Off")
-    ToolTip()
+    TrackToolTip()
 }
 
 
@@ -1977,9 +1891,9 @@ UpdatePatternImagePreview(name) {
     if !g_Patterns.Has(name)
         return
 
-    screenshotPath := g_Patterns[name].Has("screenshot") ? g_Patterns[name]["screenshot"] : ""
+    screenshotPath := Photo_Path(g_Patterns[name].Get("screenshot", ""))
 
-    if screenshotPath != "" && FileExist(screenshotPath) {
+    if screenshotPath != "" && FanFileExist(screenshotPath) {
         try PatternImageBox.Value := screenshotPath
     } else {
         try PatternImageBox.Value := ""  ; Clear image

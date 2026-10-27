@@ -1,0 +1,17 @@
+{
+  "version": "deepseek-usd-2026-10-18",
+  "checked_at": "2026-10-18",
+  "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+  "currency": "USD",
+  "off_peak_per_million": {
+    "deepseek-flash": {"hit": 0.003, "miss": 0.15, "output": 0.6},
+    "deepseek-v4-pro": {"hit": 0.022, "miss": 0.66, "output": 1.98}
+  },
+  "aliases": {"deepseek-v4-flash": "deepseek-flash", "deepseek-v4-flash-vision-exp": "deepseek-flash"},
+  "peak_utc_hours": [[1, 4], [6, 10]],
+  "peak_multiplier": 2,
+  "verified_chinese_holidays": [],
+  "holiday_calendar_verified_years": [],
+  "successful_search_fetch_per_1000": 0.75,
+  "harness_search_fetch_billing_starts_utc": "2026-10-31T16:00:00+00:00"
+}

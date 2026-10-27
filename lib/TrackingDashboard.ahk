@@ -242,12 +242,13 @@ Track_UpdateStats() {
         "app", "Applications", "win", "Unique windows", "win_session", "Focus sessions",
         "mouse_snapshot", "Mouse snapshots (1-min)", "mouse_heat", "Heat cells",
         "mouse_feature", "Extracted features", "key_snapshot", "Key snapshots (1-min)",
+        "key_event", "Ordered key/clip events",
         "hotkey_stat", "Hotkey combos", "clip_history", "Clipboard captures",
         "snap_cycle", "Snapshot cycles", "snap_entry", "Window snapshots",
         "element", "Named elements", "query", "Research queries",
         "query_link", "Result links", "query_insight", "Insights")
     order := ["app", "win", "win_session", "mouse_snapshot", "mouse_heat", "mouse_feature"
-            , "key_snapshot", "hotkey_stat", "clip_history", "snap_cycle", "snap_entry"
+            , "key_snapshot", "key_event", "hotkey_stat", "clip_history", "snap_cycle", "snap_entry"
             , "element", "query", "query_link", "query_insight"]
     for k in order {
         label := labels.Has(k) ? labels[k] : k
@@ -774,13 +775,13 @@ Track_OpenKeyHistory(winId := 0) {
     g_KhLV.OnEvent("ItemSelect", Track_KhOnSnap)
 
     g_KhTabs := g.Add("Tab3", "x320 y40 w560 h500"
-                    , ["Text Typed", "Hotkeys", "Strings", "Sentences", "Code", "Clipboard", "Raw"])
-    keys := ["text", "hotkeys", "strings", "sentences", "code", "clips", "raw"]
+                    , ["ALL", "Text Typed", "Hotkeys", "Strings", "Sentences", "Code", "Clipboard", "Raw"])
+    keys := ["all", "text", "hotkeys", "strings", "sentences", "code", "clips", "raw"]
     idx := 1
     for k in keys {
         g_KhTabs.UseTab(idx)
         ed := g.Add("Edit", "x330 y70 w540 h460 ReadOnly +Wrap VScroll")
-        if (k = "raw" || k = "code")
+        if (k = "all" || k = "raw" || k = "code")
             ed.SetFont("s8", "Consolas")
         g_KhEdits[k] := ed
         idx++
@@ -863,6 +864,7 @@ Track_KhOnSnap(lv, item, selected) {
     }
     if !s.Count
         return
+    g_KhEdits["all"].Value := Track_KhFormatAll(snapId)
     g_KhEdits["text"].Value := s["text_typed"]
     g_KhEdits["hotkeys"].Value := s["hotkeys"]
     g_KhEdits["strings"].Value := s["strings"]
@@ -870,6 +872,29 @@ Track_KhOnSnap(lv, item, selected) {
     g_KhEdits["code"].Value := s["code_snips"]
     g_KhEdits["clips"].Value := s["clips"]
     g_KhEdits["raw"].Value := s["raw_stream"]
+}
+
+Track_KhFormatAll(snapId) {
+    rows := []
+    try rows := KeyTrack_AllEvents(snapId)
+    catch as err {
+        LogErrorToFile(err, "caught", "Ordered key/clipboard history")
+        return "Could not load ordered history:`r`n" . err.Message
+    }
+    if !rows.Length
+        return "No typed or clipboard data was stored for this minute."
+
+    out := ""
+    sequence := 0
+    for r in rows {
+        sequence++
+        typeLabel := StrUpper(r["event_type"])
+        if (r["detail"] != "")
+            typeLabel .= ":" . StrUpper(r["detail"])
+        out .= "#" . sequence . "  [" . r["ts"] . "]  " . typeLabel . "`r`n"
+             . r["content"] . "`r`n`r`n"
+    }
+    return RTrim(out, "`r`n")
 }
 
 Track_KhHotkeys() {

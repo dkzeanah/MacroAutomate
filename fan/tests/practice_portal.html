@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Macro Automator Practice Portal</title>
+<style>
+  body { margin:40px auto; max-width:780px; padding:0 24px; font:20px/1.5 system-ui; color:#17243a; background:#eef3f8 }
+  main { background:white; padding:32px; border-radius:16px; box-shadow:0 5px 25px #162d4820 }
+  h1 {font-size:30px} label {display:block; margin:12px 0} input[type=text],select {font:inherit; padding:10px; width:90%; border:2px solid #8b9db4; border-radius:6px}
+  button {font:inherit; padding:10px 18px; margin:10px 8px 10px 0} output {display:block; padding:12px; background:#e9f5ef; min-height:60px; white-space:pre-wrap}
+  small {display:block; color:#445b75} .row label {display:inline-block; margin-right:24px}
+</style>
+<main>
+  <h1>Macro Automator Practice Portal</h1>
+  <small>Local, disposable controller test. No network requests or scored assessment.</small>
+  <p>Question 1. Type the name of the cell organelle that produces energy.</p>
+  <label for="answer">Practice answer</label>
+  <input id="answer" type="text" autocomplete="off" aria-label="Practice answer">
+  <div class="row">
+    <label><input id="apple" type="checkbox"> Apple</label>
+    <label><input id="banana" type="checkbox" checked> Banana</label>
+    <label><input id="carrot" type="checkbox"> Carrot</label>
+  </div>
+  <label for="capital">Capital</label>
+  <select id="capital" aria-label="Capital"><option>London</option><option>Paris</option><option>Rome</option></select>
+  <button id="check" type="button">Check answer</button>
+  <button id="move" type="button">Move answer field</button>
+  <button id="reset" type="button">Reset demo</button>
+  <output id="feedback" aria-live="polite">Live input validation appears here.</output>
+  <small id="events">Keys: 0 · backspaces: 0 · pointer moves: 0 · answer length: 0</small>
+</main>
+<script>
+  let keys=0, backs=0, moves=0;
+  const answer=document.querySelector('#answer'), fb=document.querySelector('#feedback');
+  function report(){document.querySelector('#events').textContent=`Keys: ${keys} · backspaces: ${backs} · pointer moves: ${moves} · answer length: ${answer.value.length}`}
+  answer.addEventListener('keydown',e=>{keys++;if(e.key==='Backspace') backs++;report()});
+  function gathered(){return `Gathered value: ${answer.value}\nSelected: ${[...document.querySelectorAll('input[type=checkbox]:checked')].map(x=>x.parentNode.textContent.trim()).join(', ')}\nCapital: ${document.querySelector('#capital').value}`}
+  function update(){fb.textContent=gathered();report()}
+  answer.addEventListener('input',update);
+  document.querySelectorAll('input[type=checkbox],select').forEach(el=>el.addEventListener('change',update));
+  document.addEventListener('mousemove',()=>{moves++;report()});
+  document.querySelector('#check').onclick=()=>{fb.textContent=(answer.value.toLowerCase()==='mitochondria'?'Correct. Practice answer verified.':'Incorrect. Try mitochondria.')+'\n'+gathered()};
+  document.querySelector('#move').onclick=()=>{answer.style.transform=answer.style.transform?'':'translate(25px, 12px)'};
+  document.querySelector('#reset').onclick=()=>location.reload();
+</script>
+</html>

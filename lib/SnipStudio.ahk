@@ -171,7 +171,8 @@ Snip_Capture() {
     ; appear in the capture itself.
     Snip_FlashRegion(region)
 
-    path := Snip_Dir() . "\snip_" . FormatTime(A_Now, "yyyyMMdd_HHmmss") . ".png"
+    path := Photo_TempPath()
+    cleanup := {__Delete: (*) => FileExist(path) ? FileDelete(path) : 0}
     if !Snip_SaveRegion(region, path) {
         ShowStatus("Could not capture that region", "fail")
         return
@@ -207,7 +208,7 @@ Snip_Capture() {
     if (Snip_GetSetting("parse", "1") = "1") {
         items := SnipParse_Items(fixed)
         if items.Length {
-            res := Qa_StoreItems(items, g_SnipLast["id"], path)
+            res := Qa_StoreItems(items, g_SnipLast["id"], g_SnipLast["path"])
             g_SnipLast["parsed"] := items
             ShowStatus("Parsed " . items.Length . " question(s): "
                      . res["added"] . " new, " . res["updated"] . " already known"
@@ -261,6 +262,7 @@ Snip_LinesFromResult(res) {
 ; Small text reads better enlarged, but over-scaling invents characters, so try
 ; a few and keep whichever returns the most usable text.
 Snip_ReadBest(path) {
+    path := Photo_Path(path)
     best := Map("text", "", "variant", "none", "score", -1)
     for , v in [Map("n", "scale2", "o", {scale: 2})
               , Map("n", "scale3", "o", {scale: 3})
@@ -295,6 +297,7 @@ Snip_Store(snip, accepted, corrected) {
         return 0
     db := TrackDB()
     r := snip["region"]
+    snip["path"] := Photo_Store(snip["path"], "Snip")
     db.Run("INSERT INTO snip(ts,x,y,w,h,image_path,signature,ocr_raw,ocr_text,"
          . "accepted,corrected,variant) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"
          , FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss"), r["x"], r["y"], r["w"], r["h"]
@@ -410,7 +413,7 @@ Snip_Review(snip, recalled := false) {
     g := Gui("+AlwaysOnTop +Resize", "Snip - is this reading correct?")
     g.MarginX := 10, g.MarginY := 10
 
-    g.Add("Picture", "x10 y10 w560 h180 Border vSnipPic", snip["path"])
+    g.Add("Picture", "x10 y10 w560 h180 Border vSnipPic", Photo_Path(snip["path"]))
     note := recalled
         ? "Recalled from a previously verified snip - no OCR was run."
         : "Read with " . snip["variant"] . ". "
@@ -519,7 +522,7 @@ Snip_ViewForms(snip) {
     }
     g := Gui("+Resize", "Snip - all representations")
     g.MarginX := 10, g.MarginY := 10
-    g.Add("Picture", "x10 y10 w520 h150 Border vFormPic", snip["path"])
+    g.Add("Picture", "x10 y10 w520 h150 Border vFormPic", Photo_Path(snip["path"]))
     tabs := g.Add("Tab3", "x10 y168 w520 h280 vFormTabs"
                 , ["Text", "Binary (ASCII)", "Hex", "FindText", "Image base64", "Metadata"])
 
@@ -547,9 +550,9 @@ Snip_ViewForms(snip) {
     g.Add("Button", "x10 y456 w150 h26 vFormCopy", "Copy current tab")
         .OnEvent("Click", (*) => Snip_CopyCurrentForm(g))
     g.Add("Button", "x168 y456 w130 h26 vFormOpen", "Open image")
-        .OnEvent("Click", (*) => Run('"' . snip["path"] . '"'))
+        .OnEvent("Click", (*) => Photo_Export(snip["path"], "snip.png"))
     g.Add("Button", "x306 y456 w130 h26 vFormFolder", "Show in folder")
-        .OnEvent("Click", (*) => Run('explorer.exe /select,"' . snip["path"] . '"'))
+        .OnEvent("Click", (*) => Run('explorer.exe /select,"' . Photo_Path(snip["path"]) . '"'))
     g.Add("Button", "x444 y456 w86 h26 vFormClose", "Close").OnEvent("Click", (*) => g.Destroy())
 
     g.OnEvent("Close", (*) => g.Destroy())
@@ -640,13 +643,11 @@ Snip_TextToHex(text) {
 ; A FindText pattern for the snip, so this exact content can be found on screen
 ; again by appearance rather than by text.
 Snip_FindTextPattern(path) {
+    path := Photo_Path(path)
     if !FileExist(path)
         return "(image missing)"
-    iw := 0, ih := 0
-    if !Snip_LoadImageToFindText(path, &iw, &ih)
-        return "(could not load the image for fingerprinting)"
     pat := ""
-    try pat := FindText().GetTextFromScreen(0, 0, iw - 1, ih - 1, "**50", 0)
+    try pat := Snap_FileToBinary(path)["text"]
     catch as err {
         TrackLogError("Snip_FindTextPattern", err)
         return "(FindText could not fingerprint this image)"
@@ -681,6 +682,7 @@ Snip_LoadImageToFindText(path, &iw, &ih) {
 }
 
 Snip_FileBase64(path) {
+    path := Photo_Path(path)
     if !FileExist(path)
         return "(image missing)"
     size := FileGetSize(path)

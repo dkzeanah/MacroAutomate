@@ -1,0 +1,7 @@
+﻿=== Native controller live validation 20261006192417 ===
+LIVE VALIDATION FAILED: Target window not found. at C:\Users\Don\Desktop\aAutomateMacro\fan\StudyValidationLab.ahk:244
+C:\Users\Don\Desktop\aAutomateMacro\fan\StudyValidationLab.ahk (244) : [WinActivate] WinActivate("ahk_id " . g_StudyPin["hwnd"])
+C:\Users\Don\Desktop\aAutomateMacro\fan\StudyValidationLab.ahk (244) : [ValidationFull] WinActivate("ahk_id " . g_StudyPin["hwnd"])
+C:\Users\Don\Desktop\aAutomateMacro\fan\StudyValidationLab.ahk (85) : [] Return  ValidationFull(true)
+> Timer
+

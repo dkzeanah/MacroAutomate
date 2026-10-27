@@ -47,6 +47,8 @@ global MUTEX_NAME := "Local\AHKScriptHub_v2_Manager_{2BDDD304-77F0-4C54-9C28-EA6
 
 global SCITE_EXE := "C:\Program Files\AutoHotkey\SciTE\SciTE.exe"
 global GLOBAL_HOTKEY := "^#a" ; Ctrl+Win+A
+global DOME_LAUNCHER_HOTKEY := "^!d" ; Ctrl+Alt+D
+global DOME_LAUNCHER_BAT := "C:\Users\Don\Desktop\DomeSim\launchers\00 DomeSim Launcher (every tool).bat"
 global HUB_ICON_FILE := A_ScriptDir "\ScriptHub.ico"
 
 ; AutoHotkey uses 0x404 as both the notification callback message and its
@@ -219,6 +221,9 @@ Main() {
 
     ; Ctrl+Win+A summons the hub from anywhere.
     try Hotkey(GLOBAL_HOTKEY, ShowMainGui)
+
+    ; Ctrl+Alt+D opens the DomeSim launcher.
+    try Hotkey(DOME_LAUNCHER_HOTKEY, LaunchDomeLauncher)
 
     ; Save the pre-shutdown running state before other AHK scripts begin
     ; receiving shutdown messages and disappearing.
@@ -1963,6 +1968,24 @@ OpenHubDataFolder(*) {
     if !DirExist(DATA_DIR)
         EnsureDataDirectory()
     try Run(Q(DATA_DIR))
+}
+
+LaunchDomeLauncher(*) {
+    ; The .bat's console starts minimized; it keeps the window open with
+    ; "pause" if the launcher fails, so the error stays readable.
+    if !FileExist(DOME_LAUNCHER_BAT) {
+        MsgBox("The DomeSim launcher was not found at:`n`n" DOME_LAUNCHER_BAT,
+            APP_NAME, "Icon!")
+        return
+    }
+    SplitPath(DOME_LAUNCHER_BAT, , &batDir)
+    try {
+        Run(Q(DOME_LAUNCHER_BAT), batDir, "Min")
+        LogEvent("INFO", "DomeSim launcher started: " DOME_LAUNCHER_BAT)
+    } catch as err {
+        LogEvent("ERROR", "DomeSim launcher failed: " err.Message)
+        MsgBox("The DomeSim launcher could not be started.`n`n" err.Message, APP_NAME, "Iconx")
+    }
 }
 
 ShowMainGui(*) {

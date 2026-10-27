@@ -150,7 +150,7 @@ HighlightWatchWord(name, duration := 2000) {
 SaveWatchWords() {
     global g_WatchWords, OCR_WORDS_FILE
 
-    try FileDelete(OCR_WORDS_FILE)
+    try FanFileDelete(OCR_WORDS_FILE)
 
     for name, watch in g_WatchWords {
         section := "[" . name . "]`n"
@@ -161,7 +161,7 @@ SaveWatchWords() {
         section .= "pattern=" . watch["pattern"] . "`n"
         section .= "labelIndex=" . watch["labelIndex"] . "`n"
 
-        FileAppend(section . "`n", OCR_WORDS_FILE)
+        FanFileAppend(section . "`n", OCR_WORDS_FILE)
     }
 }
 
@@ -169,11 +169,11 @@ SaveWatchWords() {
 LoadWatchWords() {
     global g_WatchWords, OCR_WORDS_FILE
 
-    if !FileExist(OCR_WORDS_FILE)
+    if !FanFileExist(OCR_WORDS_FILE)
         return
 
     try {
-        content := FileRead(OCR_WORDS_FILE)
+        content := FanFileRead(OCR_WORDS_FILE)
     } catch {
         return  ; File read failed, just return
     }
@@ -331,7 +331,7 @@ LiveOCRCapture() {
                 g_DB.Exec("INSERT INTO ocr_log (ts, text, word_count) VALUES (" . SQLQuote(timestamp) . ", " . SQLQuote(cleanText) . ", " . result.Words.Length . ");")
 
             ; Append to file
-            try FileAppend(logEntry . "`n", OCR_LOG_FILE)
+            try FanFileAppend(logEntry . "`n", OCR_LOG_FILE)
         }
     } catch as err {
         MainGui["OCROutput"].Value := "OCR Error: " . err.Message
@@ -355,7 +355,7 @@ SelectOCRRegion(*) {
     overlayGui.Show("x0 y0 w" . A_ScreenWidth . " h" . A_ScreenHeight . " NoActivate")
     WinSetTransparent(1, overlayGui)
 
-    ToolTip("🎯 Drag to select OCR region`nESC to cancel`nRight-click for Full Screen", A_ScreenWidth//2 - 150, 50)
+    TrackToolTip("🎯 Drag to select OCR region`nESC to cancel`nRight-click for Full Screen", A_ScreenWidth//2 - 150, 50)
 
     x1 := 0, y1 := 0, x2 := 0, y2 := 0
     cancelled := false
@@ -390,13 +390,13 @@ SelectOCRRegion(*) {
             if w > 5 && h > 5 {
                 selBox.Show("x" . left . " y" . top . " w" . w . " h" . h . " NoActivate")
                 WinSetTransparent(80, selBox)
-                ToolTip("Region: " . w . " x " . h, x2 + 20, y2 + 20)
+                TrackToolTip("Region: " . w . " x " . h, x2 + 20, y2 + 20)
             }
             Sleep(16)
         }
     }
 
-    ToolTip()
+    TrackToolTip()
     try selBox.Destroy()
     overlayGui.Destroy()
 
@@ -879,7 +879,7 @@ ClearOCRLog(*) {
     global g_OCRLog, OCR_LOG_FILE, g_DB
     g_OCRLog := []
     MainGui["OCRLogCount"].Value := "0"
-    try FileDelete(OCR_LOG_FILE)
+    try FanFileDelete(OCR_LOG_FILE)
     if IsObject(g_DB)
         g_DB.Exec("DELETE FROM ocr_log;")
     ShowStatus("OCR log cleared", "ok")
@@ -900,7 +900,7 @@ ExportOCRLog(*) {
     }
 
     try {
-        FileAppend(content, exportFile)
+        FanFileAppend(content, exportFile)
         ShowStatus("Exported to: " . exportFile, "ok")
         Run("explorer.exe /select," . exportFile)
     } catch as err {
@@ -1244,7 +1244,7 @@ TestOCRAvailability() {
             g_OCRAvailable := false
             return false
         }
-        testResult := OCR.FromRect(0, 0, 100, 100, "en-US", 1)
+        testResult := OCR.FromRect(0, 0, 100, 100, {lang: "en-US", scale: 1})
         g_OCRAvailable := true
         return true
     } catch {
@@ -1467,8 +1467,7 @@ ExecuteFullScreenOCRToVar(varName) {
 
     try {
         ShowStatus("Full-screen OCR in progress...", "wait")
-        result := OCR.FromRect(0, 0, A_ScreenWidth, A_ScreenHeight,
-                               g_OCRSettings["language"], g_OCRSettings["scale"])
+        result := OCR.FromRect(0, 0, A_ScreenWidth, A_ScreenHeight, WorkflowOCR_Options())
         text := Trim(result.Text)
         if text = ""
             throw Error("Windows OCR completed but did not find readable text on the screen.")
@@ -1571,6 +1570,17 @@ ExecuteUseVarPaste(params) {
 ; =============================================================================
 
 ; Execute OCR Region action - capture and process text from screen region
+; OCR.FromRect accepts one options object and returns screen coordinates even
+; when the capture has a nonzero origin or is scaled for recognition.
+WorkflowOCR_Options() {
+    global g_OCRSettings
+    return {lang: g_OCRSettings["language"], scale: g_OCRSettings["scale"]}
+}
+
+WorkflowOCR_Center(box) {
+    return Map("x", box.x + (box.w // 2), "y", box.y + (box.h // 2))
+}
+
 ExecuteOCRRegion(target, param) {
     global g_LastOCRText, g_LastOCRRegion, g_SpoolVariables, g_WordVariables, g_OCRSettings
 
@@ -1597,8 +1607,7 @@ ExecuteOCRRegion(target, param) {
         ocrResult := OCR.FromRect(region["x1"], region["y1"],
                                   region["x2"] - region["x1"],
                                   region["y2"] - region["y1"],
-                                  g_OCRSettings["language"],
-                                  g_OCRSettings["scale"])
+                                  WorkflowOCR_Options())
         text := ocrResult.Text
     } catch as e {
         return ReportOCRError("Extract", region, e.Message)
@@ -1690,15 +1699,14 @@ ExecuteOCRClick(target, param) {
         ocrResult := OCR.FromRect(region["x1"], region["y1"],
                                   region["x2"] - region["x1"],
                                   region["y2"] - region["y1"],
-                                  g_OCRSettings["language"],
-                                  g_OCRSettings["scale"])
+                                  WorkflowOCR_Options())
 
         ; Search for the text
         for word in ocrResult.Words {
             if InStr(word.Text, searchText) || InStr(searchText, word.Text) {
                 ; Found it - click on center
-                clickX := region["x1"] + word.x + (word.w // 2)
-                clickY := region["y1"] + word.y + (word.h // 2)
+                center := WorkflowOCR_Center(word)
+                clickX := center["x"], clickY := center["y"]
 
                 ; Highlight briefly
                 HighlightRegion(clickX - 5, clickY - 5, 10, 10, 500, "match", searchText)
@@ -1713,8 +1721,8 @@ ExecuteOCRClick(target, param) {
         for line in ocrResult.Lines {
             if InStr(line.Text, searchText) {
                 ; Click center of line
-                clickX := region["x1"] + line.x + (line.w // 2)
-                clickY := region["y1"] + line.y + (line.h // 2)
+                center := WorkflowOCR_Center(line)
+                clickX := center["x"], clickY := center["y"]
 
                 HighlightRegion(clickX - 20, clickY - 5, 40, 10, 500, "match", searchText)
 
@@ -1774,7 +1782,7 @@ ExecuteOCRWait(target, param) {
             ocrResult := OCR.FromRect(region["x1"], region["y1"],
                                       region["x2"] - region["x1"],
                                       region["y2"] - region["y1"],
-                                      g_OCRSettings["language"])
+                                      WorkflowOCR_Options())
 
             if searchText = "" {
                 ; Wait for any text
@@ -1975,7 +1983,7 @@ QuickOCR_SelectRegion() {
     selBox := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x20", "QuickOCRBox")
     selBox.BackColor := "00C000"
 
-    ToolTip("Quick OCR - drag a box over the text"
+    TrackToolTip("Quick OCR - drag a box over the text"
           . "`nESC or right-click cancels", vx + vw // 2 - 140, vy + 40)
 
     rect := Map()
@@ -1999,7 +2007,7 @@ QuickOCR_SelectRegion() {
                 if (bw > 2 && bh > 2) {
                     selBox.Show("x" . bl . " y" . bt . " w" . bw . " h" . bh . " NoActivate")
                     WinSetTransparent(120, selBox)
-                    ToolTip(bw . " x " . bh, x2 + 18, y2 + 18)
+                    TrackToolTip(bw . " x " . bh, x2 + 18, y2 + 18)
                 }
                 Sleep(16)
             }
@@ -2021,7 +2029,7 @@ QuickOCR_SelectRegion() {
     ; captured, or the dim sheet ends up inside the screenshot.
     try selBox.Destroy()
     try overlay.Destroy()
-    ToolTip()
+    TrackToolTip()
     Sleep(160)
 
     return rect
@@ -2194,7 +2202,7 @@ ReportOCRError(operation, region, details := "") {
 ;     return false
 ; }
 IsOCRAvailable() {
-    try return FileExist(OCR.HelperPath) != ""
+    try return FanFileExist(OCR.HelperPath) != ""
     return false
 }
 

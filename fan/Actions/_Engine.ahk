@@ -68,6 +68,7 @@ ExecuteKeyChord(param) {
     Sleep(g_Settings["PreActionDelay"])
 
     ; Press modifier down
+    DeepActivity_Before("key_send")
     if InStr(modifier, "#") Send("{LWin down}")
     if InStr(modifier, "^") Send("{Ctrl down}")
     if InStr(modifier, "+") Send("{Shift down}")
@@ -151,6 +152,7 @@ ExecuteTaskbarActivate(param) {
     Sleep(g_Settings["PreActionDelay"])
 
     ; Press Win+N repeatedly
+    DeepActivity_Before("window_activate","ahk_class Shell_TrayWnd")
     Send("{LWin down}")
     Sleep(50)
 
@@ -332,36 +334,109 @@ SubstituteWorkflowVariables(text) {
     return text
 }
 
-ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
+; Shared by manual workflows and the local agent API; prevents input overlap.
+global g_WorkflowRunning := false
+global g_WorkflowExecutionOptions := 0
+global g_ActiveLoopDepth := 0, g_SkipNextAction := false, g_LoopBreakRequested := false
+global g_SequenceCallStack := [], g_WorkflowVariables := Map()
+
+ExecuteSequenceVerified(steps, speedMultiplier := 1.0, opts := 0) {
     global g_Settings, g_IsPaused, g_AbortSequence, g_DebugMode, g_StepThroughMode, g_StepThroughWaiting, g_StepThroughContinue
     global g_WorkflowVariables, g_SkipNextAction, g_SequenceCallStack, g_SpoolVariables
-    global g_LoopBreakRequested, g_ActiveLoopDepth
-    g_AbortSequence := false
-    g_WorkflowVariables := Map()
+    global g_LoopBreakRequested, g_ActiveLoopDepth, g_WorkflowRunning, g_LastActionError, g_WorkflowExecutionOptions
+    out := Map("ok", false, "completed", 0, "failed_step", 0, "error", "", "aborted", false)
+    nested := opts is Map && opts.Get("nested", false)
+    if g_WorkflowRunning && !nested {
+        out["error"] := "A workflow is already running"
+        return out
+    }
+    if nested && (!g_WorkflowRunning || !g_SequenceCallStack.Length) {
+        out["error"] := "Nested workflow requires an active parent sequence"
+        return out
+    }
+    if !IsNumber(speedMultiplier) || speedMultiplier <= 0 {
+        out["error"] := "Workflow speed must be positive"
+        return out
+    }
+    interactive := !(opts is Map) || !opts.Has("interactive") || opts["interactive"]
+    promptOnFailure := interactive && (!(opts is Map) || opts.Get("promptOnFailure", true))
+    abortOnFail := opts is Map && opts.Get("abortOnFail", false)
+    stepThrough := interactive && g_StepThroughMode && !nested
+    escEnabled := false, tabEnabled := false, i := 0
+    priorOptions := g_WorkflowExecutionOptions, priorDepth := g_ActiveLoopDepth
+    priorSkip := g_SkipNextAction, priorBreak := g_LoopBreakRequested
+    g_WorkflowRunning := true
+    g_WorkflowExecutionOptions := opts
+    try {
+    if !nested {
+        g_AbortSequence := false
+        g_WorkflowVariables := Map()
+        g_SequenceCallStack := []
+        if opts is Map && opts.Get("sequenceName", "") != ""
+            g_SequenceCallStack.Push(opts["sequenceName"])
+    }
     g_SkipNextAction := false
-    g_SequenceCallStack := []
     g_LoopBreakRequested := false
-    g_ActiveLoopDepth := 0
-
-    ; Enable ESC to abort and Tab for step-through
-    try Hotkey("Escape", AbortSequenceHandler, "On")
-    if g_StepThroughMode
-        try Hotkey("Tab", StepThroughAdvance, "On")
+    g_ActiveLoopDepth := nested ? priorDepth : 0
 
     enabled := []
     for s in steps
         if s.Has("enabled") && s["enabled"]
             enabled.Push(s)
     total := enabled.Length
+    if total = 0 {
+        out["error"] := "Workflow contains no enabled steps"
+        return out
+    }
+
+    ; Validate loop pairing before any input and remember each loop's own end.
+    ; This also lets a nested Loop Break leave the correct enclosing loop.
+    loopPairs := Map(), pendingLoops := []
+    for index, step in enabled {
+        if step["action"] = "Loop Start"
+            pendingLoops.Push(index)
+        else if step["action"] = "Loop End" {
+            if !pendingLoops.Length {
+                out["failed_step"] := index
+                out["error"] := "Loop End has no matching Loop Start"
+                return out
+            }
+            loopPairs[pendingLoops.Pop()] := index
+        } else if step["action"] = "Loop Break" && !pendingLoops.Length {
+            out["failed_step"] := index
+            out["error"] := "Loop Break is outside a loop"
+            return out
+        }
+    }
+    if pendingLoops.Length {
+        out["failed_step"] := pendingLoops[1]
+        out["error"] := "Loop Start has no matching Loop End"
+        return out
+    }
+
+    ; Always release only the hotkeys acquired by this call in finally below.
+    if !nested {
+        try {
+            Hotkey("Escape", AbortSequenceHandler, "On")
+            escEnabled := true
+        }
+    }
+    if stepThrough {
+        try {
+            Hotkey("Tab", StepThroughAdvance, "On")
+            tabEnabled := true
+        }
+    }
 
     ; Calculate adjusted delay (lower speed = longer delays)
     baseDelay := g_Settings["ActionDelay"]
     adjustedDelay := Round(baseDelay / speedMultiplier)
 
     speedText := speedMultiplier . "x"
-    modeText := g_StepThroughMode ? " [STEP-THROUGH: Press Tab]" : " [ESC to abort]"
+    modeText := stepThrough ? " [STEP-THROUGH: Press Tab]" : " [ESC to abort]"
 
     ShowStatus("Running " . total . " steps @ " . speedText . modeText, "wait")
+    WorkflowExecution_Event(opts, "start", Map("total", total, "speed", speedMultiplier))
 
     ; ── Loop support: Loop Start / Loop End / Loop Break are handled here so
     ; the body in between re-runs. Each stack entry remembers where the body
@@ -372,38 +447,39 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
     while i <= total {
         if g_AbortSequence {
             ShowStatus("ABORTED by ESC", "fail")
-            try Hotkey("Escape", "Off")
-            if g_StepThroughMode
-                try Hotkey("Tab", "Off")
-            SoundBeep(300, 100)
-            return
+            out["aborted"] := true
+            out["error"] := "Workflow aborted"
+            if interactive
+                SoundBeep(300, 100)
+            return out
         }
         while g_IsPaused {
-            ToolTip("PAUSED [" . i . "/" . total . "] - ESC to abort")
+            TrackToolTip("PAUSED [" . i . "/" . total . "] - ESC to abort")
             Sleep(100)
             if g_AbortSequence {
-                try Hotkey("Escape", "Off")
-                if g_StepThroughMode
-                    try Hotkey("Tab", "Off")
-                return
+                out["aborted"] := true
+                out["error"] := "Workflow aborted while paused"
+                return out
             }
         }
 
         if g_SkipNextAction {
             g_SkipNextAction := false
             ShowStatus("[" . i . "/" . total . "] Skipped by previous condition: " . enabled[i]["action"], "info")
+            WorkflowExecution_Event(opts, "step", Map("index", i, "action", enabled[i]["action"], "status", "skipped"))
             i++
             continue
         }
 
         s := enabled[i]
         ShowStatus("[" . i . "/" . total . "] " . s["action"] . " @ " . speedText . modeText, "wait")
+        WorkflowExecution_Event(opts, "step_start", Map("index", i, "action", s["action"]))
 
         ; Check if notifications are muted for this step
         stepMuted := s.Has("notificationMuted") && s["notificationMuted"]
 
         ; Show step start notification in debug mode
-        if g_DebugMode && !stepMuted {
+        if interactive && g_DebugMode && !stepMuted {
             stepInfo := "[" . i . "/" . total . "] " . s["action"]
             if s["target"] != ""
                 stepInfo .= "`nTarget: " . s["target"]
@@ -413,6 +489,7 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
         }
 
         jumpTo := 0   ; >0 = jump to this enabled index instead of i+1 (loop back)
+        executedIndex := i, success := true
 
         if s["action"] = "Loop Start" {
             opt := ParseLoopOptions(s["param"])
@@ -421,7 +498,7 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
             lower := StrLower(countText)
             repeat := (lower = "forever" || lower = "infinite") ? -1
                     : (IsNumber(countText) ? Max(Integer(countText), 1) : 5)
-            loopStack.Push(Map("start", i + 1, "remaining", repeat, "total", repeat, "var", loopVar))
+            loopStack.Push(Map("start", i + 1, "end", loopPairs[i], "remaining", repeat, "total", repeat, "var", loopVar))
             g_ActiveLoopDepth := loopStack.Length
             if loopVar != "" {
                 g_WorkflowVariables[loopVar] := 1
@@ -434,6 +511,11 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
         } else if s["action"] = "Loop End" {
             if loopStack.Length > 0 {
                 top := loopStack[loopStack.Length]
+                if top["end"] != i {
+                    out["failed_step"] := i
+                    out["error"] := "Loop End does not match the active loop"
+                    return out
+                }
                 if g_LoopBreakRequested {
                     g_LoopBreakRequested := false
                     loopStack.Pop()
@@ -452,67 +534,73 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
                     }
                 }
                 g_ActiveLoopDepth := loopStack.Length
+            } else {
+                out["failed_step"] := i
+                out["error"] := "Loop End reached without an active loop"
+                return out
             }
         } else if s["action"] = "Loop Break" {
             ShowStatus("Loop Break: leaving the current loop", "info")
             if loopStack.Length > 0 {
-                loopStack.Pop()
+                top := loopStack.Pop()
                 g_ActiveLoopDepth := loopStack.Length
-            }
-            j := i + 1
-            while j <= total {
-                if enabled[j]["action"] = "Loop End" {
-                    i := j
-                    break
-                }
-                j++
+                i := top["end"]
+            } else {
+                out["failed_step"] := i
+                out["error"] := "Loop Break reached without an active loop"
+                return out
             }
         } else {
+            g_LastActionError := ""
             success := ExecuteActionVerified(s["action"], s["target"], s["param"], s, speedMultiplier)
 
             ; Popup Detect (and friends) may request a break: leave the current
             ; loop now and skip the rest of the body by jumping to its Loop End.
             if success && g_LoopBreakRequested && loopStack.Length > 0 {
                 g_LoopBreakRequested := false
-                loopStack.Pop()
+                top := loopStack.Pop()
                 g_ActiveLoopDepth := loopStack.Length
                 ShowStatus("Popup detected - leaving the loop early", "info")
-                j := i + 1
-                found := 0
-                while j <= total {
-                    if enabled[j]["action"] = "Loop End" {
-                        found := j
-                        break
-                    }
-                    j++
-                }
-                if found > 0
-                    i := found
+                i := top["end"]
             }
 
             ; Show step result notification
             if success {
-                if g_DebugMode && !stepMuted {
+                if interactive && g_DebugMode && !stepMuted {
                     ShowNotificationBasic("Step " . i . " Success", s["action"] . " completed", 0, "success", "", i)
                 }
             } else {
-                if !stepMuted {
+                out["failed_step"] := executedIndex
+                out["error"] := g_LastActionError != "" ? g_LastActionError : "Step " . executedIndex . " failed: " . s["action"]
+                out["aborted"] := g_AbortSequence
+                WorkflowExecution_Event(opts, "step", Map("index", executedIndex, "action", s["action"], "status", "failed", "error", out["error"]))
+                if interactive && !stepMuted {
                     ShowNotificationBasic("Step " . i . " Failed", s["action"] . "`nTarget: " . s["target"], 0, "error", "", i)
                 }
-                if !g_AbortSequence {
+                if !interactive || abortOnFail || g_AbortSequence
+                    return out
+                if promptOnFailure && !g_AbortSequence {
                     result := MsgBoxTop("Step " . i . " failed: " . s["action"] . "`nTarget: " . s["target"] . "`n`nContinue?", "Failed", "YesNo")
                     if result = "No" {
-                        try Hotkey("Escape", "Off")
-                        if g_StepThroughMode
-                            try Hotkey("Tab", "Off")
-                        return
+                        return out
                     }
                 }
             }
         }
 
+        if success {
+            out["completed"] += 1
+            WorkflowExecution_Event(opts, "step", Map("index", executedIndex, "action", s["action"], "status", "completed", "completed", out["completed"]))
+        }
+        if g_AbortSequence {
+            out["aborted"] := true
+            if out["error"] = ""
+                out["error"] := "Workflow aborted"
+            return out
+        }
+
         ; Step-through mode: Wait for Tab key before continuing
-        if g_StepThroughMode && i < total {
+        if stepThrough && i < total {
             g_StepThroughWaiting := true
             g_StepThroughContinue := false
 
@@ -526,12 +614,12 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
             g_StepThroughWaiting := false
 
             if g_AbortSequence {
-                try Hotkey("Escape", "Off")
-                try Hotkey("Tab", "Off")
-                return
+                out["aborted"] := true
+                out["error"] := "Workflow aborted during step-through"
+                return out
             }
         } else if jumpTo = 0 {
-            Sleep(adjustedDelay)
+            WorkflowExecution_Wait(adjustedDelay)
         }
 
         if jumpTo > 0 && jumpTo <= total
@@ -540,18 +628,78 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0) {
             i++
     }
 
-    if loopStack.Length > 0
-        ShowStatus("Finished with " . loopStack.Length . " unclosed loop(s) - check Loop Start/Loop End pairing", "info")
+    if g_AbortSequence {
+        out["aborted"] := true
+        out["error"] := "Workflow aborted"
+        return out
+    }
+    if loopStack.Length > 0 {
+        out["failed_step"] := total
+        out["error"] := "Finished with " . loopStack.Length . " unclosed loop(s)"
+        return out
+    }
+    out["ok"] := out["failed_step"] = 0 && !out["aborted"]
+    ShowStatus(out["ok"] ? "Complete (" . total . " steps @ " . speedText . ")" : "Finished with a failed step", out["ok"] ? "ok" : "fail")
+    if interactive && !nested {
+        ShowNotificationBasic(out["ok"] ? "Sequence Complete" : "Sequence Failed", out["ok"] ? out["completed"] . " step visits executed successfully" : out["error"], 0, out["ok"] ? "success" : "error")
+        Sleep(500)
+    }
+    return out
+    } catch as err {
+        out["failed_step"] := i
+        out["error"] := err.Message
+        out["aborted"] := g_AbortSequence
+        g_LastActionError := err.Message
+        try LogErrorToFile(err, "caught", "ExecuteSequenceVerified")
+        return out
+    } finally {
+        if escEnabled
+            try Hotkey("Escape", "Off")
+        if tabEnabled
+            try Hotkey("Tab", "Off")
+        g_StepThroughWaiting := false
+        g_StepThroughContinue := false
+        g_ActiveLoopDepth := nested ? priorDepth : 0
+        g_LoopBreakRequested := nested ? priorBreak || g_LoopBreakRequested : false
+        g_SkipNextAction := nested ? priorSkip : false
+        g_WorkflowRunning := nested
+        g_WorkflowExecutionOptions := priorOptions
+        if !nested
+            g_SequenceCallStack := []
+        TrackToolTip()
+        WorkflowExecution_Event(opts, "end", out)
+    }
+}
 
-    ; Disable hotkeys
-    try Hotkey("Escape", "Off")
-    if g_StepThroughMode
-        try Hotkey("Tab", "Off")
+; Optional event callbacks report actual execution without affecting actions.
+WorkflowExecution_Event(opts, event, data) {
+    if opts is Map && opts.Has("onEvent") && IsObject(opts["onEvent"])
+        try opts["onEvent"].Call(event, data)
+}
 
-    ShowStatus("Complete (" . total . " steps @ " . speedText . ")", "ok")
-    ShowNotificationBasic("Sequence Complete", total . " steps executed successfully", 0, "success")
-    Sleep(500)
-    ToolTip()
+; Yield to timers/UI cancellation without leaving the native API busy for an
+; entire explicit Wait or configured sequence delay after Stop was requested.
+WorkflowExecution_Wait(durationMs) {
+    global g_AbortSequence
+    deadline := A_TickCount + Max(0, Integer(durationMs))
+    while A_TickCount < deadline {
+        if g_AbortSequence
+            return false
+        Sleep(Min(50, deadline - A_TickCount))
+    }
+    return !g_AbortSequence
+}
+
+; The manual editor supports a legacy "click current pointer" fallback. An
+; unattended run must not use that fallback for an explicit unresolved target.
+WorkflowExecution_AllowPointerFallback(action, target, param, requestedTarget := "") {
+    global g_WorkflowExecutionOptions, g_LastActionError
+    if !(g_WorkflowExecutionOptions is Map) || g_WorkflowExecutionOptions.Get("interactive", true) || Trim(target) = "" && Trim(requestedTarget) = ""
+        return true
+    g_LastActionError := "Unresolved " . action . " target '" . SubStr(target, 1, 200) . "'"
+        . (requestedTarget != "" && requestedTarget != target ? " (from '" . SubStr(requestedTarget, 1, 200) . "')" : "")
+        . "; parameter '" . SubStr(param, 1, 200) . "'. Capture the element or use a saved coordinate name / screen x,y."
+    return false
 }
 
 ; Bump the loop counter variable for the next pass ($var.<name> = 2, 3, ...).
@@ -579,7 +727,7 @@ StepThroughAdvance(*) {
 AbortSequenceHandler(*) {
     global g_AbortSequence
     g_AbortSequence := true
-    ToolTip("ABORTING...")
+    TrackToolTip("ABORTING...")
 }
 
 ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 1.0) {
@@ -594,6 +742,9 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
     ; This allows dynamic text from Watch Words and Spool Variables to be used
     ; in workflows. Example: Type Text with param "$word.PatientName"
     param := SubstituteWorkflowVariables(param)
+    requestedTarget := target
+    if action = "Click" || action = "Double Click" || action = "Triple Click" || action = "Right Click"
+        target := SubstituteWorkflowVariables(target)
 
     ; Calculate speed-adjusted delays
     preDelay := Round(g_Settings["PreActionDelay"] / speedMultiplier)
@@ -651,10 +802,12 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
     }
 
     ; Apply pre-action delay
-    if preDelay > 0
-        Sleep(preDelay)
+    if preDelay > 0 && !WorkflowExecution_Wait(preDelay)
+        return false
 
     switch action {
+        case "Learned Rehearsal Step":
+            return LearningProcedure_Step(param)
         case "Click":
             if target != "" && target != "(none)" && ResolveWorkflowPoint(target, &pointX, &pointY) {
                 g_LastClickX := pointX
@@ -666,8 +819,11 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
                 if ResolveWorkflowPoint(param, &pointX, &pointY)
                     return ClickVerified(pointX, pointY)
             }
+            if !WorkflowExecution_AllowPointerFallback(action, target, param, requestedTarget)
+                return false
             MouseGetPos(&g_LastClickX, &g_LastClickY)
             FlashClickPosition(g_LastClickX, g_LastClickY)
+            DeepActivity_Before("mouse_click")
             Click()
             return true
 
@@ -676,7 +832,10 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
                 g_LastClickX := pointX, g_LastClickY := pointY
                 return ClickVerified(pointX, pointY, "Left", 2)
             }
+            if !WorkflowExecution_AllowPointerFallback(action, target, param, requestedTarget)
+                return false
             MouseGetPos(&g_LastClickX, &g_LastClickY)
+            DeepActivity_Before("mouse_click")
             Click(, , , 2)
             return true
 
@@ -685,7 +844,10 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
                 g_LastClickX := pointX, g_LastClickY := pointY
                 return ClickVerified(pointX, pointY, "Left", 3)
             }
+            if !WorkflowExecution_AllowPointerFallback(action, target, param, requestedTarget)
+                return false
             MouseGetPos(&g_LastClickX, &g_LastClickY)
+            DeepActivity_Before("mouse_click")
             Click(, , , 3)
             return true
 
@@ -694,7 +856,10 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
                 g_LastClickX := pointX, g_LastClickY := pointY
                 return ClickVerified(pointX, pointY, "Right")
             }
+            if !WorkflowExecution_AllowPointerFallback(action, target, param, requestedTarget)
+                return false
             MouseGetPos(&g_LastClickX, &g_LastClickY)
+            DeepActivity_Before("mouse_click")
             Click(, , "Right")
             return true
 
@@ -703,6 +868,7 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
                 c := g_Coordinates[target]
                 if c["endX"] != "" {
                     MoveMouseVerified(c["x"], c["y"])
+                    DeepActivity_Box(Map("x",c["endX"]-15,"y",c["endY"]-15,"w",30,"h",30))
                     Sleep(g_Settings["PreActionDelay"])
                     MouseClickDrag("Left", c["x"], c["y"], c["endX"], c["endY"], g_Settings["DefaultDragTime"] / 100)
                     g_LastClickX := c["endX"]
@@ -719,6 +885,7 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
                     || !ResolveWorkflowPoint(Trim(parts[2]), &endX, &endY)
                     return false
                 MoveMouseVerified(startX, startY)
+                DeepActivity_Box(Map("x",endX-15,"y",endY-15,"w",30,"h",30))
                 Sleep(g_Settings["PreActionDelay"])
                 MouseClickDrag("Left", startX, startY, endX, endY, g_Settings["DefaultDragTime"] / 100)
                 g_LastClickX := endX
@@ -750,6 +917,7 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
             return false
 
         case "Menu Select":
+            DeepActivity_Before("key_send")
             downCount := param != "" ? Integer(param) : 1
             ShowStatus("Menu: " . downCount . " down + Enter", "wait")
             Sleep(g_Settings["PreActionDelay"])
@@ -816,6 +984,7 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
             return ExecuteKeyChord(param)
 
         case "Paste":
+            DeepActivity_Before("key_send")
             Sleep(g_Settings["PreActionDelay"])
             Send("^v")
             Sleep(g_Settings["PostActionDelay"])
@@ -825,8 +994,7 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
             return SetClipboardVerified(param)
 
         case "Wait":
-            Sleep(param != "" ? Integer(param) : g_Settings["ActionDelay"])
-            return true
+            return WorkflowExecution_Wait(param != "" ? Integer(param) : g_Settings["ActionDelay"])
 
         case "Activate Window":
             return ActivateWindowRobust(param)
@@ -838,6 +1006,7 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
             if StrLower(Trim(param)) = "demo:lab"
                 return ShowWorkflowDemoLab(true)
             try {
+                DeepActivity_Set(true,"Launching requested program",10000)
                 Run(param)
                 Sleep(g_Settings["ActionDelay"])
                 return true
@@ -853,6 +1022,7 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
             return TypeTextVerified(FormatTime(, g_Settings["DateFormat"]))
 
         case "Scroll":
+            DeepActivity_Before("mouse_click")
             amt := param != "" ? Integer(param) : 3
             Click(amt > 0 ? "WheelUp" : "WheelDown", , , Abs(amt))
             return true
@@ -1189,10 +1359,13 @@ ExecutePopupDetect(target, param, stepData := "") {
 ; Captures the region and keeps one average byte per sampled pixel. Fast and
 ; small enough to store on the step as the remembered baseline.
 SampleRegionPixels(x, y, w, h, step := 8) {
-    x := Max(0, x), y := Max(0, y)
-    w := Min(w, A_ScreenWidth - x), h := Min(h, A_ScreenHeight - y)
+    ; Clip to the entire virtual desktop, including monitors left/above primary.
+    desktopX := SysGet(76), desktopY := SysGet(77)
+    right := Min(x + w, desktopX + SysGet(78)), bottom := Min(y + h, desktopY + SysGet(79))
+    x := Max(desktopX, x), y := Max(desktopY, y)
+    w := right - x, h := bottom - y
     if w < 4 || h < 4
-        return Buffer(2, 0)
+        return Buffer(4, 0)
     hdc := GetDC()
     chdc := CreateCompatibleDC()
     hbm := CreateDIBSection(w, h, chdc, 32, &pvBits)
@@ -1202,10 +1375,10 @@ SampleRegionPixels(x, y, w, h, step := 8) {
     stride := w * 4
     cols := (w + step - 1) // step
     rows := (h + step - 1) // step
-    buf := Buffer(cols * rows + 2, 0)
+    buf := Buffer(cols * rows + 4, 0)
     NumPut("UShort", cols, buf, 0)
     NumPut("UShort", rows, buf, 2)
-    idx := 2
+    idx := 4
     row := 0
     while row < rows {
         py := row * step * stride
@@ -1229,13 +1402,15 @@ SampleRegionPixels(x, y, w, h, step := 8) {
 
 ; Fraction of sampled pixels that differ noticeably between two snapshots.
 ComparePixelSamples(bufA, bufB) {
-    if bufA.Size != bufB.Size || bufA.Size < 2
+    if bufA.Size != bufB.Size || bufA.Size < 4
         return 1.0
-    total := bufA.Size - 2
+    if NumGet(bufA, 0, "UInt") != NumGet(bufB, 0, "UInt")
+        return 1.0
+    total := bufA.Size - 4
     if total <= 0
         return 0.0
     diff := 0
-    i := 2
+    i := 4
     while i < bufA.Size {
         a := NumGet(bufA, i, "UChar")
         b := NumGet(bufB, i, "UChar")
@@ -1303,44 +1478,42 @@ EvaluateWorkflowComparison(variableValue, expression, &result) {
 
 ExecuteSubSequenceByName(sequenceName, speedMultiplier := 1.0) {
     global g_Sequences, g_SequenceCallStack, g_SkipNextAction, g_AbortSequence
+    global g_WorkflowExecutionOptions, g_LastActionError, g_WorkflowRunning
     if sequenceName = "" || !g_Sequences.Has(sequenceName) {
+        g_LastActionError := "Run Sequence: workflow not found - " . sequenceName
         ShowStatus("Run Sequence: workflow not found - " . sequenceName, "fail")
         return false
     }
     for activeName in g_SequenceCallStack {
         if activeName = sequenceName {
+            g_LastActionError := "Run Sequence blocked a recursive call to " . sequenceName
             ShowStatus("Run Sequence blocked a recursive call to " . sequenceName, "fail")
             return false
         }
     }
 
-    g_SequenceCallStack.Push(sequenceName)
-    g_SkipNextAction := false
+    nested := g_WorkflowRunning
+    if nested
+        g_SequenceCallStack.Push(sequenceName)
     seq := g_Sequences[sequenceName]
-    completed := true
+    parentOptions := g_WorkflowExecutionOptions
+    interactive := !(parentOptions is Map) || parentOptions.Get("interactive", true)
+    childOptions := Map("nested", nested, "sequenceName", sequenceName, "interactive", interactive,
+        "promptOnFailure", false, "abortOnFail", seq.Get("abortOnFail", false))
+    if parentOptions is Map && parentOptions.Has("onEvent")
+        childOptions["onEvent"] := parentOptions["onEvent"]
     try {
-        for step in seq["steps"] {
-            if g_AbortSequence
-                break
-            if step.Has("enabled") && !step["enabled"]
-                continue
-            if g_SkipNextAction {
-                g_SkipNextAction := false
-                ShowStatus("Sub-workflow skipped: " . step["action"], "info")
-                continue
-            }
-            stepOK := ExecuteActionVerified(step["action"], step["target"], step["param"], step, speedMultiplier)
-            if !stepOK {
-                completed := false
-                if seq.Has("abortOnFail") && seq["abortOnFail"]
-                    break
-            }
+        result := ExecuteSequenceVerified(seq["steps"], speedMultiplier, childOptions)
+        if !result["ok"] {
+            g_LastActionError := "Sub-workflow '" . sequenceName . "'"
+                . (result["failed_step"] ? " step " . result["failed_step"] : "") . ": " . result["error"]
         }
+        return result["ok"] && !result["aborted"]
     } finally {
         ; A condition at the end of a sub-workflow must not skip a caller step.
         g_SkipNextAction := false
-        g_SequenceCallStack.Pop()
+        if nested
+            g_SequenceCallStack.Pop()
     }
-    return completed
 }
 

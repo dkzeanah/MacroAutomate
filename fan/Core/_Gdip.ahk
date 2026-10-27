@@ -47,14 +47,15 @@ CapturePatternScreenshot(patternName, x := "", y := "") {
     ; Clean filename (remove special chars)
     safeName := RegExReplace(patternName, "[^\w\-]", "_")
     fileName := safeName . ".png"
-    savePath := SCREENSHOTS_DIR . "\" . fileName
+    savePath := Photo_TempPath()
+    cleanup := {__Delete: (*) => FanFileExist(savePath) ? FanFileDelete(savePath) : 0}
 
     result := Gdip_SaveBitmapToFile(pBitmap, savePath)
     Gdip_DisposeImage(pBitmap)
 
     if result = 0 {
         ShowStatus("Screenshot saved: " . fileName, "ok")
-        return savePath
+        return Photo_DataUrl(savePath)
     }
 
     ShowStatus("Screenshot save failed", "fail")

@@ -543,8 +543,9 @@ Attn_ShowDetail(lvRow) {
     shots := Attn_SnapshotsFor(rec["title"], 12)
     shotPath := ""
     for s in shots {
-        if FileExist(s["image_path"]) {
-            shotPath := s["image_path"]
+        path := Photo_Path("snapshot:" . s["id"])
+        if path != "" {
+            shotPath := path
             break
         }
     }
@@ -597,8 +598,9 @@ Attn_OpenSnapshot() {
     if !rec.Count
         return
     for s in Attn_SnapshotsFor(rec["title"], 12) {
-        if FileExist(s["image_path"]) {
-            try Run('"' . s["image_path"] . '"')
+        path := Photo_Path("snapshot:" . s["id"])
+        if path != "" {
+            Photo_Export(path, "snapshot.png")
             return
         }
     }

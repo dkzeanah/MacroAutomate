@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+vault/
+*.db
+*.db-wal
+*.db-shm
+.sl/
+.sl_*.md
+*.log
+*_out.txt
+*.txt.bak
+dist/
+build/
+*.egg-info/
+config.yaml
+
+# Atlas -- the map itself is regenerable; backups and the attic are local history
+.atlas/backups/
+.atlas/atlas.sqlite3
+condensed/
+projects/
+coagulated/

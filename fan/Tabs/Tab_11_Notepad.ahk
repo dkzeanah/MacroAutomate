@@ -132,8 +132,8 @@ SaveNotepadContent(*) {
 
     ; Save file
     try {
-        FileDelete(filepath)  ; Delete if exists
-        FileAppend(g_NotepadContent, filepath, "UTF-8")
+        FanFileDelete(filepath)  ; Delete if exists
+        FanFileAppend(g_NotepadContent, filepath, "UTF-8")
         ShowStatus("Note saved: " . filename, "ok")
         RefreshNoteList()
     } catch as err {
@@ -147,9 +147,8 @@ LoadNotepadContent(*) {
 
     ; Get list of notes
     notes := []
-    loop files NOTES_DIR . "\*.txt" {
-        notes.Push(A_LoopFileName)
-    }
+    for note in FanFile_ListNotes(NOTES_DIR)
+        notes.Push(note["name"])
 
     if notes.Length = 0 {
         MsgBoxTop("No saved notes found.", "Load Note")
@@ -160,9 +159,9 @@ LoadNotepadContent(*) {
     result := InputBoxTop("Enter note filename to load:", "Load Note", notes[1])
     if result["Result"] = "OK" && result["Value"] != "" {
         filepath := NOTES_DIR . "\" . result["Value"]
-        if FileExist(filepath) {
+        if FanFileExist(filepath) {
             try {
-                g_NotepadContent := FileRead(filepath, "UTF-8")
+                g_NotepadContent := FanFileRead(filepath, "UTF-8")
                 MainGui["NotepadEdit"].Value := g_NotepadContent
                 ShowStatus("Note loaded: " . result["Value"], "ok")
             } catch as err {
@@ -189,7 +188,7 @@ LoadSelectedNote(*) {
 
     ; Load content
     try {
-        g_NotepadContent := FileRead(filepath, "UTF-8")
+        g_NotepadContent := FanFileRead(filepath, "UTF-8")
         MainGui["NotepadEdit"].Value := g_NotepadContent
         ShowStatus("Loaded: " . filename, "ok")
     } catch as err {
@@ -302,10 +301,9 @@ RefreshNoteList() {
         lv := MainGui["NoteListLV"]
         lv.Delete()
 
-        loop files NOTES_DIR . "\*.txt" {
-            modTime := FormatTime(A_LoopFileTimeModified, "yyyy-MM-dd HH:mm:ss")
-            size := Round(A_LoopFileSize / 1024, 1) . " KB"
-            lv.Add("", A_LoopFileName, modTime, size)
+        for note in FanFile_ListNotes(NOTES_DIR) {
+            size := Round(note["size"] / 1024, 1) . " KB"
+            lv.Add("", note["name"], note["modified"], size)
         }
 
         ; Auto-size columns
@@ -329,8 +327,8 @@ SavePopupNotepad(*) {
         filepath := NOTES_DIR . "\" . filename
 
         ; Save
-        FileDelete(filepath)
-        FileAppend(g_NotepadContent, filepath, "UTF-8")
+        FanFileDelete(filepath)
+        FanFileAppend(g_NotepadContent, filepath, "UTF-8")
         ShowStatus("Popup note saved: " . filename, "ok")
     }
 }
@@ -371,8 +369,8 @@ AutoSavePopupNotepad() {
 
         ; Auto-save to temp file
         filepath := NOTES_DIR . "\autosave_popup.txt"
-        FileDelete(filepath)
-        FileAppend(g_NotepadContent, filepath, "UTF-8")
+        FanFileDelete(filepath)
+        FanFileAppend(g_NotepadContent, filepath, "UTF-8")
     }
 }
 

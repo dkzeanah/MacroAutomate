@@ -1,4 +1,4 @@
-; ===============================================================================
+﻿; ===============================================================================
 ; MACRO AUTOMATOR v9.0 DEEPSEEK - SELF-LEARNING VISION SCOUT  (MULTI-FILE BUILD)
 ; ===============================================================================
 ; ENTRY POINT of the refactored project. Run THIS file, not
@@ -17,13 +17,40 @@
 #Warn All, StdOut  ; Never block startup with warning popups; logged launcher captures stdout.
 
 ; The multi-file project lives one folder below the original project root
-; (fan\). APP_ROOT points back to that root when its data\ folder exists, so
+; (fan\). APP_ROOT points back to that root when its libraries exist, so
 ; the refactored build uses the SAME working directory, data\ folder and
 ; database as the single-file original. Moved elsewhere, it falls back to
 ; this folder and creates its own data\ there.
-global APP_ROOT := DirExist(A_ScriptDir . "\..\data") ? A_ScriptDir . "\.." : A_ScriptDir
+global APP_ROOT := FileExist(A_ScriptDir . "\..\lib\TrackSQLite.ahk") ? A_ScriptDir . "\.." : A_ScriptDir
+; Fail visibly in the logged launcher instead of stranding startup behind an
+; unhandled initialization dialog before the normal error handler is installed.
+OnError(FanBoot_Error)
+FanBoot_Error(err,mode) {
+    message := "STARTUP ERROR: " . err.Message . " · " . err.File . ":" . err.Line . "`n"
+    try FileAppend(message,"*")
+    try FileAppend(message,A_ScriptDir . "\DeepSeekBridge\.runtime\boot-error.log","UTF-8")
+    ExitApp(2)
+}
+global g_FanSeedPath := A_Args.Length >= 2 && A_Args[1] = "--seed-db" ? A_Args[2] : ""
+global g_TrackTooltipsDisabled := true
+global g_FindTextTooltipHandler := TrackToolTip
+OnMessage(0x4E, Track_TooltipNotify)
+OnMessage(0x84F7,FanNativeWorkbench_Message)
+
+FanNativeWorkbench_Message(action,identity,*) {
+    global MainGui, TabCtrl
+    ; Viewer IPC opens native panels only; it cannot execute desktop input.
+    if action=1 {
+        TabCtrl.Choose(20), MainGui.Show(), DeepBridge_Render()
+    } else if action=2
+        SetTimer(LearningLab_Open,-1)
+    else if action=3 && identity>0
+        SetTimer((*)=>LearningLab_Present(Map("claim_id",identity)),-1)
+}
 
 SetWorkingDir(APP_ROOT)  ; same working directory the original used
+; All capture and monitor geometry uses physical pixels on mixed-DPI displays.
+DllCall("SetThreadDpiAwarenessContext", "Ptr", -4, "Ptr")
 CoordMode("Mouse", "Screen") ; Mouse coordinates relative to screen
 CoordMode("Pixel", "Screen") ; Pixel coordinates relative to screen
 CoordMode("ToolTip", "Screen") ; Tooltip positioning relative to screen
@@ -53,6 +80,8 @@ CoordMode("ToolTip", "Screen") ; Tooltip positioning relative to screen
 #Include ..\lib\TrackSQLite.ahk
 #Include ..\lib\TrackUtil.ahk
 #Include ..\lib\TrackingDB.ahk
+#Include ..\lib\PhotoStore.ahk
+#Include ..\lib\LearningValidation.ahk
 #Include ..\lib\PixelCanvas.ahk
 #Include ..\lib\WindowTracker.ahk
 #Include ..\lib\MouseTracker.ahk
@@ -103,6 +132,38 @@ CoordMode("ToolTip", "Screen") ; Tooltip positioning relative to screen
 ; Vision Scout with coarse full-desktop scanning and n-gram continuations.
 #Include ..\lib\UsagePatternPredictor.ahk
 
+; ═══════════════════════════════════════════════════════════════════════════════
+; STUDY ASSISTANT (REALTIME_STUDY_ASSISTANT_SPEC.md): ingest
+; lesson plans/PDFs/notes, build a searchable concept memory, answer captured
+; questions from local evidence (DeepSeek only as a fallback), verify + "learn
+; once", and export study material. The live controller and workflow lab below
+; turn captured controls into guarded mouse/keyboard actions. StudyDB extends
+; the SnipParse question bank, so it loads after the tracking stack above.
+#Include ..\lib\StudyDB.ahk
+#Include ..\lib\StudyConsole.ahk
+#Include ..\lib\StudyLLM.ahk
+#Include ..\lib\StudyIngest.ahk
+#Include ..\lib\StudyAssistant.ahk
+; ── Live portal half (automation): session pinning + focus guard, Acc/OCR/vision
+; perception, self-composed human-paced answer entry, and the session
+; orchestrator that bridges the study layer above. Loads after it so the
+; knowledge layer's engine and persistence are available.
+#Include ..\lib\StudyAutomation.ahk
+#Include ..\lib\StudyPortal.ahk
+#Include ..\lib\StudyComposer.ahk
+#Include ..\lib\StudyLive.ahk
+#Include ..\lib\StudyTools.ahk
+#Include ..\lib\StudyMath.ahk
+#Include ..\lib\StudyDemo.ahk
+#Include ..\lib\DeepSeekActivity.ahk
+#Include ..\lib\DeepSeekBridge.ahk
+#Include ..\lib\FanDataMaintenance.ahk
+#Include ..\lib\FanUnified.ahk
+FanData_RecoveryBootstrap()
+FanUnified_Bootstrap()
+#Include ..\lib\FanBridgeVision.ahk
+#Include ..\lib\FanBridgeAPI.ahk
+
 ; (kept from the original file, which includes FindText twice)
 #Include ..\FindText.ahk
 
@@ -126,14 +187,24 @@ if !DirExist(NOTES_DIR)
 if !DirExist(TRACKING_DIR)
     DirCreate(TRACKING_DIR)
 
+if g_FanSeedPath != "" {
+    FanUnified_Seed(g_FanSeedPath)
+    ExitApp(0)
+}
+
 
 ; Initialize GDI+ for screenshot capture
+OnError(FanBoot_Error,0)
 OnError(LogUnhandledError)
 g_GdipToken := Gdip_Startup()
 OnExit(ShutdownGdip)
 OnExit(SaveAllOnExit)
 ; Flush open tracking buckets/sessions and close the tracking DB cleanly.
 OnExit(TrackingOnExit)
+; Persist study-assistant read-along state (it shares the tracking DB, which
+; TrackingOnExit closes, so this must run before that hook - OnExit fires
+; handlers last-registered-first, so register it after TrackingOnExit).
+OnExit(Study_OnExit)
 
 ; ===============================================================================
 ; CORE FUNCTION LIBRARIES (definitions only - order-independent in AHK v2)
@@ -165,12 +236,21 @@ OnExit(TrackingOnExit)
 #Include Tabs\Tab_15_SnapshotRecovery.ahk
 #Include Tabs\Tab_16_VisionScout.ahk
 #Include Tabs\Tab_17_UsagePredictor.ahk
+#Include Tabs\Tab_18_StudyAssistant.ahk
+#Include Tabs\Tab_19_PortalAssist.ahk
+#Include Tabs\Tab_20_DeepSeekBridge.ahk
+#Include ..\lib\FanHarness.ahk
+#Include ..\lib\LearningProcedure.ahk
 
 ; ===============================================================================
 ; MAIN GUI - window shell, toolbar and the tab control itself
 ; ===============================================================================
 MainGui := Gui("+Resize +MinSize900x820", "Macro Automator v9 - Vision Scout + Usage Predictor")
 MainGui.SetFont("s9", "Segoe UI")
+SecondaryWindows_Start()
+g_DeepActivityPlacement := SecondaryWindows_ShowAt
+A_TrayMenu.Add("Learning Workbench", LearningWorkbench_Open)
+A_TrayMenu.Add("Stored evidence / lessons", LearningLab_Open)
 MainGui.OnEvent("Close", (*) => (MainGui.Hide(), g_GuiVisible := false))
 MainGui.OnEvent("Size", GuiResize)
 
@@ -185,13 +265,13 @@ MousePosText := MainGui.Add("Text", "x250 y6 w80", "")
 LiveCheck := MainGui.Add("CheckBox", "x335 y5", "Live")
 LiveCheck.OnEvent("Click", (c,*) => SetTimer(UpdateMousePos, c.Value ? 100 : 0))
 
-MainGui.Add("Button", "x400 y2 w50 h20 cRed", "ABORT").OnEvent("Click", AbortSequence)
+MainGui.Add("Button", "x400 y2 w50 h20 cRed", "ABORT").OnEvent("Click", (*) => (AbortSequence(), StudyLive_Abort(), DeepBridge_Cancel()))
 
 ; NOTE: "Calendar" (tab 12) was previously missing from this list while the
 ; calendar section below already called TabCtrl.UseTab(12) - which left that UI
 ; attached to a tab that did not exist, so it never rendered. Declaring it here
 ; restores it. "Tracking" (tab 13) is the behavior-tracking subsystem.
-TabCtrl := MainGui.Add("Tab3", "x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking", "App Learner", "Snapshot Recovery", "Vision Scout", "Usage Predictor"])
+TabCtrl := MainGui.Add("Tab3", "x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking", "App Learner", "Snapshot Recovery", "Vision Scout", "Usage Predictor", "Study Assistant", "Live Portal", "DeepSeek Bridge"])
 
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; TAB 1: WORKFLOW
@@ -228,6 +308,9 @@ Tab_AppLearner_Build()
 Tab_SnapshotRecovery_Build()
 Tab_VisionScout_Build()
 Tab_UsagePredictor_Build()
+Tab_StudyAssistant_Build()
+Tab_PortalAssist_Build()
+Tab_DeepSeekBridge_Build()
 TabCtrl.UseTab(0)
 
 ; Initialize the workflow tab for the first action (button visibility, hints,
@@ -254,6 +337,8 @@ try {
     }
     for , c in g_SnapRecCtl
         flowSkip.Push(c)
+    for , c in g_DeepBridge.Get("controls", [])
+        flowSkip.Push(c)
     AutoFlow_Init(MainGui, 0, 0, flowSkip)
     LogDiagnostic("AutoFlow captured " . AutoFlow_Report()
                 . "  design base " . g_FlowBaseW . "x" . g_FlowBaseH, "AutoFlow", "INFO")
@@ -261,7 +346,17 @@ try {
 catch as err
     LogErrorToFile(err, "caught", "AutoFlow capture")
 
-MainGui.Show("w1050 h820 Maximize")
+; A service reload during an automation run should not cover the user's Chrome.
+; Normal launches retain the existing maximized UI; /background keeps it hidden.
+if A_Args.Length && A_Args[1] = "/background" {
+    MainGui.Show("w1050 h820 Hide")
+    g_GuiVisible := false
+} else
+    MainGui.Show("w1050 h820 Maximize")
+if A_Args.Length && (A_Args[1] = "/bridge" || A_Args[1] = "--live-workbench" || A_Args[1] = "--learning-workbench")
+    TabCtrl.Choose(20)
+if A_Args.Length && A_Args[1] = "/settings"
+    TabCtrl.Choose(10)
 
 ; Show("...Maximize") applies the maximised state without raising a Size event,
 ; so the first reflow never sees the real window and every tab stays laid out
@@ -328,6 +423,15 @@ Escape::DefModeCancel
 ^+5::Qa_OpenBank()         ; every parsed question, answered or not
 ^+6::Qa_AskNow()           ; pull one unanswered question right now
 ^+7::WinModel_OpenPanel()  ; window structure map for a learned app
+^+8::Study_UiReviewNow()  ; spaced review: surface the next due question card
+; Live Portal (real-time study assistant): watch the pinned Chrome portal tab
+; and answer the question on screen (observe/suggest/fill/submit per mode).
+^+y::StudyLive_ToggleSession()
+^+u::StudyLive_HotPin()   ; pin the browser window under the cursor
+^+Esc:: {
+    StudyLive_Abort()
+    DeepBridge_Cancel()
+}
 
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; QUICK SCREEN OCR (Ctrl+Shift+Q)
@@ -401,6 +505,9 @@ RefreshTriggersLV()  ; V5.1: Populate triggers list
 try Track_AutoStart()
 catch as err
     LogErrorToFile(err, "caught", "Tracking auto-start")
+try ExplorerKnowledge_Start(APP_ROOT . "\fan\DeepSeekBridge")
+catch as err
+    LogErrorToFile(err,"caught","Explorer path observer startup")
 ; Vision Scout (v9): resume the learner if it was running at last shutdown.
 try VisionScout_AutoStart()
 catch as err
@@ -410,9 +517,31 @@ catch as err
     LogErrorToFile(err, "caught", "Tracking element name cache")
 ; The second local learner has an independent model and database schema. Its
 ; acceptance shortcut is Win+Shift+CapsLock so Vision Scout can keep Win+CapsLock.
+try AutoDiscovery_Start()
+catch as discoveryError
+    LogErrorToFile(discoveryError, "caught", "Automatic discovery startup")
+try LearningLab_Start()
+catch as learningError
+    LogErrorToFile(learningError, "caught", "Learning Workbench startup")
 try UsagePredictor_Init()
 catch as err
     LogErrorToFile(err, "caught", "Usage Predictor initialization")
+; Study Assistant: create/extend its schema and resume read-along if it was on.
+; Never block startup.
+try Study_Init()
+catch as err
+    LogErrorToFile(err, "caught", "Study Assistant initialization")
+; Live Portal: restore the browser-window pin and start the console/session
+; automatically. Startup uses observe/suggest until an input mode is selected.
+try StudyLive_AutoStart()
+catch as err
+    LogErrorToFile(err, "caught", "Live Portal initialization")
+try DeepBridge_AutoStart()
+catch as err
+    LogErrorToFile(err, "caught", "DeepSeek Bridge initialization")
+try FanAPI_Start(g_DeepBridge["root"])
+catch as apiStartupError
+    LogErrorToFile(apiStartupError, "caught", "Fan internal agent API initialization")
 
 StatusBar.SetText("Ready | CAPSLOCK=Definition Mode | Ctrl+B=Load | Ctrl+Shift+B=Fire | ESC=Abort")
 
@@ -421,6 +550,17 @@ StatusBar.SetText("Ready | CAPSLOCK=Definition Mode | Ctrl+B=Load | Ctrl+Shift+B
 ; V5.0: INITIALIZE INSTRUCTIONS FILE
 
 InitializeInstructions()
+; An explicit startup view for a local, non-interfering demonstration using
+; the actual stored learner inventory. Normal startup stays quiet.
+if A_Args.Length && A_Args[1] = "--learning-workbench"
+    SetTimer(LearningWorkbench_Open,-1500)
+if A_Args.Length && A_Args[1] = "--live-workbench"
+    SetTimer(AgentWorkbench_Open,-1500)
+if A_Args.Length>=2 && A_Args[1]="--bridge-prompt"
+    SetTimer(DeepBridge_LoadPrompt.Bind(A_Args[2],A_Args.Length>=3 && A_Args[3]="--send"),-1500)
+if A_Args.Length>=2 && A_Args[1]="--bridge-results"
+    SetTimer(DeepBridge_ShowResults.Bind(A_Args[2]),-1500)
+
 
 
 ; ═══════════════════════════════════════════════════════════════════════════════

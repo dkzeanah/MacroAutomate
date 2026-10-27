@@ -824,19 +824,19 @@ ParseFormValues(action, target, param) {
 CapturePointOnScreen(formGui) {
     formGui.Hide()
     Sleep(150)
-    ToolTip("Click the target point...`nESC cancels")
+    TrackToolTip("Click the target point...`nESC cancels")
     cancelled := false
     Hotkey("Escape", (*) => (cancelled := true), "On")
     while !GetKeyState("LButton", "P") && !cancelled
         Sleep(10)
     if cancelled {
-        ToolTip()
+        TrackToolTip()
         Hotkey("Escape", "Off")
         formGui.Show()
         return ""
     }
     MouseGetPos(&x, &y)
-    ToolTip()
+    TrackToolTip()
     Hotkey("Escape", "Off")
     formGui.Show()
     return x . "," . y
@@ -845,13 +845,13 @@ CapturePointOnScreen(formGui) {
 CaptureDragOnScreen(formGui) {
     formGui.Hide()
     Sleep(150)
-    ToolTip("Click the DRAG START point...`nESC cancels")
+    TrackToolTip("Click the DRAG START point...`nESC cancels")
     cancelled := false
     Hotkey("Escape", (*) => (cancelled := true), "On")
     while !GetKeyState("LButton", "P") && !cancelled
         Sleep(10)
     if cancelled {
-        ToolTip()
+        TrackToolTip()
         Hotkey("Escape", "Off")
         formGui.Show()
         return ""
@@ -859,17 +859,17 @@ CaptureDragOnScreen(formGui) {
     MouseGetPos(&x1, &y1)
     while GetKeyState("LButton", "P")
         Sleep(10)
-    ToolTip("Now click the DRAG END point...")
+    TrackToolTip("Now click the DRAG END point...")
     while !GetKeyState("LButton", "P") && !cancelled
         Sleep(10)
     if cancelled {
-        ToolTip()
+        TrackToolTip()
         Hotkey("Escape", "Off")
         formGui.Show()
         return ""
     }
     MouseGetPos(&x2, &y2)
-    ToolTip()
+    TrackToolTip()
     Hotkey("Escape", "Off")
     formGui.Show()
     return x1 . "," . y1 . "->" . x2 . "," . y2
@@ -878,14 +878,14 @@ CaptureDragOnScreen(formGui) {
 CaptureRegionOnScreen(formGui, whFormat := false) {
     formGui.Hide()
     Sleep(150)
-    ToolTip("Drag a box around the region`nESC cancels")
+    TrackToolTip("Drag a box around the region`nESC cancels")
     cancelled := false
     x2 := 0, y2 := 0
     Hotkey("Escape", (*) => (cancelled := true), "On")
     while !GetKeyState("LButton", "P") && !cancelled
         Sleep(10)
     if cancelled {
-        ToolTip()
+        TrackToolTip()
         Hotkey("Escape", "Off")
         formGui.Show()
         return ""
@@ -901,7 +901,7 @@ CaptureRegionOnScreen(formGui, whFormat := false) {
         WinSetTransparent(180, selBox)
         Sleep(16)
     }
-    ToolTip()
+    TrackToolTip()
     Hotkey("Escape", "Off")
     try selBox.Destroy()
     if cancelled || Abs(x2 - x1) < 10 || Abs(y2 - y1) < 10 {
@@ -2516,7 +2516,7 @@ SelectOCRRegionForWorkflow(*) {
     Sleep(200)
 
     ; Show instruction tooltip
-    ToolTip("📷 Drag to select OCR region`nESC to cancel`nHighlight will persist after selection", A_ScreenWidth//2 - 150, 50)
+    TrackToolTip("📷 Drag to select OCR region`nESC to cancel`nHighlight will persist after selection", A_ScreenWidth//2 - 150, 50)
 
     ; Track drag state
     x1 := 0, y1 := 0, x2 := 0, y2 := 0
@@ -2533,7 +2533,7 @@ SelectOCRRegionForWorkflow(*) {
     }
 
     if cancelled {
-        ToolTip()
+        TrackToolTip()
         Hotkey("Escape", "Off")
         MainGui.Show()
         return
@@ -2578,7 +2578,7 @@ SelectOCRRegionForWorkflow(*) {
     }
 
     ; Don't destroy the box yet - keep it as persistent highlight
-    ToolTip()
+    TrackToolTip()
     Hotkey("Escape", "Off")
 
     if cancelled || Abs(x2 - x1) < 10 || Abs(y2 - y1) < 10 {

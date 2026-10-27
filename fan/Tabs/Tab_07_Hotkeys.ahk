@@ -9,19 +9,19 @@
 SaveHotkeys() {
     global g_HotkeyBindings, HOTKEYS_FILE
     try {
-        if FileExist(HOTKEYS_FILE)
-            FileDelete(HOTKEYS_FILE)
+        if FanFileExist(HOTKEYS_FILE)
+            FanFileDelete(HOTKEYS_FILE)
         for hk, seq in g_HotkeyBindings
-            IniWrite(seq, HOTKEYS_FILE, "Hotkeys", hk)
+            FanIniWrite(seq, HOTKEYS_FILE, "Hotkeys", hk)
     }
 }
 
 LoadHotkeys() {
     global g_HotkeyBindings, HOTKEYS_FILE
-    if !FileExist(HOTKEYS_FILE)
+    if !FanFileExist(HOTKEYS_FILE)
         return
     g_HotkeyBindings := Map()
-    allKeys := IniRead(HOTKEYS_FILE, "Hotkeys", , "")
+    allKeys := FanIniRead(HOTKEYS_FILE, "Hotkeys", , "")
     for line in StrSplit(allKeys, "`n") {
         eq := InStr(line, "=")
         if eq > 0

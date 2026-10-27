@@ -1,0 +1,2065 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Macro Automator · Automation Guide</title>
+<style>
+:root{color-scheme:light dark;--bg:#f5f7fa;--panel:#fff;--ink:#172436;--muted:#506179;--line:#d8e1ec;--accent:#0757a0;--code:#edf2f8}
+@media(prefers-color-scheme:dark){:root{--bg:#111923;--panel:#192432;--ink:#e5edf6;--muted:#a6b7cd;--line:#354557;--accent:#8ec7ff;--code:#243447}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,Segoe UI,sans-serif}
+header{position:sticky;top:0;z-index:2;background:var(--panel);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+header strong{font-size:18px}header label{display:flex;align-items:center;gap:10px;flex:1;min-width:240px}
+input{width:100%;max-width:500px;border:1px solid var(--line);border-radius:6px;padding:9px 12px;background:var(--bg);color:var(--ink);font:inherit}
+button{border:1px solid var(--line);border-radius:6px;padding:9px 14px;color:var(--ink);background:var(--bg);cursor:pointer;font:inherit}
+.layout{display:grid;grid-template-columns:280px minmax(0,1000px);gap:26px;max-width:1350px;margin:auto;padding:28px 20px}
+aside{position:sticky;top:100px;height:calc(100vh - 125px);overflow:auto;padding:0 12px 20px 0}aside p{color:var(--muted);font-size:13px;margin-top:0}
+nav a{display:block;padding:8px 10px;border-radius:5px;font-size:14px;line-height:1.4;text-decoration:none}nav a:hover{background:var(--code)}
+main{min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:30px 36px}
+h1{font-size:32px;line-height:1.2;margin:0 0 22px}h2{font-size:24px;line-height:1.35;margin-top:0}h3{font-size:19px;margin:28px 0 10px}
+section{padding:30px 0;border-top:1px solid var(--line);scroll-margin-top:110px}p{margin:12px 0}a{color:var(--accent)}
+table{display:block;overflow:auto;border-collapse:collapse;width:100%;margin:20px 0;font-size:14px}th,td{padding:10px 12px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--code)}
+pre{overflow:auto;padding:18px;border:1px solid var(--line);border-radius:6px;background:var(--code);line-height:1.55}code{font:13px/1.5 Consolas,monospace;background:var(--code);border-radius:3px;padding:2px 4px}pre code{padding:0}
+li{margin:7px 0}img{max-width:100%}[hidden]{display:none!important}#results,#empty{color:var(--muted)}#empty{padding:24px 0}
+@media(max-width:900px){header{position:static}.layout{grid-template-columns:1fr}aside{position:static;height:auto;max-height:230px}main{padding:22px 18px}section{scroll-margin-top:15px}h1{font-size:27px}}
+@media print{header,aside,#empty{display:none}.layout{display:block;padding:0}main{border:0;padding:0;background:white;color:black}section[hidden]{display:block!important}table{display:table;font-size:10px}pre{white-space:pre-wrap}a{color:black}}
+</style>
+</head>
+<body>
+<header><strong>Macro Automator · Guide</strong><label for="search">Search <input id="search" type="search" placeholder="Try spools, OCR, shortcuts, DeepSeek…" autocomplete="off"></label><button id="clear" type="button">Clear</button><button id="print" type="button">Print / PDF</button></header>
+<div class="layout"><aside aria-label="Guide navigation"><p>Code-backed reference · 6 October 2026<br>66 actions · 19 tabs · practical sequences</p><p id="results" role="status" aria-live="polite"></p><nav id="chapters"></nav></aside><main id="guide">
+<h1 id="macro-automator-comprehensive-automation-guide">Macro Automator: comprehensive automation guide</h1>
+<p>Code audit: <strong>6 October 2026</strong>. Entry point: <strong><code>fan/MacroAutomator.ahk</code></strong>, AutoHotkey v2. This guide describes the combined <code>fan</code> build, including all 19 tabs and the study/DeepSeek extensions. Older single-file builds and older v7 guides have different capabilities.</p>
+<p>For easy reading, open the <a href="AUTOMATION_USER_GUIDE.html">searchable browser edition</a> or click <strong>Workflow → Action Guide</strong> after reloading the app. Search filters whole chapters; Clear restores them; Print / PDF includes the complete guide. This Markdown file is the authoritative editable source.</p>
+<p>The main working surface is <strong>Workflow (tab 1)</strong> plus <strong>Patterns (tab 2)</strong>. A workflow says what to do; patterns identify what to act on. OCR supplies readable values; spools decide when to act; tracking and learners supply reusable context. The program can perform substantial automation today, but general desktop autonomy is still assembled from these separate engines.</p>
+<h2 id="contents">Contents</h2>
+<ol>
+<li><a href="#1-start-here-and-run-your-first-automation">Start here and run your first automation</a></li>
+<li><a href="#2-choose-an-automation-approach">Choose an automation approach</a></li>
+<li><a href="#3-workflow-tab-building-checking-saving-and-running">Workflow tab: building, checking, saving, and running</a></li>
+<li><a href="#4-patterns-tab-visual-identification-with-findtext">Patterns tab: visual identification with FindText</a></li>
+<li><a href="#5-every-workflow-action-complete-reference">Every Workflow action: complete reference</a></li>
+<li><a href="#6-ocr-watch-words-and-variable-memory">OCR, Watch Words, and variable memory</a></li>
+<li><a href="#7-spools-detect-respond-repeat-and-stop">Spools: detect, respond, repeat, and stop</a></li>
+<li><a href="#8-common-sequences-and-practical-recipes">Common sequences and practical recipes</a></li>
+<li><a href="#9-learning-windows-features-menus-and-key-combinations">Learning windows, features, menus, and key combinations</a></li>
+<li><a href="#10-learning-repeated-behavior-and-offering-continuations">Learning repeated behavior and offering continuations</a></li>
+<li><a href="#11-deepseek-internal-input-simulation-and-visual-algebra">DeepSeek, internal input simulation, and visual algebra</a></li>
+<li><a href="#12-all-tabs-and-supporting-panels">All tabs and supporting panels</a></li>
+<li><a href="#13-logs-evidence-storage-and-recovery">Logs, evidence, storage, and recovery</a></li>
+<li><a href="#14-keyboard-shortcuts">Keyboard shortcuts</a></li>
+<li><a href="#15-libraries-and-code-integration-examples">Libraries and code integration examples</a></li>
+<li><a href="#16-troubleshooting-and-current-boundaries">Troubleshooting and current boundaries</a></li>
+<li><a href="#17-demonstrations-and-validation-evidence">Demonstrations and validation evidence</a></li>
+</ol>
+<h2 id="1-start-here-and-run-your-first-automation">1. Start here and run your first automation</h2>
+<h3 id="launch-the-right-build">Launch the right build</h3>
+<p>Run <code>fan/MacroAutomator.ahk</code> using AutoHotkey <strong>v2</strong>. The Windows launcher <a href="Run_MacroAutomator_Logged.cmd">Run_MacroAutomator_Logged.cmd</a> records startup diagnostics. Git Bash users can use <a href="run_fan.sh">run_fan.sh</a>. The application needs its included libraries and the SQLite DLL; keep the project folder together.</p>
+<p>The main application stores its settings and workflows under the project's <code>data</code> directory. A running AHK process holds the code it loaded at startup: <strong>reload/relaunch after a code update</strong> to get new controls. Reloading interrupts an active automation, so finish or stop the current run first.</p>
+<h3 id="first-demonstration-visible-typing-inside-the-built-in-lab">First demonstration: visible typing inside the built-in lab</h3>
+<ol>
+<li>Open <strong>Workflow</strong>. Name the workflow <code>My First Lab Automation</code> before adding steps; named workflows autosave after edits.</li>
+<li>Click <strong>Demo Lab</strong>. It contains a text area, click targets, a menu, drag targets, destination fields, and a visible event log.</li>
+<li>Return to Workflow and add these steps using the action dropdown and <strong>Add Step</strong>. The guided form opens for each action; the table below shows the resulting Target and Parameter values.</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Run Program</td>
+<td>blank</td>
+<td><code>demo:lab</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Click</td>
+<td><code>demo:notepadedit</code></td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Type Text</td>
+<td>blank</td>
+<td><code>Hello from my automation.</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Show Notification</td>
+<td>blank</td>
+<td><code>Demo complete,Check the lab text area,3</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="4">
+<li>Click <strong>Simulate</strong> to see the intended order and target locations without executing the steps.</li>
+<li>Click <strong>Run Workflow</strong>. Watch the lab text area receive the text. The final notification reports completion; the text area is the actual evidence that entry happened.</li>
+<li>Click <strong>Save Now</strong>. Find the workflow in the saved library. Load, run, export, or duplicate it from there.</li>
+</ol>
+<p>For the next lesson, replace the Click step with <strong>OCR Click</strong>, Target <code>window:MacroAutomator Demo Lab</code>, Parameter <code>Notepad</code>. The lab's Notepad button focuses its text area when clicked. This demonstrates <strong>read visible text → identify the button → click → type</strong>.</p>
+<p><strong>Stopping:</strong> Escape aborts a running standard workflow; Ctrl+Shift+X sets its abort flag; Ctrl+Shift+P pauses/resumes it. The Live Portal controller has a separate emergency stop, Ctrl+Shift+Escape. Spools and learners have their own Stop controls; stopping a workflow does not disable their timers.</p>
+<h2 id="2-choose-an-automation-approach">2. Choose an automation approach</h2>
+<h3 id="the-reusable-cycle">The reusable cycle</h3>
+<pre><code class="language-text">Observe the current window/page
+  → identify a target or read a value
+  → choose/build a small action sequence
+  → execute native input or a direct control operation
+  → check the resulting state
+  → save useful targets, evidence, and sequences
+  → repeat only while the expected context still holds
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Need</th>
+<th>Start with</th>
+<th>Why / boundary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Repeat known steps</td>
+<td>Workflow</td>
+<td>Broadest manual action palette: 66 action names, ordering, waits, variables, loops, saved sequences.</td>
+</tr>
+<tr>
+<td>Find an icon/button despite its position moving</td>
+<td>Patterns + FindText actions</td>
+<td>Match distinctive pixels instead of a fixed coordinate. Appearance changes still require recapture or tolerance tuning.</td>
+</tr>
+<tr>
+<td>Read a name, status, number, or label</td>
+<td>Live OCR / workflow OCR</td>
+<td>Windows OCR returns text and word boxes; recognition must be checked.</td>
+</tr>
+<tr>
+<td>React automatically to a screen/window condition</td>
+<td>Spools</td>
+<td>Polls conditions and runs a saved workflow or other response.</td>
+</tr>
+<tr>
+<td>Discover a program's menus, controls, and shortcuts</td>
+<td>App Learner</td>
+<td>Builds a persistent app catalog and runs AppDSL; optional Ollama generation.</td>
+</tr>
+<tr>
+<td>Learn likely next actions from repeated use</td>
+<td>Vision Scout / Usage Predictor</td>
+<td>Offers learned continuations for explicit acceptance; statistical repetition is not task reasoning.</td>
+</tr>
+<tr>
+<td>Track activity and turn observed regions into targets</td>
+<td>Tracking + Snapshot Viewer</td>
+<td>Named element registry, heatmaps, traces, keystroke history, and data exports.</td>
+</tr>
+<tr>
+<td>Generate a guarded page-entry tool from a goal</td>
+<td>Live Portal → Workflow Lab</td>
+<td>DeepSeek generates a bounded script against a fresh accessibility/OCR catalog.</td>
+</tr>
+<tr>
+<td>Solve equations displayed as an image</td>
+<td>Workflow Lab → Solve Visual Algebra</td>
+<td>Vision transcription followed by fixed SymPy verification and visible results.</td>
+</tr>
+<tr>
+<td>Recover something previously seen</td>
+<td>Snapshot Recovery</td>
+<td>Search captures/phrases and recover recorded URLs, files, or history clues.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pick-targets-deliberately">Pick targets deliberately</h3>
+<p>Use a fresh accessible control when the page provides a reliable name, role, and bounds. Use a learned menu/shortcut when the application exposes one. Use a distinctive FindText pattern for icons or stable visual shapes. Use OCR for readable text whose appearance varies. Use named coordinates for a stable layout, and relative offsets when the prior click is a trustworthy anchor.</p>
+<p>These options are available across the project, but <strong>one universal fallback engine does not connect every option automatically</strong>. App Learner has its own resolver; tracked elements use another; the Study controller has stricter control validation. Choose the runner that matches the task.</p>
+<h2 id="3-workflow-tab-building-checking-saving-and-running">3. Workflow tab: building, checking, saving, and running</h2>
+<h3 id="the-five-areas">The five areas</h3>
+<ol>
+<li><strong>Define Workflow:</strong> name, playback speed, optional hotkey and hotstring, Action Guide, Error Log. Speed choices are 0.25x, 0.5x, 0.75x, 1x, 1.5x, 2x, and 3x.</li>
+<li><strong>Pick an Action:</strong> category filter, action list, contextual Target/Parameter fields, guided Add Step form, suggestions, Templates, Pos. Tools, and Advanced fields. OCR Area and Pick Window appear where relevant. Quick Add uses the raw fields directly.</li>
+<li><strong>Review and Arrange:</strong> checked rows are enabled; Up/Down reorder; Edit/Delete/Enable/Clear manage rows. Test Selected executes the step; Sim Selected and Simulate All only preview it. Right-click opens additional step options, including failsafe settings and notification controls.</li>
+<li><strong>Save and Run:</strong> Save Now, Run Workflow, Simulate, Step-through, and Manage Library.</li>
+<li><strong>Saved Workflow Library:</strong> Load/Edit, Delete, Run, Simulate, Import <code>.maw</code>, Export <code>.maw</code>, Write <code>.maw</code>, and Demo Lab. Double-click loads a workflow into the editor.</li>
+</ol>
+<h3 id="a-good-workflow-is-a-sequence-of-state-changes">A good workflow is a sequence of state changes</h3>
+<p>Prefer <code>Activate Window → wait for recognizable content → act → verify recognizable content</code> at each handoff. A fixed delay can let a dialog render, but a pattern/OCR/window wait gives better evidence that the program is ready. A wait for window <strong>existence</strong> does not prove that it has keyboard focus: activate it before sending keys.</p>
+<p>The editor's <strong>Advanced</strong> fields expose a pattern qualifier, a window qualifier, and close-button blocking. Per-step failsafe settings can require an active-window title fragment, a required pattern, additional delay, and abort-on-failure. Legacy window qualifiers check the window under the pointer; they are not the same as a foreground-window guard. Review the saved step's failsafe configuration for the protection you intend.</p>
+<p><code>ClickVerified</code> confirms pointer arrival and checks the close-button restriction; <code>TypeTextVerified</code> sends text with delays. Their names do <strong>not</strong> mean the destination application accepted the action. Add a result check after input.</p>
+<h3 id="playback-simulation-and-failures">Playback, simulation, and failures</h3>
+<ul>
+<li>Playback speed scales the engine's general action/pre/post delays. Explicit Wait values and many helper-internal waits retain their own timing. It does not set a typing WPM profile for tab 1.</li>
+<li>Simulation displays locations and step descriptions. It does not execute branches, repeated loop bodies, text entry, or result verification. A completed simulation is a preview, not a successful live test.</li>
+<li>Step-through pauses between steps until Tab. Use it to inspect each result; while active, Tab is the workflow's advance key.</li>
+<li>A failed standard step can prompt <strong>Continue?</strong>. A run that continues past failures can still show a sequence-complete message. Verify the required output rather than relying on that message alone.</li>
+<li>Loops belong to the top-level sequence runner. <strong>Run Sequence</strong> shares variable memory and blocks recursive calls, but its current sub-sequence executor does not run a nested sequence's Loop Start/Loop End jump logic. Put repeated control flow in the top-level workflow.</li>
+</ul>
+<h3 id="portable-tools">Portable tools</h3>
+<p><code>.maw</code> is the portable workflow format. Export from the library, or use <strong>Write .maw</strong> to build a separate file before importing it. Inspect its actions and targets on import. Window names, external programs, screen coordinates, tracking-registry entries, and other machine-specific resources may still need adjustment.</p>
+<p><code>.mas</code> is the portable spool format. A spool with <strong>Run Workflow</strong> can embed its linked workflow so both arrive together. It is a different format from AppDSL scripts and the Live Portal tool language.</p>
+<p>Templates append predefined steps to the current editor. Available template descriptions include OCR → Variable → Clipboard, full-screen OCR with yellow boxes and notification, pattern wait/click, OCR data entry, and debug sequences. <strong>Replace example regions and targets before using them in another application.</strong></p>
+<h2 id="4-patterns-tab-visual-identification-with-findtext">4. Patterns tab: visual identification with FindText</h2>
+<h3 id="what-a-pattern-means">What a pattern means</h3>
+<p>A FindText pattern is an encoded image of pixels, such as a button label or icon. Its stored text is an image-search representation, not an OCR reading or an intelligent description of function.</p>
+<p>Patterns have a <strong>name</strong>, <strong>description</strong>, pattern <strong>code</strong>, optional <strong>qualifier</strong>, and captured-location/window/preview information. Name targets for their purpose and context, for example <code>Inventory_RefreshButton</code> or <code>Invoice_SavedBanner</code>. Write descriptions such as “refreshes the inventory list; use only on the inventory page.” This makes a visual target understandable to a person or planner.</p>
+<h3 id="capture-and-certify-a-visual-target">Capture and certify a visual target</h3>
+<ol>
+<li>Put the target in the visible state you want to recognize.</li>
+<li>In Patterns, click <strong>Quick Capture</strong>, drag a small distinctive region, and review the generated code and preview.</li>
+<li>Name it, add a description, and save. For advanced capture/threshold choices, use <strong>FindText GUI</strong> or Ctrl+Shift+F, then paste the resulting pattern code.</li>
+<li>Click <strong>Test Pattern</strong> or select it and click <strong>Test</strong>. Check the located target; full view shows ASCII pixels, screenshot, coordinates, window, qualifier, and code.</li>
+<li>Move the target window and test again. If recognition fails, recapture at the intended scale/theme or carefully adjust FindText tolerance in Settings.</li>
+<li>Add <strong>Wait for Pattern → Find &amp; Click → verify the expected result</strong> in Workflow.</li>
+</ol>
+<p>Capture a stable interior shape; avoid changing counts, clocks, blinking carets, or oversized background areas. Gray2Two can suit text; Color2Two can suit colored buttons. The advanced FindText GUI exposes further modes; match quality depends on what was captured.</p>
+<h3 id="qualifiers-and-search-scope">Qualifiers and search scope</h3>
+<p>A pattern qualifier requires another saved pattern to be visible before the click/drag helper acts. For example, a generic Submit pattern can require a page-heading pattern. This reduces ambiguity, but it does not tie two matches to the same pane or browser tab. Pattern testing/highlighting and basic wait helpers do not provide all click-helper qualifier checks. Spool pattern detection also searches its own region independently.</p>
+<p>Many basic pattern actions search broadly. Spools provide an explicit region; <strong>Find &amp; Click Loop</strong> can search a chosen window. Use a distinctive target and restrict scope where possible. A successful visual match does not establish that a button is enabled or that clicking it is the right next action.</p>
+<h3 id="definition-mode-quickly-sketch-a-workflow">Definition Mode: quickly sketch a workflow</h3>
+<p>CapsLock ON enables global definition keys. Point at a target, then:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Captured step</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C</td>
+<td>Click at the pointer; optional automatic pattern capture</td>
+</tr>
+<tr>
+<td>D, then D</td>
+<td>Drag start and end</td>
+</tr>
+<tr>
+<td>R</td>
+<td>Right Click</td>
+</tr>
+<tr>
+<td>T</td>
+<td>Triple Click</td>
+</tr>
+<tr>
+<td>P</td>
+<td>Pattern capture</td>
+</tr>
+<tr>
+<td>W</td>
+<td>Wait, initially 200 ms</td>
+</tr>
+<tr>
+<td>K</td>
+<td>Send Keys input</td>
+</tr>
+<tr>
+<td>M</td>
+<td>Menu Select input</td>
+</tr>
+<tr>
+<td>Escape</td>
+<td>Cancel definition activity / dismiss its help</td>
+</tr>
+</tbody>
+</table>
+<p>These keys add steps to the current workflow. <strong>Turn CapsLock OFF before ordinary typing</strong>, since these letter keys are intercepted globally while Definition Mode is active. Captured coordinates/window titles and auto-pattern metadata do not automatically turn every recorded click into a Find &amp; Click action; review the resulting rows and guards.</p>
+<h2 id="5-every-workflow-action-complete-reference">5. Every Workflow action: complete reference</h2>
+<p>There are <strong>66 selectable action names</strong> in <code>GetWorkflowActionNames()</code>. The following tables cover all of them. “Blank” means no value is needed in that field. Prefer the guided forms over typing raw syntax.</p>
+<h3 id="mouse-actions">Mouse actions</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+<th>Behavior / common use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Click</td>
+<td>coordinate name, <code>x,y</code>, or <code>demo:key</code></td>
+<td>click count, e.g. <code>1</code></td>
+<td>Focus a field or press a known target. An unresolved/empty target can fall back to the current pointer: supply a valid target.</td>
+</tr>
+<tr>
+<td>Double Click</td>
+<td>same</td>
+<td>blank</td>
+<td>Open/select a target using two clicks.</td>
+</tr>
+<tr>
+<td>Triple Click</td>
+<td>same</td>
+<td>blank</td>
+<td>Three clicks, often for text selection.</td>
+</tr>
+<tr>
+<td>Right Click</td>
+<td>same</td>
+<td>blank</td>
+<td>Open a context menu.</td>
+</tr>
+<tr>
+<td>Drag</td>
+<td>saved drag name, or blank</td>
+<td>raw <code>x1,y1-&gt;x2,y2</code></td>
+<td>Move a selection/handle to a destination.</td>
+</tr>
+<tr>
+<td>Relative Click</td>
+<td>saved relative offset</td>
+<td>blank; legacy raw <code>dx,dy</code> supported</td>
+<td>Offset from the <strong>last click</strong>, not the window origin.</td>
+</tr>
+<tr>
+<td>Menu Select</td>
+<td>blank</td>
+<td>number of Down presses</td>
+<td>Down repeated, then Enter; assumes the intended menu is already open.</td>
+</tr>
+<tr>
+<td>Scroll</td>
+<td>blank</td>
+<td>positive up / negative down, e.g. <code>-3</code></td>
+<td>Wheel notches sent at the current pointer location.</td>
+</tr>
+<tr>
+<td>Idle Mouse</td>
+<td>blank</td>
+<td>seconds; <code>0</code> indefinite</td>
+<td>Actually <strong>waits while monitoring pointer movement</strong>; exits on sufficient manual movement or duration. It does not generate idle motion.</td>
+</tr>
+<tr>
+<td>Hover Mouse</td>
+<td>coordinate name or <code>x,y</code></td>
+<td>blank</td>
+<td>Move onto a target without clicking; use Wait afterward to reveal a tooltip.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Pos. Tools</strong> opens the coordinate manager for click points, drags, arrow-key positioning, relative offsets, tests, and deletion. Absolute coordinates depend on monitor layout, DPI, window position, and scroll state.</p>
+<h3 id="keyboard-and-windows">Keyboard and windows</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+<th>Behavior / common use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Send Keys</td>
+<td>blank</td>
+<td><code>^c</code>, <code>^v</code>, <code>{Enter}</code>, <code>^+s</code>, etc.</td>
+<td>AHK key syntax, interpreted as keys.</td>
+</tr>
+<tr>
+<td>Type Text</td>
+<td>blank</td>
+<td>literal text, optionally <code>$var.name</code></td>
+<td>Literal entry via SendText; standard runner has no per-character typo/WPM model.</td>
+</tr>
+<tr>
+<td>Key Chord</td>
+<td>blank</td>
+<td><code>modifier,key,count</code>, e.g. <code>^,{Tab},2</code></td>
+<td>Hold modifier while repeatedly sending the key.</td>
+</tr>
+<tr>
+<td>Paste</td>
+<td>blank</td>
+<td>blank</td>
+<td>Ctrl+V using the current clipboard.</td>
+</tr>
+<tr>
+<td>Activate Window</td>
+<td>blank</td>
+<td>window title/identifier</td>
+<td>Activate an existing window and check foreground state; helper also handles executable identifiers.</td>
+</tr>
+<tr>
+<td>Taskbar Activate</td>
+<td>blank</td>
+<td><code>position,count</code>, e.g. <code>5,2</code></td>
+<td>Win+number, repeated while Win is held; 0/10 represent the tenth item. Taskbar order must match.</td>
+</tr>
+<tr>
+<td>Run Program</td>
+<td>blank</td>
+<td>executable, file, URL, command line, or <code>demo:lab</code></td>
+<td>Launch the specified resource; wait/activate separately when needed.</td>
+</tr>
+<tr>
+<td>Wait for Window</td>
+<td>blank</td>
+<td><code>title=Save As; timeout=5000</code></td>
+<td>Wait for existence; does not activate it.</td>
+</tr>
+<tr>
+<td>Wait Window Closed</td>
+<td>blank</td>
+<td>same option syntax</td>
+<td>Wait until that window disappears.</td>
+</tr>
+</tbody>
+</table>
+<p>AHK modifiers: <code>^</code> Ctrl, <code>+</code> Shift, <code>!</code> Alt, <code>#</code> Win. Use <strong>Type Text</strong> for literal braces/symbols; use <strong>Send Keys</strong> for functional keys and chords. For browser tabs, a deliberate <code>^{Tab}</code> or <code>^l</code> can be part of a workflow, followed by a page-specific pattern/OCR check. There is no universal browser-tab identity guard in tab 1.</p>
+<h3 id="findtext-and-loop-actions">FindText and loop actions</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Find &amp; Click</td>
+<td>pattern name</td>
+<td>blank</td>
+<td>Find and left-click the saved pattern.</td>
+</tr>
+<tr>
+<td>Find &amp; DblClick</td>
+<td>pattern name</td>
+<td>blank</td>
+<td>Find and double-click.</td>
+</tr>
+<tr>
+<td>Find &amp; TplClick</td>
+<td>pattern name</td>
+<td>blank</td>
+<td>Find and triple-click.</td>
+</tr>
+<tr>
+<td>Find &amp; RClick</td>
+<td>pattern name</td>
+<td>blank</td>
+<td>Find and right-click.</td>
+</tr>
+<tr>
+<td>Find &amp; Drag</td>
+<td>pattern name</td>
+<td>destination <code>x,y</code></td>
+<td>Find the start visually and drag to the destination.</td>
+</tr>
+<tr>
+<td>Wait for Pattern</td>
+<td>pattern name</td>
+<td>timeout ms</td>
+<td>Wait for visibility.</td>
+</tr>
+<tr>
+<td>Wait Until Gone</td>
+<td>pattern name</td>
+<td>timeout ms</td>
+<td>Wait for disappearance.</td>
+</tr>
+<tr>
+<td>Loop Start</td>
+<td>blank</td>
+<td><code>count=3; var=i</code> or <code>count=forever; var=i</code></td>
+<td>Open a loop, initialize <code>$var.i=1</code>; variables survive between passes.</td>
+</tr>
+<tr>
+<td>Loop End</td>
+<td>blank</td>
+<td>blank</td>
+<td>End the body and repeat until count is reached.</td>
+</tr>
+<tr>
+<td>Loop Break</td>
+<td>blank</td>
+<td>blank</td>
+<td>Exit the current loop and continue afterward.</td>
+</tr>
+<tr>
+<td>Find &amp; Click Loop</td>
+<td>pattern name</td>
+<td>options below</td>
+<td>Re-find, click, settle, scroll when absent, repeat with limits.</td>
+</tr>
+<tr>
+<td>Popup Detect</td>
+<td>region or blank</td>
+<td>options below</td>
+<td>Compare sampled pixels with a remembered baseline; report a change and optionally skip/break/stop.</td>
+</tr>
+</tbody>
+</table>
+<p>Use simple paired loops. Nested starts are stacked, but early break searches for the next Loop End rather than fully matching nested blocks; avoid complex nested break flows.</p>
+<p><strong>Find &amp; Click Loop</strong> example:</p>
+<pre><code class="language-text">win=Inventory; scroll=-3; settle=800; scrollSettle=1000; maxClicks=10; maxScrolls=4; button=Left; clicks=1; top=home; focus=center
+</code></pre>
+<p><code>win</code> activates/restricts search to a window; <code>scroll</code> is signed notches; <code>settle</code> follows clicks; <code>scrollSettle</code> follows scrolling; <code>maxScrolls</code> counts <strong>consecutive empty scrolls</strong> and resets after a successful click. <code>top=home</code> sends Ctrl+Home; a numeric top value scrolls upward that many notches. Optional <code>popup=Save</code> and <code>popupDo=enter</code>, <code>send:!s</code>, or <code>pattern:SaveBtn</code> handle an expected popup. Use explicit limits. A target that stays visible can be clicked repeatedly. This helper has its own timing and does not perform full Live Portal-style context checks. Its <code>tol</code> override currently passes through an integer option helper; tune the global decimal tolerance rather than relying on a fractional override here.</p>
+<p><strong>Popup Detect</strong> example:</p>
+<pre><code class="language-text">win=Inventory; sensitivity=medium; on=var; mode=now; timeout=5000; var=popupChanged
+</code></pre>
+<p>Choose <code>win=Title</code> or a raw <code>region=x1,y1,x2,y2</code>. Sensitivity accepts high/medium/low/strict. <code>on=var</code> sets 1/0; <code>skip</code> skips the next step; <code>break</code> requests loop exit; <code>stop</code> aborts. <code>mode=now</code> checks once; <code>mode=wait</code> polls for a change until timeout. The first use stores the baseline; repeated uses of that step compare it. <strong>A change is not proof of a popup</strong>: scrolling, animation, or moved content can also trigger it.</p>
+<h3 id="ocr-actions">OCR actions</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OCR Region</td>
+<td>region / <code>window:Title</code> / <code>demo:lab</code></td>
+<td><code>copy</code>, <code>var:name</code>, <code>split:line</code>, or <code>regex:...</code></td>
+<td>Read text and route its output.</td>
+</tr>
+<tr>
+<td>OCR Click</td>
+<td>region or dynamic window</td>
+<td>text to find</td>
+<td>Fresh OCR; click the first matching word/line.</td>
+</tr>
+<tr>
+<td>OCR Wait</td>
+<td>region or dynamic window</td>
+<td><code>text:READY,5000</code> or timeout ms</td>
+<td>Wait for specified text, or any readable text.</td>
+</tr>
+<tr>
+<td>Grab OCR to Var</td>
+<td>region or dynamic window</td>
+<td>plain variable name</td>
+<td>Read a named value and store several compatible key forms.</td>
+</tr>
+<tr>
+<td>OCR Full Screen to Var</td>
+<td>blank</td>
+<td>plain variable name</td>
+<td>Read the <strong>primary screen</strong>, store text, and draw word boxes for 10 seconds.</td>
+</tr>
+<tr>
+<td>Load OCR Revolver</td>
+<td>blank</td>
+<td><code>tab</code>, <code>line</code>, count, or one-character separator</td>
+<td>Split the most recent OCR text into sequential values.</td>
+</tr>
+<tr>
+<td>Fire OCR Revolver</td>
+<td>blank</td>
+<td>blank</td>
+<td>Paste the next split value; wraps to the beginning after the last.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Raw rectangle formats differ:</strong> OCR Region, OCR Click, OCR Wait, Popup Detect, and spool Custom Region ultimately use <strong><code>x1,y1,x2,y2</code></strong> corners. Grab OCR to Var uses <strong><code>x,y,width,height</code></strong> when given a raw rectangle. Some UI help calls all rectangles “width/height”; that is inaccurate for the corner-based parser. Use the region picker or <code>window:Title</code> to avoid mistakes. Full-screen fallbacks in these older workflow paths usually mean the primary monitor, not the entire virtual desktop.</p>
+<h3 id="clipboard-and-text-actions">Clipboard and text actions</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Set Clipboard</td>
+<td>blank</td>
+<td>text with optional variables</td>
+<td>Replace clipboard text.</td>
+</tr>
+<tr>
+<td>Insert Field</td>
+<td>blank</td>
+<td>extracted field name, e.g. <code>LastName</code></td>
+<td>Type that field from the Clipboard parser's extracted data.</td>
+</tr>
+<tr>
+<td>Insert Date</td>
+<td>blank</td>
+<td>blank</td>
+<td>Type current date using Settings → Date Format.</td>
+</tr>
+<tr>
+<td>Parse Clipboard</td>
+<td>blank</td>
+<td>blank</td>
+<td>Apply extraction rules to the current clipboard.</td>
+</tr>
+<tr>
+<td>Load Revolver</td>
+<td>blank</td>
+<td>blank</td>
+<td>Load available parsed fields in configured field order.</td>
+</tr>
+<tr>
+<td>Fire Revolver</td>
+<td>blank</td>
+<td>blank</td>
+<td>Fire the loaded standard revolver sequence with field navigation.</td>
+</tr>
+<tr>
+<td>Fire Revolver+Enter</td>
+<td>blank</td>
+<td>blank</td>
+<td>Fire the sequence with its Enter option.</td>
+</tr>
+<tr>
+<td>Format Clipboard</td>
+<td>blank</td>
+<td>format name or template</td>
+<td><code>invoice</code>, <code>receipt</code>, <code>uppercase</code>, <code>lowercase</code>, <code>titlecase</code>, <code>trim</code>, <code>date_iso</code>, or <code>Record: {clip}</code>.</td>
+</tr>
+<tr>
+<td>Append to Clipboard</td>
+<td>blank</td>
+<td>suffix text</td>
+<td>Append after variable substitution.</td>
+</tr>
+<tr>
+<td>Prepend to Clipboard</td>
+<td>blank</td>
+<td>prefix text</td>
+<td>Prepend after variable substitution.</td>
+</tr>
+<tr>
+<td>Extract from Clipboard</td>
+<td>blank</td>
+<td>saved rule name</td>
+<td>Apply one extraction rule.</td>
+</tr>
+</tbody>
+</table>
+<p>The standard Clipboard Revolver is a <strong>field-order batch</strong>. The OCR Revolver is a <strong>next-item carousel</strong>. Smart bins hold separately selected clipboard items. Do not treat all three as the same queue.</p>
+<h3 id="variables-logic-tracking-and-notices">Variables, logic, tracking, and notices</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Set Variable</td>
+<td>plain variable name</td>
+<td>value</td>
+<td>Set workflow and spool variable memory.</td>
+</tr>
+<tr>
+<td>Grab Clipboard</td>
+<td>plain variable name</td>
+<td>blank</td>
+<td>Save the current clipboard into variable memory.</td>
+</tr>
+<tr>
+<td>If Contains</td>
+<td>variable name</td>
+<td>substring</td>
+<td>If false/missing, skip <strong>exactly the next enabled step</strong>.</td>
+</tr>
+<tr>
+<td>If Variable</td>
+<td>variable name</td>
+<td><code>=,READY</code>, <code>&gt;=,3</code>, etc.</td>
+<td>Compare; false/missing skips the next enabled step. Numeric ordering requires numbers.</td>
+</tr>
+<tr>
+<td>Use Var Paste</td>
+<td>blank</td>
+<td>text containing variables</td>
+<td>Substitute then SendText. Despite its name, this is not a clipboard Ctrl+V action.</td>
+</tr>
+<tr>
+<td>Stop Execution</td>
+<td>blank</td>
+<td>blank</td>
+<td>Set the standard workflow abort flag.</td>
+</tr>
+<tr>
+<td>Run Sequence</td>
+<td>blank</td>
+<td>saved workflow name</td>
+<td>Execute a sub-sequence with shared memory; see loop limitation above.</td>
+</tr>
+<tr>
+<td>Click Element</td>
+<td>registry element name</td>
+<td><code>Left</code>, <code>Right</code>, <code>Middle</code>, optionally <code>,count</code></td>
+<td>Resolve a Tracking/Snapshot Viewer element and click.</td>
+</tr>
+<tr>
+<td>Hover Element</td>
+<td>registry element name</td>
+<td>blank</td>
+<td>Resolve and hover.</td>
+</tr>
+<tr>
+<td>Wait Element</td>
+<td>registry element name</td>
+<td>timeout ms</td>
+<td>Wait for a registered element to locate. Relative fallback can report a location even if its content is absent.</td>
+</tr>
+<tr>
+<td>Replay Window Mouse</td>
+<td>normalized tracked window name</td>
+<td>speed, optionally <code>,clicks</code></td>
+<td>Replay that window's latest mouse snapshot; clicks are off unless requested.</td>
+</tr>
+<tr>
+<td>Research Search</td>
+<td>blank</td>
+<td>query</td>
+<td>Store a research query and open browser search.</td>
+</tr>
+<tr>
+<td>Research Capture Links</td>
+<td>blank</td>
+<td><code>screen</code> or <code>clip</code></td>
+<td>Harvest visible/clipboard URL text into that query.</td>
+</tr>
+<tr>
+<td>Research Launch Next</td>
+<td>blank</td>
+<td>blank</td>
+<td>Open the next pending stored link.</td>
+</tr>
+<tr>
+<td>Research Add Insight</td>
+<td>blank</td>
+<td>note / variable text</td>
+<td>Store an insight associated with the current query.</td>
+</tr>
+<tr>
+<td>Wait</td>
+<td>blank</td>
+<td>milliseconds</td>
+<td>Fixed pause.</td>
+</tr>
+<tr>
+<td>Show Notification</td>
+<td>blank</td>
+<td><code>Title,Message,timeoutSeconds</code></td>
+<td>Show a notification; <code>3</code> means three seconds, while <code>0</code> uses the app's default dismissal/timeout behavior. Guided form handles its fields.</td>
+</tr>
+</tbody>
+</table>
+<p>Conditions are <strong>one-step gates</strong>, not If/Else blocks. To gate an entire action group, place it in a saved sub-sequence and gate the Run Sequence step. To stop on a detected problem, gate a Stop Execution step.</p>
+<h2 id="6-ocr-watch-words-and-variable-memory">6. OCR, Watch Words, and variable memory</h2>
+<h3 id="live-ocr-workflow">Live OCR workflow</h3>
+<p>In <strong>Live OCR (tab 3)</strong>, select the capture region, choose language/scale options, and click <strong>Capture Once</strong>. Examine both the text and Word list. Highlight a selected word to verify its box before clicking it or making a Watch Word. Recording captures repeatedly; View/Clear/Export manage OCR history.</p>
+<p>Useful outputs are Copy, Load Rev, → Var, Click Text, Regex, and Split. The tab also provides text search/highlights, Watch Word definition and management, and OCR Revolver controls. Ctrl+Shift+Q opens an independent quick drag-box OCR capture spanning the virtual desktop, copies its result, and displays it; it can work while the main window is hidden.</p>
+<p><strong>OCR Click uses permissive substring matching in both directions and returns the first matching word before trying lines.</strong> A search like “Submit invoice” may match just “Submit.” Crop tightly, test the highlighted text, and prefer a distinctive pattern or accessible named control when multiple matches are possible.</p>
+<h3 id="variable-namespaces-and-lifetime">Variable namespaces and lifetime</h3>
+<table>
+<thead>
+<tr>
+<th>Form</th>
+<th>Source</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>$var.name</code></td>
+<td>Set Variable, clipboard/OCR capture, or spool memory</td>
+<td><code>Order: $var.orderID</code></td>
+</tr>
+<tr>
+<td><code>$word.name</code></td>
+<td>Saved Watch Word definition</td>
+<td><code>$word.CustomerName</code></td>
+</tr>
+<tr>
+<td>bare <code>$name</code></td>
+<td>Older spool/extracted-data compatibility</td>
+<td>Prefer <code>$var.name</code> in new workflows.</td>
+</tr>
+<tr>
+<td><code>$ocr</code></td>
+<td>AppDSL's own OCR variable</td>
+<td>Separate from tab 1 variable memory.</td>
+</tr>
+</tbody>
+</table>
+<p>Variable substitution occurs in the standard workflow <strong>Parameter</strong>, not every Target field. Use plain names such as <code>orderID</code>; letters, digits, and underscores are appropriate. Missing <code>$var.name</code>/<code>$word.name</code> substitutions can become empty strings. Inspect captured values before using them.</p>
+<p>Top-level workflow execution resets its workflow-variable map. Shared spool/extracted-data maps may retain values from previous work, so initialize values that must be fresh. Loop passes and sub-sequences share the current memory. This is runtime value memory, distinct from saved workflows or the persistent study answer bank.</p>
+<h3 id="watch-words">Watch Words</h3>
+<p>A Watch Word stores a screen region, optional word index, optional regex, latest value, coordinates, and update time. When a parameter contains <code>$word.name</code>, substitution refreshes the Watch Word readings. A whole-region watch is often more stable than a word index when the line length changes.</p>
+<p>Use <strong>Define from OCR</strong> or the word-list <strong>Watch</strong> control, give it a descriptive name, update it, show its value, and highlight it. Then type or set clipboard text containing <code>$word.name</code> in Workflow. Watch definitions persist through the app's saved OCR-word data. The definition uses screen rectangles, so moving its source can make it stale. A failed refresh can leave an old value; inspect it and reselect the region when context changes.</p>
+<h3 id="clipboard-extraction-and-form-filling">Clipboard extraction and form filling</h3>
+<p>In <strong>Clipboard (tab 6)</strong>, grab sample text, define named regex extraction rules, and Parse. Verify the extracted fields, arrange their field order, then Load Revolver. Focus the first destination field before Fire All. Tab order and any empty/missing fields must match the target form.</p>
+<p>For a value that has a clear prefix, a rule can use a capture group, for example <code>Order ID:\s*(\d+)</code>. Test the rule against representative clipboard samples, including a missing value. The guided rule UI and parsed results are the evidence; a regex that matches one sample is not a semantic parser for every document.</p>
+<h2 id="7-spools-detect-respond-repeat-and-stop">7. Spools: detect, respond, repeat, and stop</h2>
+<p>A spool is a <strong>timer-driven condition monitor</strong>. It can operate while the main GUI is hidden. It connects observation to a response; the response can be a complete workflow from tab 1.</p>
+<h3 id="detection-choices">Detection choices</h3>
+<table>
+<thead>
+<tr>
+<th>Detect</th>
+<th>Target / condition</th>
+<th>Actual meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pattern Match</td>
+<td>saved pattern, Found/Not Found</td>
+<td>FindText presence in the spool region.</td>
+</tr>
+<tr>
+<td>Pattern Sequence</td>
+<td>comma-separated saved patterns</td>
+<td><strong>All patterns present in the same check</strong>; not an ordered history of screens.</td>
+</tr>
+<tr>
+<td>OCR Contains</td>
+<td>text, Found/Not Found</td>
+<td>Windows OCR text includes the requested substring.</td>
+</tr>
+<tr>
+<td>OCR Regex</td>
+<td>expression, Found/Not Found</td>
+<td>Windows OCR text matches the expression. Extracted value is the recognized region text, not necessarily one regex group.</td>
+</tr>
+<tr>
+<td>Pixel Change</td>
+<td>region</td>
+<td>Compare 16 sampled pixels with the previous check; first check seeds memory. Not every changed pixel is observed.</td>
+</tr>
+<tr>
+<td>Window Title</td>
+<td>title fragment, Found/Not Found</td>
+<td>Match the <strong>active</strong> window's title. It does not wait for an inactive window.</td>
+</tr>
+</tbody>
+</table>
+<p>Region choices: Full Screen (primary screen in this engine), Custom Region (corner coordinates), and Active Window. Active Window follows whichever window currently has focus. The “Changed” condition label does not make pattern/OCR detection an edge-trigger: Found/Not Found are the meaningful presence conditions for those detectors.</p>
+<h3 id="responses">Responses</h3>
+<p>Run Workflow, Click Detected Pattern, Show Notification, Start Spool, Stop Spool, Extract OCR, Set Variable (<code>name=value</code>), Key Chord, and Run Program are wired responses. <strong>Click Detected Pattern requires Pattern Match + Found</strong> and re-finds the target in the spool region before clicking.</p>
+<p>The <strong>Also extract OCR to</strong> option stores detected OCR text under the supplied variable name before the response. Extract OCR alone relies on that extraction option; it does not independently perform a second capture for every detection type. A Pixel Change or Window Title detection does not supply readable OCR text automatically.</p>
+<h3 id="build-a-spool-that-runs-a-workflow">Build a spool that runs a workflow</h3>
+<ol>
+<li>Finish, test, and save a named workflow in tab 1.</li>
+<li>In Spools, name the monitor; choose its region, detector, target, condition, and interval (default form value 500 ms).</li>
+<li>Set <strong>Do = Run Workflow</strong> and select the saved workflow. Refresh the response choices if it is missing.</li>
+<li>Start with <strong>One-Shot</strong> for a single attempt, or <strong>Cooldown</strong> with a few seconds between repeat attempts.</li>
+<li>Save it. <strong>Test Trigger performs detection and the actual response</strong> when detected; it is not a dry run. It does not change that spool's saved running/cooldown state.</li>
+<li>Check Activity Log and the destination output. Click Start when the definition works.</li>
+<li>Stop it afterward, or set an Auto-stop completion condition.</li>
+</ol>
+<h3 id="repeat-and-completion-semantics">Repeat and completion semantics</h3>
+<ul>
+<li><strong>One-Shot:</strong> after a detected trigger attempt, stop the spool. This happens even if its response failed; it is not “retry until success.”</li>
+<li><strong>Cooldown:</strong> after a trigger attempt, suppress checks for the chosen delay, then recheck. A condition that stays present can fire again. It is not a rising-edge detector.</li>
+<li><strong>Continuous:</strong> check/respond every interval; a stable Found condition can repeatedly click or launch work.</li>
+<li><strong>Auto-stop:</strong> Timeout (seconds since start), Pattern Found, Pattern Gone, OCR Contains, or Variable Set. Variable Set checks key existence, not its truthiness; a stale key can stop the spool immediately.</li>
+<li><strong>Master Enable:</strong> saved across launches. Enabled spools can restart when it was left on. Start on an individual spool also enables the master.</li>
+<li><strong>Concurrency:</strong> a shared flag prevents two <strong>spool-launched workflows</strong> from running together. It is not a universal input lock across manual workflows, AppDSL, learners, and Live Portal.</li>
+</ul>
+<p>Use <strong>Stop All / Master Enable off</strong> when changing destinations or debugging. A standard workflow abort does not stop a continuing spool from launching another run.</p>
+<p>Activity Log records starts, triggers, clicks, workflow starts/done, cooldowns, and failures. Its workflow DONE event means the sequence runner returned, not that every required application result passed verification. Pair it with your output check.</p>
+<h2 id="8-common-sequences-and-practical-recipes">8. Common sequences and practical recipes</h2>
+<p>The following tables are actual tab-1 Action/Target/Parameter examples. Replace example window titles, pattern names, and registry names with items you have captured. Use guided forms to build them.</p>
+<h3 id="a.copy-visible-text-into-a-note">A. Copy visible text into a note</h3>
+<p>Use case: move a visible order summary from a browser/PDF to a text editor.</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Activate Window</td>
+<td>blank</td>
+<td><code>Order Summary</code></td>
+</tr>
+<tr>
+<td>OCR Region</td>
+<td><code>window:Order Summary</code></td>
+<td><code>var:summary</code></td>
+</tr>
+<tr>
+<td>Activate Window</td>
+<td>blank</td>
+<td><code>Notepad</code></td>
+</tr>
+<tr>
+<td>Send Keys</td>
+<td>blank</td>
+<td><code>^{End}</code></td>
+</tr>
+<tr>
+<td>Type Text</td>
+<td>blank</td>
+<td><code>Captured summary: $var.summary</code></td>
+</tr>
+<tr>
+<td>Show Notification</td>
+<td>blank</td>
+<td><code>Capture complete,Review the pasted summary,3</code></td>
+</tr>
+</tbody>
+</table>
+<p>Verify the captured OCR text and destination content. Narrow the source area when the whole window contains unrelated text.</p>
+<h3 id="b.wait-for-a-page-click-a-visual-target-verify-success">B. Wait for a page, click a visual target, verify success</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Activate Window</td>
+<td>blank</td>
+<td><code>Inventory</code></td>
+</tr>
+<tr>
+<td>Wait for Pattern</td>
+<td><code>Inventory_PageHeading</code></td>
+<td><code>8000</code></td>
+</tr>
+<tr>
+<td>Find &amp; Click</td>
+<td><code>Inventory_RefreshButton</code></td>
+<td>blank</td>
+</tr>
+<tr>
+<td>OCR Wait</td>
+<td><code>window:Inventory</code></td>
+<td><code>text:Updated,8000</code></td>
+</tr>
+</tbody>
+</table>
+<p>Make the refresh pattern's qualifier the page heading. If “Updated” is already visible before the click, this check does not prove a new update; choose feedback that changes, clear the old state, or inspect a freshly captured value.</p>
+<h3 id="c.react-to-a-ready-banner-with-a-spool">C. React to a ready banner with a spool</h3>
+<p>Capture <code>Export_ReadyBanner</code> in tab 2. Save and test a workflow that activates the export window, clicks the download target, waits for the expected dialog/result, and reports it. Configure a spool:</p>
+<pre><code class="language-text">Detect: Pattern Match
+Target: Export_ReadyBanner
+When: Found
+Region: tight Custom Region
+Do: Run Workflow
+Response target: your saved export workflow
+Repeat: One-Shot
+</code></pre>
+<p>For repeated work, use Cooldown plus an explicit completed-state check. A persistent ready banner by itself does not distinguish new items from the previous one.</p>
+<h3 id="d.ocr-a-status-then-gate-a-group-of-actions">D. OCR a status, then gate a group of actions</h3>
+<p>Create a saved sequence named <code>Handle Ready Record</code>, containing the actions for one record.</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OCR Region</td>
+<td><code>window:Record Queue</code></td>
+<td><code>var:status</code></td>
+</tr>
+<tr>
+<td>If Contains</td>
+<td><code>status</code></td>
+<td><code>READY</code></td>
+</tr>
+<tr>
+<td>Run Sequence</td>
+<td>blank</td>
+<td><code>Handle Ready Record</code></td>
+</tr>
+</tbody>
+</table>
+<p>Only the Run Sequence row is gated. Put a separate verification inside the sub-sequence. The substring <code>NOT READY</code> also contains <code>READY</code>: use a more precise extraction/comparison if both states exist.</p>
+<h3 id="e.repeat-numbered-data-entry-three-times">E. Repeat numbered data entry three times</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Target</th>
+<th>Parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Activate Window</td>
+<td>blank</td>
+<td><code>MacroAutomator Demo Lab</code></td>
+</tr>
+<tr>
+<td>Click</td>
+<td><code>demo:notepadedit</code></td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td>Loop Start</td>
+<td>blank</td>
+<td><code>count=3; var=i</code></td>
+</tr>
+<tr>
+<td>Type Text</td>
+<td>blank</td>
+<td><code>Record $var.i of $var.loopCount</code></td>
+</tr>
+<tr>
+<td>Send Keys</td>
+<td>blank</td>
+<td><code>{Enter}</code></td>
+</tr>
+<tr>
+<td>Loop End</td>
+<td>blank</td>
+<td>blank</td>
+</tr>
+</tbody>
+</table>
+<p>The loop counter becomes 1, 2, 3. A real form workflow should locate the next record and verify each entry rather than assuming Tab or screen position still matches.</p>
+<h3 id="f.extract-several-fields-and-fill-a-form">F. Extract several fields and fill a form</h3>
+<ol>
+<li>Copy a representative record. In Clipboard, define/test fields such as LastName, FirstName, and OrderID.</li>
+<li>Arrange the field order to match the destination's Tab order.</li>
+<li>Build <code>Parse Clipboard → Load Revolver → Activate Window → Click first field → Fire Revolver</code>.</li>
+<li>Inspect every destination field after firing. Missing fields, disabled controls, extra Tab stops, or modal dialogs can shift the rest of the entry.</li>
+</ol>
+<p>For a fixed three-value OCR sample, use <code>OCR Region → Load OCR Revolver (line) → Click first field → Fire OCR Revolver → Send Keys {Tab} → Fire OCR Revolver → ...</code>. Numeric split rules divide <strong>characters into equal-length pieces</strong>; they do not identify semantic fields.</p>
+<h3 id="g.hover-to-reveal-information-then-capture-it">G. Hover to reveal information, then capture it</h3>
+<p><code>Activate Window → Hover Mouse (HelpIcon) → Wait (800) → OCR Region (tooltip area, var:helpText) → Show Notification</code>.</p>
+<p>Use this for tooltips or transient descriptions. Hover Mouse itself does not vary dwell time; add Wait in tab 1. The Live Portal input profile provides randomized hover behavior separately.</p>
+<h3 id="h.operate-repeated-visual-rows-while-scrolling">H. Operate repeated visual rows while scrolling</h3>
+<p>Use <strong>Find &amp; Click Loop</strong> with a distinctive per-row pattern, <code>win=Queue</code>, explicit maxClicks/maxScrolls, and sufficient settle time. Verify that the clicked row disappears/changes or advances. If the same pattern remains at the same location, the helper can keep clicking it. For rows requiring different typed values, prefer a counted top-level loop with capture, condition, entry, and verification steps.</p>
+<h3 id="i.stop-a-loop-when-the-expected-view-changes">I. Stop a loop when the expected view changes</h3>
+<p>Put Popup Detect at the loop top, with <code>win=Queue; mode=now; on=break; var=queueChanged</code>, then the loop's actions. The first pass seeds its visual baseline; later checks can break on substantial change. Test a known change and a harmless animation. For a specific named dialog, Wait for Window/Wait Window Closed gives clearer meaning than pixel change alone.</p>
+<h3 id="j.work-across-browser-tabs-or-applications">J. Work across browser tabs or applications</h3>
+<p>Use <code>Activate Window → page-heading check → capture value → Activate destination → destination check → type/paste → result check</code>. Within a browser, Send Keys <code>^{Tab}</code> changes tabs; follow it with a distinctive page check before continuing. Repeatedly pressing Ctrl+Tab assumes tab order, so it is less stable than separate windows or an explicitly identified destination.</p>
+<p>AppDSL can switch learned applications with <code>use</code>, or learn a newly activated window with <code>learn</code>. Its <code>focuswin</code> handoff both waits and activates. DeepSeek's standard Study tool language intentionally has no general tab-switching/navigation command; its four-page demo has dedicated, scoped navigation.</p>
+<h3 id="k.turn-observed-usage-into-a-named-target">K. Turn observed usage into a named target</h3>
+<p>Start Tracking for a sample task → open Mouse Heat / Trace → Extract Features → review the candidate hotspots → open Snapshot Viewer → define/name a target → test its live location → use Wait Element / Click Element in Workflow. Mouse hotspots show frequent interaction, not automatically the correct business function. Add a meaningful description and validate the target.</p>
+<h3 id="l.keep-a-research-trail">L. Keep a research trail</h3>
+<p><code>Research Search → wait for visible results → Research Capture Links (screen or clip) → Research Launch Next → OCR Region (var:researchText) → Research Add Insight ($var.researchText)</code>.</p>
+<p>Research Pipeline stores queries, URLs, and insights and produces reports. Screen harvesting recognizes URL text; many search pages display shortened URLs or link labels, so it cannot recover every hidden hyperlink. The pipeline does not automatically read, fact-check, or summarize every launched page.</p>
+<h3 id="m.learn-an-unfamiliar-application-and-generate-a-script">M. Learn an unfamiliar application and generate a script</h3>
+<p>App Learner → Refresh List → select its visible window → Learn Selected → review catalog/shortcuts → Highlight/Test Click → enter a clear goal → Generate Script with Ollama → review the AppDSL → Run Script. Use Generate Script first while discovering the application; Generate + Run executes the generated script immediately.</p>
+<h3 id="n.let-deepseek-build-a-page-entry-tool">N. Let DeepSeek build a page-entry tool</h3>
+<p>Live Portal → pin the practice Chrome window → Workflow Lab → Capture in 3 sec → inspect OCR and identified controls → describe the desired field values/selections → Generate with DeepSeek → Preview → Run in 3 sec → inspect field readback and live log → Save Tool.</p>
+<p>The application performs the native input. The model proposes commands; the internal compiler and controller validate and execute them. ChatGPT/Codex does not need to move the pointer or type each step of this demonstration.</p>
+<h3 id="o.solve-and-enter-a-visual-math-exercise">O. Solve and enter a visual math exercise</h3>
+<p>Workflow Lab → Solve Visual Algebra → inspect the captured equation/transcription, roots, and exact checks → Generate with DeepSeek for the reviewed answer goal → Preview → Run. For a full end-to-end demonstration, use <strong>Run 4-page Math Demo</strong>, described below.</p>
+<h2 id="9-learning-windows-features-menus-and-key-combinations">9. Learning windows, features, menus, and key combinations</h2>
+<h3 id="app-learner-builds-an-application-catalog">App Learner builds an application catalog</h3>
+<p><strong>App Learner (tab 14)</strong> can collect:</p>
+<ul>
+<li>Win32 controls: ClassNN, text, position, and dimensions.</li>
+<li>Accessibility elements: names, roles, values, paths, exposed KeyboardShortcut properties, and positions.</li>
+<li>Win32 menu items: complete menu path, accelerators, Alt access keys, command IDs, and item order.</li>
+<li>Alt+OCR menu scans for applications without a normal Win32 menu bar. This actively opens menus and uses keyboard navigation; let it finish without competing input.</li>
+<li>Visible OCR lines and FindText visual captures for learned elements.</li>
+</ul>
+<p>The UI offers Controls, Acc tree, Menus (Win32), Alt+OCR menus, FindText visuals, and OCR text scan options. Learn Selected or Learn ALL Windows saves an app model by executable/class into <code>data/appmap.db</code>; relearning replaces that app's element rows. Learn the relevant page/state, and relearn after substantial UI changes.</p>
+<p>Filter the learned elements by name/kind. Use <strong>Highlight</strong> to inspect location, <strong>Test Click</strong> to execute an action, <strong>Copy Ref</strong> for the selected element reference, <strong>View Catalog</strong>, <strong>Export JSON</strong>, and <strong>LLM Instructions</strong>. References can be a name, complete menu path, or <code>#id</code>. A short ambiguous name can resolve to the wrong item; use the full menu path or current catalog ID.</p>
+<p>The live locator tries accessibility path, Win32 control identity, saved FindText pattern, then window-relative coordinates, with stored absolute coordinates as a final fallback. This supports movement/resizing but does not guarantee that a rearranged interface still matches. Coordinate fallbacks need a result check.</p>
+<h3 id="discovering-context-specific-shortcuts">Discovering context-specific shortcuts</h3>
+<p>There are three distinct evidence sources:</p>
+<ol>
+<li><strong>Declared shortcuts:</strong> App Learner reads accessibility KeyboardShortcut values and menu accelerators/access keys. This can reveal previously unfamiliar combinations without guessing keys.</li>
+<li><strong>Observed shortcuts:</strong> Tracking → Key History → Top Hotkeys shows combinations actually used, including per-window views. It tells you usage frequency, not the command's semantic effect.</li>
+<li><strong>Repeated context:</strong> Vision Scout/Usage Predictor associate key events with windows/elements and repeated surrounding actions. Their offers are learned continuations, not proof that a combination works on every page.</li>
+</ol>
+<p>For a discovered shortcut, record the app, menu path/function, current state, key sequence, expected effect, and verified result. Test it in the intended window and add an Activate Window plus a page/content guard to a saved workflow. The code does not systematically brute-force new combinations or automatically infer reliable function descriptions for all observed keys.</p>
+<h3 id="menu-invocation-paths">Menu invocation paths</h3>
+<p>AppDSL <code>menu File &gt; Save</code> can choose among known invocation paths. Force a path with <code>@cmd</code>, <code>@altletter</code>, <code>@keys</code>, <code>@mouse</code>, or <code>@random</code>. Here <code>@keys</code> means learned menu navigation via keys, rather than assuming an arbitrary shortcut string. <code>@cmd</code> posts a known menu command directly; it is not visible mouse/keyboard engagement. Randomize varies visible menu navigation paths; it is not a global human-typing profile.</p>
+<h3 id="appdsl-reference">AppDSL reference</h3>
+<p>AppDSL is a separate line-oriented runner, not the Workflow action table and not the Study tool language.</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>focus</code></td>
+<td>Activate the selected learned app.</td>
+</tr>
+<tr>
+<td><code>use notepad</code></td>
+<td>Target another already learned app by name/executable.</td>
+</tr>
+<tr>
+<td><code>learn</code></td>
+<td>Learn the active window and switch targeting to it.</td>
+</tr>
+<tr>
+<td><code>menu File &gt; Save @mouse</code></td>
+<td>Invoke a learned menu path.</td>
+</tr>
+<tr>
+<td><code>alt f s</code></td>
+<td>Raw Alt+F then S navigation.</td>
+</tr>
+<tr>
+<td><code>click TARGET</code>, <code>dblclick TARGET</code>, <code>rightclick TARGET</code>, <code>hover TARGET</code></td>
+<td>Resolve a learned target and act.</td>
+</tr>
+<tr>
+<td><code>clickat 100 200 win</code></td>
+<td>Raw coordinates; optional <code>win</code> adds live window origin.</td>
+</tr>
+<tr>
+<td><code>type Literal text</code></td>
+<td>Literal text entry; <code>%ENVVAR%</code> expansion supported.</td>
+</tr>
+<tr>
+<td><code>ctrltext Edit1</code>|<code>Some text</code></td>
+<td>Set a native control's text directly.</td>
+</tr>
+<tr>
+<td><code>keys ^s</code></td>
+<td>AHK key syntax sent to the active window.</td>
+</tr>
+<tr>
+<td><code>wait 500</code></td>
+<td>Delay, capped at 60 seconds per call.</td>
+</tr>
+<tr>
+<td><code>waitwin Save 8000</code></td>
+<td>Wait for a window.</td>
+</tr>
+<tr>
+<td><code>focuswin Save 8000</code></td>
+<td>Wait, activate, and confirm focus.</td>
+</tr>
+<tr>
+<td><code>ocr</code> / <code>ocr 100 200 300 100</code></td>
+<td>Read a window/region into <code>$ocr</code>.</td>
+</tr>
+<tr>
+<td><code>ocrclick Text</code>, <code>ocrrightclick Text</code></td>
+<td>Read and click visible text; <code>@scroll</code> searches successive views.</td>
+</tr>
+<tr>
+<td><code>waitocr Expected text 8000</code></td>
+<td>Wait for text on the active window.</td>
+</tr>
+<tr>
+<td><code>menupick Properties</code></td>
+<td>OCR the currently open menu/context menu and click the item.</td>
+</tr>
+<tr>
+<td><code>run notepad.exe</code></td>
+<td>Launch a resource; supports <code>%ENVVAR%</code> paths.</td>
+</tr>
+<tr>
+<td><code>setclip line one\nline two</code></td>
+<td>Set clipboard; <code>\n</code> and <code>\t</code> become newline/tab.</td>
+</tr>
+<tr>
+<td><code>say A status message</code></td>
+<td>Display status.</td>
+</tr>
+</tbody>
+</table>
+<p>Lines starting with <code>;</code> or <code>#</code> are comments. Prefix <code>try</code> to continue on failure. Prefix <code>retry 10000</code> to repeat a command about every 0.8 seconds until it succeeds or times out. These combine: <code>try retry 5000 menupick Open with</code>.</p>
+<p>AppDSL saves OCR in its internal <code>$ocr</code> entry, but the current text-expansion helper only expands environment variables. <code>type $ocr</code> does <strong>not</strong> automatically insert that OCR result. Use tab 1's OCR/variable actions for a working capture-to-entry sequence, or add an explicit bridge when extending AppDSL.</p>
+<p>Example, after learning Notepad and confirming its Edit &gt; Select All menu exists:</p>
+<pre><code class="language-text">focus
+type A visible automation sample
+menu Edit &gt; Select All @keys
+keys ^c
+say Text selected and copied; inspect the clipboard
+</code></pre>
+<p>The runner's built-in Load Demo choices include a Notepad → saved Python file → VS Code chain, menu-pathway certification, Explorer context-menu use, and a Calculator + Notepad + Explorer chain. These can launch applications, create files, and run commands. Review the script and prerequisites before launching them; they are examples, not all newly live-certified by this guide audit.</p>
+<h3 id="window-model-structural-insight">Window Model: structural insight</h3>
+<p>Ctrl+Shift+7 opens the learned-window structure panel. <code>WindowModel.ahk</code> groups stored elements into spatial regions and classifies them using geometry and role/name clues. Rebuild after learning an app; inspect regions and elements; export the map. This supplies a useful structural description of a window but does not itself plan or execute a complete task.</p>
+<h2 id="10-learning-repeated-behavior-and-offering-continuations">10. Learning repeated behavior and offering continuations</h2>
+<h3 id="vision-scout-visual-candidates-plus-sequence-learning">Vision Scout: visual candidates plus sequence learning</h3>
+<p>In <strong>Vision Scout (tab 16)</strong>, start the scout and scan a window or screen. It segments visible pixels into candidate regions, captures patterns, and associates mouse/key/window activity with them. Review overlays can be selected and moved. Use <strong>Test Find → Certify</strong>, or Reject/Reset, then <strong>Export</strong>.</p>
+<p><strong>Only human-certified candidates with patterns export to tab 2.</strong> Promote Use concerns frequency; it is distinct from certification. A visual candidate is not automatically a meaningful control. Name and review its function.</p>
+<p>Mine Seqs learns repeated event sequences and can arm an offer after a matching prefix. <strong>Win+CapsLock</strong> accepts an armed continuation. Clicks can use visual, relative, then absolute fallback; key/window events replay. Freeform typing is not automatically filled. The continuation executor can continue past failed individual tokens, so inspect its done/total result and application state.</p>
+<p>Vision Scout's name does not imply that it calls DeepSeek. Its current core is visual segmentation, event capture, and repeated-sequence mining.</p>
+<h3 id="usage-predictor-context-based-event-transitions">Usage Predictor: context-based event transitions</h3>
+<p><strong>Usage Predictor (tab 17)</strong> records APP, CLICK, KEY, and TYPE events, performs coarse virtual-desktop visual scans, and learns next-action transitions from recent event prefixes. Current defaults require at least three observations and confidence at least 0.72. “Confidence” here is the observed transition proportion, not a calibrated probability of task success.</p>
+<p>Repeated practice can yield a proposed chain of up to six actions. Use its accept button or <strong>Win+Shift+CapsLock</strong>. It replays only after acceptance and stops when a replay action fails. Click localization uses a saved pattern or relative window coordinates.</p>
+<p>Literal typing capture is optional; a TYPE event without captured text stops replay at that point. Review text-capture/privacy settings before recording a task. Promoted visual patterns can be copied for use in the Patterns tab. The predictor is a separate learner; it does not automatically export every learned continuation into a tab-1 workflow.</p>
+<h3 id="teach-a-reusable-engagement-sequence">Teach a reusable engagement sequence</h3>
+<p>Choose a short task with a stable context: focus a sample editor → select text → copy → focus another sample editor → paste. Start one learner, perform several consistent repetitions, review candidate targets and the resulting offer, then accept it in the same prepared context. Verify every destination. Keep a repeatable deterministic workflow for tasks that need explicit state/error handling; use learned offers to assist common repeated engagement.</p>
+<h2 id="11-deepseek-internal-input-simulation-and-visual-algebra">11. DeepSeek, internal input simulation, and visual algebra</h2>
+<h3 id="which-provider-controls-which-feature">Which provider controls which feature?</h3>
+<ul>
+<li><strong>App Learner's copilot:</strong> local/configured <strong>Ollama</strong> endpoint. Its catalog/prompt can also be copied to another LLM, but it has no direct DeepSeek UI bridge in that tab.</li>
+<li><strong>Study Assistant / Live Portal / Workflow Lab / visual math:</strong> <code>StudyLLM.ahk</code> uses the <strong>DeepSeek API</strong>. Model selection, availability probing, cost accounting, retries, and cancellation live here.</li>
+<li><strong>Vision Scout / Usage Predictor:</strong> local visual/statistical learners, not external LLM services.</li>
+</ul>
+<p>DeepSeek setup: use Study Assistant's Save API key or Live Portal's Save API Key, or supply <code>DEEPSEEK_API_KEY</code> in the environment before launch. Saved keys use Windows Credential Manager (<code>MacroAutomator/DeepSeek</code>). Probe the account with Test / probe or Probe API. The current code defaults to <code>deepseek-v4-pro</code> for text and <code>deepseek-flash</code> for vision; these are <strong>code defaults as audited</strong>, and the account probe should confirm current availability. Configure the cost cap and apply the engine settings.</p>
+<h3 id="study-assistants-intelligence-layer">Study Assistant's intelligence layer</h3>
+<p>Import text/Markdown, PDF through OCR, or pasted notes. Select/exclude sources; capture read-along regions when enabled. PDF import is bounded (default first 60 pages); reimport starts from page 1. Word files need export to PDF/text first.</p>
+<p>The answer engine tries verified exact memory, compatible near matches, source passages/concepts, local deduction, then optional DeepSeek fallback. It keeps provenance and answer versions. Near matching and confidence are heuristic, not an embedding-based or statistically calibrated understanding engine.</p>
+<p>Use <strong>Confirm</strong>, <strong>Dispute</strong>, <strong>Mark wrong</strong>, and <strong>Edit answer</strong> to maintain the bank. A model suggestion alone remains a candidate. Export a study guide, flashcards, missed list, or concepts; use Review due/Queue all for spaced review.</p>
+<h3 id="live-portal-modes-and-context">Live Portal modes and context</h3>
+<p>Pin a visible Chrome window with <strong>Pin Chrome Window</strong> or Ctrl+Shift+U while pointing at it. Choose the capture region, then Start. A session never starts merely because the application launches.</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>observe</td>
+<td>Capture/identify without answer entry.</td>
+</tr>
+<tr>
+<td>suggest</td>
+<td>Retrieve/generate a reviewable answer. Default behavior.</td>
+</tr>
+<tr>
+<td>fill</td>
+<td>Enter an acceptable answer without final submission.</td>
+</tr>
+<tr>
+<td>submit</td>
+<td>Fill and submit; also requires the Auto-submit setting. Restored submit mode downgrades to suggest at startup.</td>
+</tr>
+</tbody>
+</table>
+<p>The default confidence floor is 0.75. Model-only candidates receive a provisional score of 0.5, so <strong>a successful DeepSeek response alone does not normally trigger automatic entry</strong>. Confirm evidence or use the explicitly reviewed Workflow Lab goal path; changing a confidence threshold is not proof that an answer is correct.</p>
+<p>The controller checks pinned window/title/URL, foreground state, region/monitor availability, page/question fingerprint, fresh target identity/bounds, protected fields, and readback. Focus loss or a changed/obscured target pauses/refuses input. Accessibility must expose a usable control; OCR text by itself is not permission to guess a click coordinate in this runner.</p>
+<h3 id="feature-names-and-function-descriptions">Feature names and function descriptions</h3>
+<p>Each gathered control has a session ID, kind/role, name, value or checked state, bounds, and inferred purpose/allowed commands. Feature descriptions can be remembered by <strong>exact URL plus stable kind/name identity</strong> and included in later planner prompts. A name such as <code>AllRoots</code> plus a description such as “enter every verified real root” gives the planner usable context. IDs can change across captures; the fresh catalog is authoritative.</p>
+<p>Descriptions are model/heuristic interpretations, not executable guarantees. The final compiled actions still need structural validation, context guards, and readback.</p>
+<h3 id="workflow-lab-and-its-bounded-tool-language">Workflow Lab and its bounded tool language</h3>
+<p>Open <strong>Live Portal → Workflow Lab</strong>. Capture in 3 sec gives time to focus the pinned page. Review the gathered OCR/catalog, describe the goal, Generate with DeepSeek, Preview, then Run in 3 sec. Save Tool/Load Tool stores one reusable tool slot and checks URL/catalog compatibility; this is not a general self-writing code repository.</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TYPE controlId literal text</code></td>
+<td>Enter text into the identified field.</td>
+</tr>
+<tr>
+<td><code>SET controlId 0</code> / <code>SET controlId 1</code></td>
+<td>Set a checkbox off/on; radio SET uses 1.</td>
+</tr>
+<tr>
+<td><code>CHOOSE controlId Exact option</code></td>
+<td>Select an accessible dropdown value via guarded keys and readback.</td>
+</tr>
+<tr>
+<td><code>HOVER controlId 250</code></td>
+<td>Hover for the specified milliseconds.</td>
+</tr>
+<tr>
+<td><code>WAIT 300</code></td>
+<td>Bounded delay.</td>
+</tr>
+<tr>
+<td><code>CLICK controlId</code></td>
+<td>Focus an edit/dropdown, or activate a recognized answer-submit button. Buttons require submit mode and auto-submit.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Do not wrap TYPE/CHOOSE values in quotation marks</strong>: the remaining text is literal. Scripts are capped at 12,000 characters, 50 underlying steps, 2,000 characters per text value, and 3,000 ms per wait/hover with a 15-second aggregate explicit-wait budget. No arbitrary AHK/Python, shell execution, raw screen coordinates, freeform key commands, or general links/navigation are exposed to this language.</p>
+<p>DeepSeek proposes the script. The application compiles it, rejects unknown IDs/unsupported operations, can ask for one bounded repair using rejection feedback, and executes through its own native input layer. Structural validity alone cannot prove the model fulfilled a freeform goal; the general lab's goal/output needs review. The math demo adds a trusted exact-goal validator.</p>
+<h3 id="human-input-profiles">Human input profiles</h3>
+<p><strong>Input Settings</strong> controls the Study controller's human-paced input, separately from tab 1's delays and App Learner's menu randomization.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Supported range / purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Typing WPM</td>
+<td>5–250; randomized per-character timing around the profile.</td>
+</tr>
+<tr>
+<td>Typo chance</td>
+<td>0–0.3 per character; plausible neighboring-key mistakes followed by Backspace and correction.</td>
+</tr>
+<tr>
+<td>Hover duration</td>
+<td>0–3000 ms.</td>
+</tr>
+<tr>
+<td>Wobble</td>
+<td>0–3; curved-path variation.</td>
+</tr>
+<tr>
+<td>Overshoot maximum</td>
+<td>0–30 px; bounded movement beyond a target followed by return.</td>
+</tr>
+<tr>
+<td>Overshoot chance</td>
+<td>0–1.</td>
+</tr>
+<tr>
+<td>Target jitter</td>
+<td>0–8 px.</td>
+</tr>
+<tr>
+<td>Pause chance</td>
+<td>0–0.5.</td>
+</tr>
+<tr>
+<td>Paste long text</td>
+<td>Optional faster long-field entry instead of character typing.</td>
+</tr>
+</tbody>
+</table>
+<p>The controller uses curved paths, hover pauses, click variation, and corrected typing. It checks cancellation/context along pointer waypoints and characters, relocates targets, and verifies final field/selection values. There is no claim of invisibility or perfect imitation of a person. These effects are application-generated input, not Codex remote desktop gestures.</p>
+<h3 id="visual-algebra-and-a-four-page-demonstration">Visual algebra and a four-page demonstration</h3>
+<p><strong>Solve Visual Algebra</strong> captures the pinned page, sends the image for transcription and a proposed educational solution, then runs a <strong>fixed local Python/SymPy verifier</strong>. It displays the source image, transcribed equations, real roots, worked steps, and exact residual/domain checks.</p>
+<p>Supported verifier scope: finite real solutions to equations/systems with up to three variables (<code>x,y,z</code>), arithmetic, integer powers from −8 to 8, and square roots. It handles supported implicit multiplication and common visual Unicode operators. It checks original denominator/radical constraints and the complete proposed solution set. Unsupported, ambiguous, infinite, or parametric cases require review. A bounded repair may correct the proposed solution using CAS feedback, but cannot silently replace the transcribed equations.</p>
+<p><strong>CAS proves the solution to the transcription, not that the transcription is visually correct.</strong> Inspect the image against the equation. Worked prose is educational output; every intermediate prose step is not independently proved.</p>
+<p>Prerequisites: DeepSeek vision access, Chrome, and a Python interpreter with SymPy. The code searches installed interpreters; <code>math_python</code> is the study setting for an explicit interpreter. The fixed helper is <a href="tests/algebra_solver.py">algebra_solver.py</a>.</p>
+<p>Click <strong>Run 4-page Math Demo</strong> to see the coordinated pipeline:</p>
+<pre><code class="language-text">Open local canvas-equation practice portal
+ → capture visible page and accessible controls
+ → log identified names, roles, function descriptions, OCR, and image
+ → request a visual solve and verify all roots locally
+ → ask DeepSeek for a field-entry tool
+ → validate exact values / selection goals
+ → native mouse paths, dropdown keys, checkboxes, typo-and-correct text
+ → exact control readback
+ → Check Answer, OCR the feedback
+ → authorize the demo's specific Next/Finish control
+ → verify the expected next local URL and recapture
+ → repeat across four distinct pages
+</code></pre>
+<p>The exercises cover a fractional linear equation (<code>x=7</code>), a quadratic (roots <code>2,3</code>), a two-variable system (<code>x=4,y=3</code>), and a radical equation (<code>x=4</code>). The first page includes a longer verification note to make corrections visible. The page displays actual native key/backspace/pointer/click counters and completion state. Equation text is rendered on canvas, so the solve uses the screenshot rather than hidden DOM equation text.</p>
+<p>The demo grants special navigation authority only to its exact local practice URLs and named Check/Next/Finish controls while it runs. That authority does not become general navigation permission for ordinary model-generated tools.</p>
+<h2 id="12-all-tabs-and-supporting-panels">12. All tabs and supporting panels</h2>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>Main capabilities</th>
+<th>Role in an automation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 Workflow</td>
+<td>Guided actions, conditions, loops, failsafes, templates, saved library, <code>.maw</code>, Demo Lab</td>
+<td>Build and run known engagement sequences.</td>
+</tr>
+<tr>
+<td>2 Patterns</td>
+<td>Quick/advanced capture, names/descriptions, qualifiers, preview, tests</td>
+<td>Maintain reusable visual targets.</td>
+</tr>
+<tr>
+<td>3 Live OCR</td>
+<td>Capture/record, word boxes, search, Watch Words, regex/splitting, variables, OCR revolver</td>
+<td>Gather values and identify visible text.</td>
+</tr>
+<tr>
+<td>4 Spools</td>
+<td>Conditions, timed checks, responses, repeat modes, completion, <code>.mas</code>, activity log</td>
+<td>Launch work when context matches.</td>
+</tr>
+<tr>
+<td>5 Analytics</td>
+<td>Click event recording, mouse-position hotspots, CSV export, taskbar index</td>
+<td>Discover likely interactions and map taskbar order. “Full Recording” currently records click events and mouse hotspot samples, not a complete keyboard/action replay.</td>
+</tr>
+<tr>
+<td>6 Clipboard</td>
+<td>Extraction rules, fields/order, standard revolver, smart bins</td>
+<td>Turn structured text into repeatable entry.</td>
+</tr>
+<tr>
+<td>7 Hotkeys</td>
+<td>Assign/manage workflow hotkeys</td>
+<td>Launch a saved sequence using AHK key syntax.</td>
+</tr>
+<tr>
+<td>8 Hotstrings</td>
+<td>Text expansion, options, enabled/master state, tests</td>
+<td>Insert repeated text; workflow hotstrings are also available through Workflow metadata.</td>
+</tr>
+<tr>
+<td>9 Triggers</td>
+<td>Time and window-activation notification/logging paths, templates</td>
+<td><strong>Partial implementation:</strong> see boundaries below; use Spools for an actual condition-launched workflow.</td>
+</tr>
+<tr>
+<td>10 Settings</td>
+<td>Delays, retries, FindText tolerance/timeout, close-button protection, capture options, notifications</td>
+<td>Tune standard workflow behavior.</td>
+</tr>
+<tr>
+<td>11 Notepad</td>
+<td>Save/load notes, popup, clipboard and text sending, note-to-sequence helper</td>
+<td>Store reusable text and demonstrate entry.</td>
+</tr>
+<tr>
+<td>12 Calendar</td>
+<td>Daily slots, booking types, patient profiles, local appointments</td>
+<td>Organize local scheduling data; not an automatic external calendar/clinical-system connector.</td>
+</tr>
+<tr>
+<td>13 Tracking</td>
+<td>Window time, mouse traces/heatmaps, key/clipboard history, snapshots, registry, research, exports/pruning</td>
+<td>Gather per-window evidence and reusable targets.</td>
+</tr>
+<tr>
+<td>14 App Learner</td>
+<td>Controls/accessibility/menus/OCR/pattern catalog, AppDSL, Ollama, built-in demos</td>
+<td>Learn and operate a new application.</td>
+</tr>
+<tr>
+<td>15 Snapshot Recovery</td>
+<td>Phrase/image search, OCR, recorded URL/file recovery, Chrome history matching, exclusions</td>
+<td>Return to previously seen material.</td>
+</tr>
+<tr>
+<td>16 Vision Scout</td>
+<td>Visual region discovery, review/certification/export, event sequence mining, accepted offers</td>
+<td>Grow a visual target library and learned continuations.</td>
+</tr>
+<tr>
+<td>17 Usage Predictor</td>
+<td>Visual scans, promoted targets, APP/CLICK/KEY/TYPE history and transition offers</td>
+<td>Assist repeated engagement sequences.</td>
+</tr>
+<tr>
+<td>18 Study Assistant</td>
+<td>Sources, concept/passages, answer bank, verification/correction, reviews/exports</td>
+<td>Build reusable evidence-backed study memory.</td>
+</tr>
+<tr>
+<td>19 Live Portal</td>
+<td>Chrome pinning, modes, perception, answer bridge, internal input profiles, Workflow Lab</td>
+<td>Execute bounded, validated entry against live page controls.</td>
+</tr>
+</tbody>
+</table>
+<p>Supporting panels:</p>
+<ul>
+<li><strong>Attention panel (Ctrl+Shift+A):</strong> measured focus/prominence and media watch-time information. Use it to understand actual engagement, not to generate actions automatically.</li>
+<li><strong>Snip Studio (Ctrl+Shift+1..4):</strong> saved-region capture, OCR confirmation/correction, multiple representations, settings and question parsing.</li>
+<li><strong>Question bank / roulette (Ctrl+Shift+5..6):</strong> retain parsed questions and surface unanswered items. Distinct from automated portal submission.</li>
+<li><strong>Window Model (Ctrl+Shift+7):</strong> inspect/rebuild/export a learned app's structural map.</li>
+<li><strong>Snapshot Viewer:</strong> image/binary/OCR representations and drag-to-define named elements with role/description and relative coordinates.</li>
+<li><strong>Mouse Heat / Trace:</strong> inspect snapshots, extract hotspots/features, replay movement, export generated feature representations.</li>
+<li><strong>Key History:</strong> per-window/all activity, ordered typed runs and clipboard captures, top hotkeys, privacy/exclusion controls.</li>
+</ul>
+<h2 id="13-logs-evidence-storage-and-recovery">13. Logs, evidence, storage, and recovery</h2>
+<h3 id="match-the-log-to-the-runner">Match the log to the runner</h3>
+<table>
+<thead>
+<tr>
+<th>Evidence</th>
+<th>Location / access</th>
+<th>What it shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Startup output</td>
+<td>Logged launcher; <code>data/logs</code></td>
+<td>Load errors/warnings.</td>
+</tr>
+<tr>
+<td>Runtime error log</td>
+<td><code>data/logs/MacroAutomator_errors.log</code>; Workflow → Error Log</td>
+<td>Caught/unhandled errors with context.</td>
+</tr>
+<tr>
+<td>Spool activity</td>
+<td><code>data/logs/spool_activity.log</code>; Spools → Activity Log</td>
+<td>Trigger/response/cooldown/failure history; UI retains latest 100 entries.</td>
+</tr>
+<tr>
+<td>Live OCR history</td>
+<td>Live OCR → View/Export; <code>data/ocr_log.txt</code></td>
+<td>Captured OCR content/history.</td>
+</tr>
+<tr>
+<td>Analytics click recording</td>
+<td><code>data/recording.csv</code></td>
+<td>Recorded click events and their window/method metadata.</td>
+</tr>
+<tr>
+<td>Tracking</td>
+<td><code>data/tracking.db</code>, <code>data/tracking</code> outputs</td>
+<td>Window activity, mouse/key snapshots, captures, elements, learner events, research and study records.</td>
+</tr>
+<tr>
+<td>App Learner console</td>
+<td>App Learner → Console → Copy All</td>
+<td>Narrated controls, accessibility/menu/OCR/pattern learning. It is a UI transcript, not the Study JSONL audit.</td>
+</tr>
+<tr>
+<td>Standard workflow debug</td>
+<td>Settings → Debug Mode; per-step notifications/status</td>
+<td>Step starts/results. Not a complete persistent action-by-action JSONL audit.</td>
+</tr>
+<tr>
+<td>Study / DeepSeek live audit</td>
+<td>Workflow Lab → Live Console; <code>fan/logs/study/*.jsonl</code></td>
+<td>Structured capture, identification, lookup, provider, solve, plan, input, readback, navigation, and error events.</td>
+</tr>
+<tr>
+<td>Visual math images</td>
+<td>Run-specific image directory under <code>fan/logs/study</code></td>
+<td>Screenshot used for transcription/verification review.</td>
+</tr>
+</tbody>
+</table>
+<p>The Study console filters CAPTURE, IDENTIFY, LOOKUP, LLM, MATH, PLAN, ACTION, INPUT, VERIFY, NAV, and ERROR, or shows ALL. Follow live keeps it updating; turn it off to inspect a section. It shows the newest 1,500 events; all emitted events remain in the JSONL file. Open log folder and Abort are built in.</p>
+<p>Provider audit events include purpose, model, prompt/context, image path, request attempts/status, rejection/repair feedback, tokens, cost estimate, completion, and errors. Image base64 and authorization headers are excluded; registered keys/token forms are redacted. Input logs include pointer waypoints, overshoots, typing attempts, typos/corrections, target relocation, and verified final state. No log is an unrestricted transcript of hidden model reasoning.</p>
+<p><strong>Captured content and entered answers are retained.</strong> Credential redaction is not general personal-data redaction. Tracking privacy controls and snapshot exclusions apply to their own subsystems; there is no single retention/privacy policy automatically covering every log and learner. Use sample content for demonstrations and export only the evidence you intend to share.</p>
+<h3 id="main-persistent-stores">Main persistent stores</h3>
+<ul>
+<li><code>data/macroauto.sqlite</code>: core patterns, workflows, spools, and related application data through the core SQLite wrapper.</li>
+<li><code>data/appmap.db</code>: App Learner application/control/menu catalog and its settings.</li>
+<li><code>data/tracking.db</code>: tracking, learner, research, question-bank, and Study tables through TrackSQLite.</li>
+<li>Other data files include coordinate/extraction/configuration and preview/screenshot outputs. Some paths are legacy import or subsystem files; do not assume every INI is the authoritative database.</li>
+</ul>
+<p>Use the UI's export functions where available. Close/stop the application before manually backing up database files so SQLite/WAL state is consistent. Prune/exclusion controls are subsystem-specific; they are not a global delete-all operation.</p>
+<h3 id="recover-prior-material">Recover prior material</h3>
+<p>Enable snapshots and optional OCR in Tracking for material you want to recover. In Snapshot Recovery, search a phrase/preset; inspect the evidence and image; OCR the selected image if necessary; open its recorded URL/file or use Chrome-history title/time matching. History and filename clues are candidates, not proof of an exact source match. Everything integration can assist indexed-file search when its required installation/DLL is available.</p>
+<h2 id="14-keyboard-shortcuts">14. Keyboard shortcuts</h2>
+<p>These are the bindings in the audited entry point. User-assigned workflow hotkeys/hotstrings and other application shortcuts can conflict with them.</p>
+<table>
+<thead>
+<tr>
+<th>Shortcut</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ctrl+Shift+G</td>
+<td>Show/hide main GUI</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+P</td>
+<td>Pause/resume standard workflow flag</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+X</td>
+<td>Abort standard workflow flag</td>
+</tr>
+<tr>
+<td>Escape</td>
+<td>Abort running standard workflow/simulation; contextual definition/capture behavior also exists</td>
+</tr>
+<tr>
+<td>Tab</td>
+<td>Advance standard step-through while enabled</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+C</td>
+<td>Clear notifications</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+F</td>
+<td>FindText GUI</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+Q</td>
+<td>Quick drag-box OCR</td>
+</tr>
+<tr>
+<td>Ctrl+B</td>
+<td>Copy selection, parse, load standard revolver</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+B</td>
+<td>Fire standard revolver batch</td>
+</tr>
+<tr>
+<td>Ctrl+Alt+B</td>
+<td>Load clipboard into smart bins / selector</td>
+</tr>
+<tr>
+<td>Ctrl+Alt+Shift+B</td>
+<td>Paste from bins</td>
+</tr>
+<tr>
+<td>Win+B</td>
+<td>Open bin selector (overrides the usual Windows binding while this app owns it)</td>
+</tr>
+<tr>
+<td>Ctrl+Alt+N</td>
+<td>Popup notepad</td>
+</tr>
+<tr>
+<td>Ctrl+Alt+I</td>
+<td>Idle Mouse wait, indefinite until its movement/stop condition</td>
+</tr>
+<tr>
+<td>Ctrl+Alt+T</td>
+<td>Toggle all trackers</td>
+</tr>
+<tr>
+<td>Ctrl+Alt+Shift+S</td>
+<td>Snapshot Viewer</td>
+</tr>
+<tr>
+<td>Ctrl+Alt+Shift+C</td>
+<td>Capture snapshot cycle now</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+A</td>
+<td>Attention panel</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+1</td>
+<td>Snip saved region / choose first region</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+2</td>
+<td>View last snip</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+3</td>
+<td>Redraw snip region</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+4</td>
+<td>Snip settings</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+5</td>
+<td>Question bank</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+6</td>
+<td>Surface an unanswered question</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+7</td>
+<td>Window Model</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+8</td>
+<td>Next due Study review</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+U</td>
+<td>Pin Chrome window under pointer</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+Y</td>
+<td>Toggle Live Portal session</td>
+</tr>
+<tr>
+<td>Ctrl+Shift+Escape</td>
+<td>Abort Study controller input / waits / API receive</td>
+</tr>
+<tr>
+<td>Win+CapsLock</td>
+<td>Accept armed Vision Scout continuation</td>
+</tr>
+<tr>
+<td>Win+Shift+CapsLock</td>
+<td>Accept Usage Predictor continuation</td>
+</tr>
+<tr>
+<td>CapsLock ON + C/D/R/T/P/W/K/M</td>
+<td>Definition Mode step capture</td>
+</tr>
+</tbody>
+</table>
+<p>AHK owns some keys globally while running. If Ctrl+B should bold text in another application, this program's revolver binding may intercept it. Stop/reconfigure the conflicting automation instead of assuming the destination received that key.</p>
+<h2 id="15-libraries-and-code-integration-examples">15. Libraries and code integration examples</h2>
+<p>This section is for extending the project or giving an LLM an accurate tool inventory. Most UI users can follow the recipes without writing AHK.</p>
+<h3 id="runtime-map">Runtime map</h3>
+<table>
+<thead>
+<tr>
+<th>Library / module</th>
+<th>Used in <code>fan</code></th>
+<th>Coordination</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Root <code>FindText.ahk</code></td>
+<td>Yes</td>
+<td>Pattern capture/search, visual target relocation, snapshot binaries/learner visual templates.</td>
+</tr>
+<tr>
+<td>Root <code>OCR.ahk</code></td>
+<td>Yes</td>
+<td>Windows OCR over regions/windows/files/PDF workflows; text/word/line evidence.</td>
+</tr>
+<tr>
+<td>Root <code>SQLiteDB.ahk</code></td>
+<td>Yes</td>
+<td>Core app database.</td>
+</tr>
+<tr>
+<td><code>Acc.ahk</code></td>
+<td>Yes</td>
+<td>MSAA accessibility/control context for App Learner and Study perception. This is not a separate comprehensive UIA-library controller.</td>
+</tr>
+<tr>
+<td><code>TrackSQLite</code>, <code>TrackingDB</code>, <code>TrackUtil</code></td>
+<td>Yes</td>
+<td>Shared tracking/study/learner database, JSON and context utilities.</td>
+</tr>
+<tr>
+<td><code>WindowTracker</code>, <code>MouseTracker</code>, <code>KeyTracker</code></td>
+<td>Yes</td>
+<td>Contextual event capture, traces, key histories.</td>
+</tr>
+<tr>
+<td><code>SnapshotEngine</code>, <code>PixelCanvas</code>, <code>ElementViewer</code>, <code>ElementAutomation</code></td>
+<td>Yes</td>
+<td>Capture/render/name/find targets; heat/feature visualizations.</td>
+</tr>
+<tr>
+<td><code>ResearchPipeline</code></td>
+<td>Yes</td>
+<td>Queries, URL queue, insights and reports.</td>
+</tr>
+<tr>
+<td><code>AppLearner</code>, <code>WindowModel</code></td>
+<td>Yes</td>
+<td>App catalog, menu pathways, AppDSL/Ollama prompts, spatial regions.</td>
+</tr>
+<tr>
+<td><code>VisionScout</code>, <code>UsagePatternPredictor</code></td>
+<td>Yes</td>
+<td>Local visual candidates and learned continuations.</td>
+</tr>
+<tr>
+<td><code>Everything3Client</code>, <code>SnapshotRecovery</code></td>
+<td>Yes, optional external search support</td>
+<td>Indexed files and source recovery.</td>
+</tr>
+<tr>
+<td><code>AttentionEngine</code>, <code>SnipStudio</code>, <code>SnipParse</code></td>
+<td>Yes</td>
+<td>Engagement context, confirmed captures, parsed question bank.</td>
+</tr>
+<tr>
+<td><code>StudyDB</code>, <code>StudyIngest</code>, <code>StudyAssistant</code></td>
+<td>Yes</td>
+<td>Persistent sources/concepts/answers/reviews.</td>
+</tr>
+<tr>
+<td><code>StudyLLM</code>, <code>StudyAutomation</code>, <code>StudyComposer</code>, <code>StudyLive</code>, <code>StudyTools</code></td>
+<td>Yes</td>
+<td>Provider, guarded perception/input, live bridge, bounded tool generation.</td>
+</tr>
+<tr>
+<td><code>StudyConsole</code>, <code>StudyMath</code>, <code>StudyDemo</code></td>
+<td>Yes</td>
+<td>Structured audit, visual solve/CAS, sequential demonstration.</td>
+</tr>
+<tr>
+<td>Core <code>_Gdip.ahk</code></td>
+<td>Yes</td>
+<td>GDI+ screen capture for project paths.</td>
+</tr>
+<tr>
+<td>Additional <code>ImagePut</code>, <code>JSON</code>, screenshot tools, <code>Gdip_All</code> copies</td>
+<td>Bundled; not all included in entry</td>
+<td>Extension utilities, not automatically enabled features. Check version/API before including.</td>
+</tr>
+<tr>
+<td><code>Vis2.ahk</code></td>
+<td><strong>Not included; v1 library</strong></td>
+<td>Legacy Tesseract/Google Vision path. Do not include a v1 script into the v2 process.</td>
+</tr>
+</tbody>
+</table>
+<p>See the broader <a href="../lib/LIBRARY_GUIDE.md">library reference</a> for bundled APIs. Its older main-script references are historical; the current <code>fan/MacroAutomator.ahk</code> includes are the authority for what loads here. The two SQLite classes have different APIs; core data uses SQLiteDB, tracking/study code uses <code>TrackDB()</code> / TrackSQLite.</p>
+<h3 id="a.capture-text-and-store-it-for-a-standard-workflow">A. Capture text and store it for a standard workflow</h3>
+<p>Inside the already initialized app:</p>
+<pre><code class="language-ahk">result := OCR.FromRect(100, 200, 400, 120) ; x, y, width, height
+g_SpoolVariables[&quot;orderText&quot;] := Trim(result.Text)
+; A later Type Text Parameter can contain: Order: $var.orderText
+</code></pre>
+<p>The library's FromRect takes width/height; that does not change the tab-1 corner-parser formats described earlier.</p>
+<h3 id="b.search-a-saved-visual-target">B. Search a saved visual target</h3>
+<pre><code class="language-ahk">match := FindPatternOnScreen(&quot;Inventory_RefreshButton&quot;)
+if match[&quot;found&quot;] {
+    ; Choose the right action only after checking current context.
+    ClickVerified(match[&quot;mx&quot;], match[&quot;my&quot;])
+}
+</code></pre>
+<p>FindPatternOnScreen is a project helper, not a semantic object detector. Add window/page constraints and a result check for a production action.</p>
+<h3 id="c.learn-a-window-and-expose-the-catalog-to-a-planner">C. Learn a window and expose the catalog to a planner</h3>
+<pre><code class="language-ahk">hwnd := WinExist(&quot;Notepad&quot;)
+if hwnd {
+    learned := AppMap_LearnWindow(hwnd, Map(&quot;controls&quot;, true, &quot;acc&quot;, true,
+        &quot;menus&quot;, true, &quot;ocrtext&quot;, true, &quot;altocr&quot;, false, &quot;visuals&quot;, true))
+    if learned.Has(&quot;id&quot;) {
+        prompt := AppMap_BuildLLMPrompt(learned[&quot;id&quot;], &quot;Select all text and copy it&quot;)
+        ; Ollama_GenerateScript performs this tab's configured provider call.
+        ; Review the returned AppDSL before AppExec_Run(learned[&quot;id&quot;], script).
+    }
+}
+</code></pre>
+<p>Learning is a snapshot of the available interface; it does not discover hidden pages without visiting them. The prompt includes DSL grammar and the catalog. Generated scripts still operate through AppDSL, not executable model-written AHK source.</p>
+<h3 id="d.use-a-named-tracked-element">D. Use a named tracked element</h3>
+<pre><code class="language-ahk">location := Element_WaitByName(&quot;InventorySearch&quot;, 5000)
+if IsObject(location) &amp;&amp; location.Count
+    Element_ClickByName(&quot;InventorySearch&quot;, &quot;Left&quot;, 1)
+</code></pre>
+<p>This registry is created through Snapshot Viewer/Tracking. It is different from App Learner's app element rows and Study's session control IDs. Relative-coordinate fallback can yield a location without proving visual presence; test it on the real window.</p>
+<h3 id="e.coordinate-the-deepseek-system">E. Coordinate the DeepSeek system</h3>
+<pre><code class="language-text">StudyPercept_* capture
+  + StudyFeatures_* names/descriptions
+  + Study_Answer retrieval/evidence (when answering a study question)
+  + StudyLLM_* text/image provider request
+  → StudyTools_* bounded script compile / preview / repair
+  → StudyMacro_* guarded native execution and readback
+  → StudyConsole_Log stage events
+  → StudyDB settings/answer provenance for later reuse
+</code></pre>
+<p>For visual math, insert StudyMath plus the fixed SymPy helper before generating entry actions. For the sequential demonstration, StudyDemo supplies the exact-goal validator and scoped navigation. These examples describe the real module coordination; there is no existing tool that automatically turns every bundled library function into an unrestricted DeepSeek-callable operation.</p>
+<h3 id="extending-toward-a-broader-automation-engine">Extending toward a broader automation engine</h3>
+<p>A useful new capability should have: a named target/operation, clear inputs, live context requirements, bounded execution, a success check, an abort path, and structured logging. Add it to the appropriate runner rather than assuming the action exists because a library is installed. For tab 1, keep the action list, guided forms/help, validation, engine dispatch, serialization, and simulation consistent. For Study tools, extend the compiler and guarded executor together, with a trusted validation rule for the new command.</p>
+<p>This is an extension pattern, <strong>not a claim that a universal tool registry or arbitrary autonomous desktop planner already exists</strong>. Current saved workflows, AppDSL, prediction offers, and DeepSeek tools have distinct storage, IDs, permissions, and verification behavior.</p>
+<h2 id="16-troubleshooting-and-current-boundaries">16. Troubleshooting and current boundaries</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Check / next step</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Wrong build or missing new controls</td>
+<td>Launch <code>fan/MacroAutomator.ahk</code>; reload the loaded AHK instance after updates.</td>
+</tr>
+<tr>
+<td>Script fails before GUI appears</td>
+<td>Use logged launcher and inspect startup/error output; use AHK v2 and intact include paths/DLL.</td>
+</tr>
+<tr>
+<td>Click lands in the wrong place</td>
+<td>Inspect Target, window, DPI, monitor, scroll state, and whether resolver fell back to coordinates. Simulate is not sufficient evidence.</td>
+</tr>
+<tr>
+<td>Pattern not found</td>
+<td>Make it visible/unobscured; compare scale/theme/state; test preview; recapture or adjust tolerance.</td>
+</tr>
+<tr>
+<td>OCR is empty or wrong</td>
+<td>Verify the rectangle format, installed OCR language, text size/scale, contrast, and capture contents.</td>
+</tr>
+<tr>
+<td>OCR clicked the wrong word</td>
+<td>Crop tightly; use a unique term/pattern; account for permissive first substring matching.</td>
+</tr>
+<tr>
+<td>Variable is blank/stale</td>
+<td>Confirm source capture, name/namespace, and current value. Initialize fresh values; Watch Word refresh failure may retain old data.</td>
+</tr>
+<tr>
+<td>Spool fires repeatedly</td>
+<td>Found condition remains true; use One-Shot/Cooldown and explicit completion/reset logic.</td>
+</tr>
+<tr>
+<td>Spool stopped without a successful response</td>
+<td>One-Shot stops after the trigger attempt, including failures. Check activity and actual output.</td>
+</tr>
+<tr>
+<td>Spool restarts next launch</td>
+<td>Master Enable and enabled spool state persist. Stop All/master off before leaving if desired.</td>
+</tr>
+<tr>
+<td>Nested workflow loop does nothing</td>
+<td>Run Sequence currently uses direct action execution; keep loop control in the top-level workflow.</td>
+</tr>
+<tr>
+<td>Keys go to wrong app</td>
+<td>Wait for existence is not activation. Add Activate Window / AppDSL focuswin, then verify the target.</td>
+</tr>
+<tr>
+<td>Ordinary letter keys add workflow rows</td>
+<td>CapsLock Definition Mode is ON. Turn it OFF.</td>
+</tr>
+<tr>
+<td>Ctrl+B / Win+B does unexpected work</td>
+<td>Global app bindings conflict with standard destination/Windows behavior.</td>
+</tr>
+<tr>
+<td>DeepSeek response but no automatic entry</td>
+<td>Candidate confidence below the configured floor, wrong mode, or a context/target guard blocked entry; inspect log.</td>
+</tr>
+<tr>
+<td>Study run stops after a page/tab change</td>
+<td>Re-pin/recapture the intended page. Standard Study tools do not authorize arbitrary navigation.</td>
+</tr>
+<tr>
+<td>Visual solver rejects a result</td>
+<td>Compare screenshot/transcription, CAS/domain feedback, supported scope, and Python/SymPy availability.</td>
+</tr>
+<tr>
+<td>Learned offer does not replay typing</td>
+<td>Vision Scout does not fill arbitrary text; Usage Predictor requires literal typing capture.</td>
+</tr>
+<tr>
+<td>Direct control operation is invisible</td>
+<td>AppDSL @cmd/ctrltext can use messages/control APIs. Choose visible pathways for an engagement demonstration.</td>
+</tr>
+<tr>
+<td>Multiple engines compete for input</td>
+<td>Stop spools/learners/other runners, then run one controller. No global exclusive-input arbiter exists.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="known-unfinished-or-weaker-paths">Known unfinished or weaker paths</h3>
+<ol>
+<li><strong>Triggers tab:</strong> the active checker evaluates Time-Based and Window Activation. The extra OCR/action/error/variable/combination/sequence/debug types shown in its dropdown are not generally wired to that checker. Its live <code>ExecuteTriggerAction</code> supports notification/logging; “Run Sequence” displays <strong>“Would execute sequence”</strong> instead of running one. The separate <code>ExecuteTriggerAction2</code> contains more code but is not the live dispatcher. Set Variable, Execute Command, and Play Sound UI choices are not implemented by that live dispatcher. Use Spools → Run Workflow for working condition-driven sequences. Notification timeout units also vary between old templates and live parsing; inspect actual behavior.</li>
+<li><strong>Idle Mouse:</strong> currently waits for movement/duration rather than generating motion, and its indefinite loop does not inspect the standard workflow abort flag. Use a finite duration or its movement exit; do not rely on Escape to end this specific wait.</li>
+<li><strong>Older coordinate/visual runners:</strong> relative or absolute fallbacks, broad searches, and “verified” helper names do not provide the Study controller's window/URL/field-readback guarantees. Some older blocking waits/replays do not respond promptly to the standard abort flag.</li>
+<li><strong>Application learning:</strong> catalogs and geometry provide useful context, but not full semantic knowledge, unseen-state exploration, or automatic reliability after every UI redesign.</li>
+<li><strong>Browser identity:</strong> standard workflows use titles/keys/pixels. Study adds pinned URL/title checks, but two identical same-URL/title tabs are not uniquely distinguished by those signals.</li>
+<li><strong>Unsupported Study interactions:</strong> arbitrary navigation, custom/inaccessible widgets, general drag/drop/order/matching interfaces, and unrestricted desktop operations require additional engineering/review.</li>
+<li><strong>Math scope:</strong> this verifier is not a general theorem prover or every Algebra course problem type. It validates supported finite real solutions to the captured transcription.</li>
+<li><strong>Complete auditing:</strong> Study JSONL is detailed; older workflow, learner, trigger, and tracking paths retain different evidence. “Verbose everything” is not yet one consistent project-wide event stream.</li>
+</ol>
+<p>These limits matter when combining features. The program is a broad automation toolkit, with several working paths toward context-aware engagement; reliable autonomy comes from explicit context, bounded action, and measured results in the selected runner.</p>
+<h2 id="17-demonstrations-and-validation-evidence">17. Demonstrations and validation evidence</h2>
+<h3 id="available-demonstration-surfaces">Available demonstration surfaces</h3>
+<table>
+<thead>
+<tr>
+<th>Demo</th>
+<th>What to inspect</th>
+<th>Status / prerequisites</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Workflow → Demo Lab</td>
+<td>Text, clicks, menu selection, drags, relative targets, FindText/OCR, revolver destination fields and event log</td>
+<td>Built into the tab-1 code; use individual steps to learn the action palette.</td>
+</tr>
+<tr>
+<td>Workflow → Templates</td>
+<td>Appended example sequence, captured variable, notification</td>
+<td>Replace sample targets/regions; template insertion alone is not validation.</td>
+</tr>
+<tr>
+<td>Spool certification <code>.mas</code></td>
+<td>Trigger → embedded workflow → visible output/log</td>
+<td>See <a href="../SPOOL_WORKFLOW_GUIDE.txt">spool quick guide</a>; import examples only after reviewing their contents.</td>
+</tr>
+<tr>
+<td>App Learner → Load Demo</td>
+<td>Script, learning console, visible app state at each handoff</td>
+<td>Examples exist; external apps/files/commands vary by demo and machine.</td>
+</tr>
+<tr>
+<td>Vision Scout review</td>
+<td>Candidate box → Test Find → Certify → Patterns export</td>
+<td>Certify live matches, then test exported pattern separately.</td>
+</tr>
+<tr>
+<td>Usage Predictor repeated task</td>
+<td>Event chain, support/confidence, accepted replay result</td>
+<td>Requires repeated observations; text replay depends on capture choice.</td>
+</tr>
+<tr>
+<td>Live Portal → Dry-run Fixtures</td>
+<td>Classified questions/plans and rejection cases</td>
+<td>Offline fixture checks; no proof of a particular real portal's compatibility.</td>
+</tr>
+<tr>
+<td>Workflow Lab → practice / math demo</td>
+<td>OCR, feature catalog, real provider requests, exact solutions, native input/readback, four page transitions</td>
+<td>End-to-end visual math run completed on this machine; current source includes further unit-checked navigation restrictions.</td>
+</tr>
+</tbody>
+</table>
+<p>The successful recorded four-page visual math run used the <strong>internal AHK controller and real DeepSeek calls</strong>. It retained 1,321 audit events, nine corrected typing mistakes, 30 overshoot events, and all four correct result pages. The estimated API cost for that specific run was about $0.0165; it is historical run metadata, not a price promise. The page's native counters showed keyboard/backspace/click engagement.</p>
+<p>Validation artifacts:</p>
+<ul>
+<li><a href="tests/visual_math_validation.json">Visual math validation record</a></li>
+<li><a href="tests/math_demo_validation.jpg">Practice-page completion image</a></li>
+<li><a href="tests/math_solver_validation.jpg">Visible solver image</a></li>
+<li><a href="tests/math_console_validation.jpg">Live console image</a></li>
+<li><a href="IMPLEMENTATION_VALIDATION.md">Implementation and verification notes</a></li>
+<li><a href="REALTIME_STUDY_ASSISTANT_SPEC.md">Study specification and feature ledger</a></li>
+<li><a href="AUTOMATION_SUBSYSTEM_SPEC.md">Automation subsystem specification</a></li>
+</ul>
+<p>The recorded validation included 132 checks across controller, memory, provider, intelligence, and Python math tests. It does not certify all 19 tabs, every legacy action, or an arbitrary external portal. Subsequent exact-local-navigation restrictions were checked with targeted tests after the full live run; do not misread the artifacts as a newer live run of every final-source path.</p>
+<h3 id="how-to-validate-your-own-sequence">How to validate your own sequence</h3>
+<ol>
+<li>Use a lab or sample destination. Establish the expected starting window/page/state.</li>
+<li>Test identification alone: pattern location, OCR text/box, catalog control, or learned menu reference.</li>
+<li>Simulate the standard workflow or Preview the Study tool to inspect intended actions.</li>
+<li>Run one action and inspect its measurable effect, then run the sequence step-through.</li>
+<li>Test a representative alternate state: moved window, slower load, changed text, missing target, or extra dialog. Confirm it stops/skips as designed.</li>
+<li>Run the whole sequence and record the actual result plus the appropriate log. Save/export only once its context and outcome are understood.</li>
+<li>Enable spool repetition or accept learned continuations after the deterministic action path works.</li>
+</ol>
+<h3 id="code-sources-behind-this-guide">Code sources behind this guide</h3>
+<p>The action count/names, forms, loops, simulation, and execution behavior were checked against <a href="Tabs/Tab_01_Workflow.ahk">Workflow</a>, <a href="Tabs/Tab_01_Workflow_Forms.ahk">guided forms</a>, <a href="Actions/_Engine.ahk">action engine</a>, and <a href="Core/_Helpers.ahk">core helpers</a>. Pattern/OCR/spool behavior comes from <a href="Tabs/Tab_02_Patterns.ahk">Patterns</a>, <a href="Tabs/Tab_03_LiveOCR.ahk">Live OCR</a>, and <a href="Tabs/Tab_04_Spools.ahk">Spools</a>. Learning/provider/controller details come from the included modules named above; the <a href="MacroAutomator.ahk">entry point</a> determines tab order and loaded libraries. This is a code-backed guide, not a claim that every old UI label or specification checkbox is a verified capability.</p>
+
+<p id="empty" hidden>No matching chapters. Try another term or clear the search.</p>
+</main></div>
+<script>
+const main=document.querySelector('#guide'),nav=document.querySelector('#chapters'),search=document.querySelector('#search');
+let section=null;const chapters=[];
+// Remove the Markdown TOC because the browser guide supplies persistent navigation.
+let removeToc=false;
+for(const node of Array.from(main.children)){
+  if(node.tagName==='H2'&&node.textContent.trim()==='Contents'){removeToc=true;node.remove();continue;}
+  if(removeToc&&node.tagName!=='H2'){node.remove();continue;}
+  if(node.tagName==='H2'){
+    removeToc=false;
+    section=document.createElement('section');main.insertBefore(section,node);
+    const anchor=node.id||node.textContent.toLowerCase().replace(/[^a-z0-9\s-]/g,'').trim().replace(/\s+/g,'-');
+    section.id=anchor;node.removeAttribute('id');
+    const link=document.createElement('a');link.href='#'+anchor;link.textContent=node.textContent;nav.append(link);
+    chapters.push({section,link,text:''});
+  }
+  if(section&&node.id!=='empty')section.append(node);
+}
+for(const chapter of chapters)chapter.text=chapter.section.textContent.toLowerCase();
+function filter(){
+  const query=search.value.toLowerCase().trim();let visible=0;
+  for(const chapter of chapters){const match=!query||chapter.text.includes(query);chapter.section.hidden=!match;chapter.link.hidden=!match;if(match)visible++;}
+  document.querySelector('#results').textContent=query?visible+' of '+chapters.length+' chapters match':chapters.length+' chapters · select a topic below';
+  document.querySelector('#empty').hidden=visible>0;
+}
+search.addEventListener('input',filter);
+document.querySelector('#clear').addEventListener('click',()=>{search.value='';filter();search.focus();});
+document.querySelector('#print').addEventListener('click',()=>window.print());
+filter();
+</script>
+</body></html>

@@ -1,0 +1,30 @@
+name: workspace_recon
+description: Inventories the current workspace (files, TODOs, stale items) and writes a Markdown report. Runs fully offline — no model needed.
+keywords: [recon, inventory, audit, workspace, scan, todo, todos]
+triggers:
+  - event: perception.window
+requires: [fs]
+model_invocable: true
+user_invocable: true
+steps:
+  - name: list_files
+    kind: tool
+    tool: fs.list_dir
+    args: { path: "{{ vars.cwd or '.' }}", max_depth: 2, limit: 100 }
+    collect: files
+  - name: find_todos
+    kind: tool
+    tool: fs.grep
+    args: { path: "{{ vars.cwd or '.' }}", pattern: "TODO|FIXME|HACK", max_hits: 30 }
+    collect: todos
+    continue_on_fail: true
+  - name: build_report
+    kind: tool
+    tool: fs.write_text
+    args:
+      path: "{{ vars.cwd or '.' }}/.sl_recon_report.md"
+      content: "{{ '# Workspace Recon Report\n\n' + '## Files (' + str(len(files.get('entries', []))) + ' entries)\n' + files.text + '\n\n## TODOs\n' + todos.text }}"
+  - name: finish
+    kind: stop
+    ok: true
+    message: "Workspace recon complete: {{ len(files.get('entries', [])) }} entries listed, report written to .sl_recon_report.md"

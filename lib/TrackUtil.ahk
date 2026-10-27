@@ -4,10 +4,133 @@
 ; Time keys, window-name normalisation, JSON, CSV, hashing and small string
 ; utilities used by the window / mouse / key / snapshot trackers.
 ; ═══════════════════════════════════════════════════════════════════════════════
+#Include %A_LineFile%\..\PhotoStore.ahk
+#Include %A_LineFile%\..\LearningValidation.ahk
+#Include %A_LineFile%\..\FanState.ahk
 
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; TIME KEYS
 ; ═══════════════════════════════════════════════════════════════════════════════
+
+; Machine-local storage routes live outside the data being transferred. Shared
+; entry points use the same routes, so they cannot reopen a stale local copy.
+global g_FanDataConfigOverride := ""
+
+FanData_ProjectRoot() {
+    SplitPath(A_LineFile,, &sourceDir)
+    return RegExReplace(sourceDir, "\\lib$")
+}
+
+FanData_ConfigPath() {
+    global g_FanDataConfigOverride
+    return IsSet(g_FanDataConfigOverride) && g_FanDataConfigOverride != "" ? g_FanDataConfigOverride : FanData_ProjectRoot() . "\fan\storage_paths.json"
+}
+
+FanData_Routes(refresh := false) {
+    static cached := Map(), cachedStamp := ""
+    global g_FanSeedPath
+    if IsSet(g_FanSeedPath) && g_FanSeedPath != ""
+        return Map("unified_db", g_FanSeedPath, "unified_initialized", true)
+    path := FanData_ConfigPath()
+    stamp := FileExist(path) ? path . ":" . FileGetTime(path, "M") . ":" . FileGetSize(path) : "missing:" . path
+    if refresh || stamp != cachedStamp {
+        cached := FileExist(path) ? TrackJsonDecode(FileRead(path, "UTF-8")) : Map()
+        if !(cached is Map)
+            throw Error("Storage configuration must be a JSON object: " . path)
+        cachedStamp := stamp
+    }
+    return cached
+}
+
+FanData_Config(refresh := false) {
+    config := FanData_Routes(refresh).Clone()
+    if config.Has("unified_db") && FileExist(config["unified_db"]) {
+        db := FanState_DB()
+        if db.TableExists("app_config") {
+            value := db.Scalar("SELECT value FROM app_config WHERE key='preferences'")
+            if value != "" {
+                for key, setting in TrackJsonDecode(value)
+                    if key != "unified_db" && key != "unified_initialized" && key != "databases"
+                        config[key] := setting
+            }
+        }
+    }
+    return config
+}
+
+FanData_SaveConfig(config) {
+    if config.Has("unified_db") {
+        preferences := config.Clone()
+        preferences.Delete("unified_db")
+        if preferences.Has("unified_initialized")
+            preferences.Delete("unified_initialized")
+        FanState_DB().Run("INSERT INTO app_config(key,value) VALUES('preferences',?) "
+            . "ON CONFLICT(key) DO UPDATE SET value=excluded.value", TrackJsonEncode(preferences))
+        config := FanData_Routes().Clone()
+    }
+    path := FanData_ConfigPath(), temp := path . ".tmp"
+    if FileExist(temp)
+        FileDelete(temp)
+    FileAppend(TrackJsonEncode(config), temp, "UTF-8-RAW")
+    FileMove(temp, path, 1)
+    FanData_Config(true)
+}
+
+FanData_DbPath(role, fallback) {
+    config := FanData_Routes()
+    if config.Has("unified_db")
+        return config["unified_db"]
+    stores := config.Get("databases", Map())
+    return stores.Get(role, fallback)
+}
+
+FanData_DbAvailable(role, path) {
+    config := FanData_Routes()
+    if config.Has("unified_db")
+        return path
+    if config.Get("databases", Map()).Has(role) && !FileExist(path)
+        throw Error("Configured " . role . " database is unavailable: " . path . ". Reconnect its drive; an empty replacement will not be created.")
+    return path
+}
+
+FanData_FolderIdentity(path) {
+    handle := DllCall("CreateFileW", "str", path, "uint", 0, "uint", 7, "ptr", 0, "uint", 3, "uint", 0x02000000, "ptr", 0, "ptr")
+    if handle = -1 || handle = 0
+        return ""
+    try {
+        info := Buffer(52, 0)
+        if !DllCall("GetFileInformationByHandle", "ptr", handle, "ptr", info)
+            return ""
+        return Format("{:08X}:{:08X}{:08X}", NumGet(info, 28, "uint"), NumGet(info, 44, "uint"), NumGet(info, 48, "uint"))
+    } finally
+        DllCall("CloseHandle", "ptr", handle)
+}
+
+; Fan opts into a quiet desktop. Shared modules keep their usual tooltips in
+; other entry points; Fan's progress is shown in its status bar and console.
+TrackToolTip(text := "", x := "", y := "", number := 1) {
+    global g_TrackTooltipsDisabled
+    if IsSet(g_TrackTooltipsDisabled) && g_TrackTooltipsDisabled {
+        if text != ""
+            try LearningValidation_Event("Learning", "observed", text)
+        return ToolTip(, , , number)
+    }
+    return ToolTip(text, x, y, number)
+}
+
+; Also suppress common-control hover tips (list views, toolbars, etc.) before
+; Windows displays them. Other WM_NOTIFY events continue to their handlers.
+Track_TooltipNotify(wParam, lParam, msg, hwnd) {
+    global g_TrackTooltipsDisabled
+    if !IsSet(g_TrackTooltipsDisabled) || !g_TrackTooltipsDisabled || !lParam
+        return
+    if NumGet(lParam, A_PtrSize * 2, "Int") = -521 {
+        try {
+            if WinGetClass("ahk_id " . NumGet(lParam, 0, "Ptr")) = "tooltips_class32"
+                return 1
+        }
+    }
+}
 
 ; ISO-8601-ish timestamp with millisecond precision, sortable as text.
 TrackTS(when := "") {
@@ -195,6 +318,8 @@ TrackJsonDecode(text) {
     pos := 1
     val := _TrackJsonValue(text, &pos)
     _TrackJsonSkipWs(text, &pos)
+    if (pos <= StrLen(text))
+        throw Error("JSON: trailing content at " . pos)
     return val
 }
 
@@ -230,7 +355,7 @@ _TrackJsonValue(text, &pos) {
         pos += 4
         return ""
     }
-    if RegExMatch(text, "^-?\d+(\.\d+)?([eE][+-]?\d+)?", &m, pos) {
+    if RegExMatch(SubStr(text, pos), "^-?\d+(\.\d+)?([eE][+-]?\d+)?", &m) {
         pos += StrLen(m[0])
         return InStr(m[0], ".") || InStr(m[0], "e") || InStr(m[0], "E") ? Float(m[0]) : Integer(m[0])
     }

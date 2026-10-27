@@ -148,8 +148,10 @@ KeyTrack_NewBucket(ctx) {
         "stream", [],        ; Send()-compatible tokens
         "text", [],          ; literal characters, backspace-aware
         "runs", [],          ; completed contiguous typing runs
+        "run_start_ts", "", ; timestamp of the current typed run
         "hotkeys", [],
-        "clips", []
+        "clips", [],
+        "events", []         ; typed/clipboard events in exact capture order
     )
 }
 KeyTrack_EnsureBucket() {
@@ -199,6 +201,12 @@ KeyTrack_FlushBucket() {
             "wpm", wpm
         )
         TrackDB_AddKeySnapshot(snap)
+        ; Keep the mixed ALL timeline separate from the minute summary so it
+        ; can preserve typed/clipboard order (including same-second events).
+        for e in b["events"]
+            TrackDB_AddKeyEvent(b["win_id"], b["app_id"], e["ts"]
+                              , b["minute_key"], e["type"], e["content"]
+                              , e["detail"])
         ; Per-window hotkey frequency, for "what does this user actually use".
         counts := Map()
         for combo in b["hotkeys"]
@@ -238,6 +246,8 @@ KeyTrack_OnChar(ih, char) {
     if (g_KeyLastCharTick && (now - g_KeyLastCharTick) > g_KeyTrackPauseMs)
         KeyTrack_CloseRun(b)
     g_KeyLastCharTick := now
+    if (b["run_start_ts"] = "")
+        b["run_start_ts"] := TrackTS()
     b["keystrokes"] := b["keystrokes"] + 1
     b["stream"].Push(KeyTrack_EscapeForSend(char))
     b["text"].Push(char)
@@ -309,15 +319,22 @@ KeyTrack_OnClipChange(dataType) {
     ctx := TrackCtx_Get(1500)
     if KeyTrack_IsExcluded(ctx["name"])
         return
+    b := KeyTrack_EnsureBucket()
+    if IsObject(b)
+        KeyTrack_CloseRun(b) ; typed text must appear before this clipboard event
+    kind := KeyTrack_ClipKind(content)
+    capturedTs := TrackTS()
     try {
-        TrackDB_AddClip(ctx["win_id"], ctx["app_id"], content, KeyTrack_ClipKind(content))
+        TrackDB_AddClip(ctx["win_id"], ctx["app_id"], content, kind)
     } catch as err {
         TrackLogError("KeyTrack_OnClipChange", err)
         return
     }
-    b := KeyTrack_EnsureBucket()
-    if IsObject(b)
+    if IsObject(b) {
         b["clips"].Push(TrackEllipsis(content, 500))
+        b["events"].Push(Map("ts", capturedTs, "type", "clipboard"
+                           , "detail", kind, "content", content))
+    }
 }
 ; Rough content type for a clipboard entry.
 KeyTrack_ClipKind(text) {
@@ -342,9 +359,14 @@ KeyTrack_CloseRun(b) {
     if !IsObject(b)
         return
     text := KeyTrack_ApplyBackspaces(b["text"])
-    if (Trim(text) != "")
+    if (Trim(text) != "") {
         b["runs"].Push(text)
+        eventTs := b["run_start_ts"] != "" ? b["run_start_ts"] : TrackTS()
+        b["events"].Push(Map("ts", eventTs, "type", "typed"
+                           , "detail", "", "content", text))
+    }
     b["text"] := []
+    b["run_start_ts"] := ""
 }
 ; Escape a literal character so raw_stream stays Send()-compatible.
 KeyTrack_EscapeForSend(char) {
@@ -507,6 +529,40 @@ KeyTrack_RecentClips(limit := 200, winId := 0) {
     }
     return db.Query("SELECT c.*, w.name AS win_name FROM clip_history c "
                   . "LEFT JOIN win w ON w.id=c.win_id ORDER BY c.id DESC LIMIT ?", limit)
+}
+
+; Typed and clipboard activity for one selected minute, oldest first. New rows
+; come from key_event and therefore retain exact capture order. For snapshots
+; recorded before schema v5, synthesize a clearly-labelled best-effort view
+; from the minute summary plus timestamped clip_history rows.
+KeyTrack_AllEvents(snapId) {
+    db := TrackDB()
+    if !db || !snapId
+        return []
+    snap := db.QueryRow("SELECT * FROM key_snapshot WHERE id=?", snapId)
+    if !snap.Count
+        return []
+
+    rows := db.Query("SELECT event_type,detail,ts,content,id "
+                   . "FROM key_event WHERE win_id=? AND minute_key=? "
+                   . "ORDER BY ts,id", snap["win_id"], snap["minute_key"])
+    if rows.Length
+        return rows
+
+    ; Legacy key_snapshot rows did not timestamp individual typed runs. Put the
+    ; aggregate at the minute's start and retain exact timestamps for clips.
+    return db.Query("SELECT event_type,detail,ts,content,sort_id AS id FROM ("
+                  . " SELECT 'typed (legacy minute)' AS event_type, '' AS detail, "
+                  . "        COALESCE(NULLIF(start_ts,''),end_ts) AS ts, "
+                  . "        CASE WHEN COALESCE(text_typed,'')<>'' THEN text_typed "
+                  . "             WHEN COALESCE(strings,'')<>'' THEN strings "
+                  . "             ELSE COALESCE(raw_stream,'') END AS content, "
+                  . "        0 AS sort_id FROM key_snapshot WHERE id=? "
+                  . " UNION ALL "
+                  . " SELECT 'clipboard',COALESCE(kind,''),ts,content,id "
+                  . " FROM clip_history WHERE win_id=? AND minute_key=?"
+                  . ") WHERE content<>'' ORDER BY ts,sort_id"
+                  , snapId, snap["win_id"], snap["minute_key"])
 }
 
 ; The exclusion list, for display/editing in the UI.

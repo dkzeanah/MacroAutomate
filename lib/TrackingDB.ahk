@@ -8,7 +8,7 @@
 ;   mouse_heat                aggregated grid heat, per window
 ;   mouse_feature             extracted interaction hotspots (element candidates)
 ;   key_snapshot              1-minute keystroke traces, per window
-;   hotkey_stat / clip_history
+;   hotkey_stat / clip_history / key_event
 ;   snap_cycle / snap_entry   5-minute whole-desktop image captures
 ;   element                   named, described UI elements for automation
 ;   query / query_link / query_insight   research pipeline results
@@ -23,7 +23,7 @@ global g_TrackAppCache := Map()            ; appKey  -> app_id
 global g_TrackWinCache := Map()            ; appId|name -> win_id
 
 ; Current schema version. Bump when adding tables/columns below.
-global TRACK_SCHEMA_VERSION := 4
+global TRACK_SCHEMA_VERSION := 5
 
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; LIFECYCLE
@@ -37,8 +37,13 @@ TrackDB_Init(dbPath := "") {
     if IsObject(g_TrackDB) && g_TrackDB.IsOpen()
         return true
 
-    if (dbPath = "")
-        dbPath := DATA_DIR . "\tracking.db"
+    if (dbPath = "") {
+        try dbPath := FanData_DbAvailable("tracking", FanData_DbPath("tracking", DATA_DIR . "\tracking.db"))
+        catch as pathError {
+            g_TrackDBError := pathError.Message
+            return false
+        }
+    }
     g_TrackDBPath := dbPath
 
     if !DirExist(DATA_DIR) {
@@ -266,6 +271,20 @@ TrackDB_SchemaStatements() {
     . "  content    TEXT)"
     , "CREATE INDEX IF NOT EXISTS ix_clip_hash ON clip_history(hash)"
     , "CREATE INDEX IF NOT EXISTS ix_clip_ts   ON clip_history(ts)"
+
+    ; ─── Ordered typed/clipboard timeline used by Key History > ALL ─────────
+    ; `id` is the final tie-breaker when several events share one-second ts.
+    , "CREATE TABLE IF NOT EXISTS key_event ("
+    . "  id         INTEGER PRIMARY KEY AUTOINCREMENT,"
+    . "  win_id     INTEGER NOT NULL REFERENCES win(id),"
+    . "  app_id     INTEGER NOT NULL,"
+    . "  ts         TEXT NOT NULL,"
+    . "  minute_key TEXT NOT NULL,"
+    . "  event_type TEXT NOT NULL,"
+    . "  detail     TEXT,"
+    . "  content    TEXT)"
+    , "CREATE INDEX IF NOT EXISTS ix_key_event_min "
+    . "ON key_event(win_id,minute_key,ts,id)"
 
     ; ─── 5-minute whole-desktop snapshot cycles ─────────────────────────────
     , "CREATE TABLE IF NOT EXISTS snap_cycle ("
@@ -763,6 +782,18 @@ TrackDB_AddClip(winId, appId, content, kind := "text") {
     return db.LastInsertId()
 }
 
+; Persist one already-ordered Key History event. Callers add events in capture
+; order; the autoincrement id preserves that order when timestamps are equal.
+TrackDB_AddKeyEvent(winId, appId, ts, minuteKey, eventType, content, detail := "") {
+    db := TrackDB()
+    if !db || !winId || content = ""
+        return 0
+    db.Run("INSERT INTO key_event(win_id,app_id,ts,minute_key,event_type,detail,content) "
+         . "VALUES(?,?,?,?,?,?,?)"
+         , winId, appId, ts, minuteKey, eventType, detail, content)
+    return db.LastInsertId()
+}
+
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; SNAPSHOT WRITES
 ; ═══════════════════════════════════════════════════════════════════════════════
@@ -1080,6 +1111,8 @@ TrackDB_Prune(days := 30) {
         rows += db.Changes()
         db.Run("DELETE FROM key_snapshot WHERE start_ts < ?", cutoff)
         rows += db.Changes()
+        db.Run("DELETE FROM key_event WHERE ts < ?", cutoff)
+        rows += db.Changes()
         db.Run("DELETE FROM clip_history WHERE ts < ?", cutoff)
         rows += db.Changes()
         db.Run("DELETE FROM snap_entry WHERE ts < ?", cutoff)
@@ -1112,7 +1145,7 @@ TrackDB_Stats() {
     if !db
         return stats
     tables := ["app", "win", "win_session", "mouse_snapshot", "mouse_heat", "mouse_feature"
-             , "key_snapshot", "hotkey_stat", "clip_history", "snap_cycle", "snap_entry"
+             , "key_snapshot", "key_event", "hotkey_stat", "clip_history", "snap_cycle", "snap_entry"
              , "element", "query", "query_link", "query_insight"]
     for t in tables {
         try stats[t] := db.Scalar("SELECT COUNT(*) FROM " . t)

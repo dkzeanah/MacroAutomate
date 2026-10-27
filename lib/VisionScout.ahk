@@ -499,6 +499,9 @@ VS_RegisterElements(merged, winId, appId, regionX, regionY, regionW, regionH) {
             "first_seen", now, "last_seen", now))
         g_VSLastScanIds.Push(Integer(id))
         added++
+        LearningLab_Record("Vision Scout", id, "Visual candidate #" . id . " can be recognized", "observed", LearningLab_Context(),
+            "FindText candidate captured, awaiting testing.", "vs_element:" . id, "Test and certify this candidate in Vision Scout before exporting it to Patterns. Recheck after changing application state.")
+        LearningValidation_Event("Vision Scout", "stored", "Visual candidate #" . id . " captured", Map("x",cx,"y",cy,"w",w,"h",h))
     }
     if added
         VS_SortElements()
@@ -1148,12 +1151,12 @@ VS_ArmOffer(cand) {
     g_VSLastOfferSig := cand["sig"]
     try Hotkey("#CapsLock", VS_ContinueHandler, "On")
     g_VSOfferArmed := true
-    ToolTip("⚡ Sequence '" . cand["name"] . "' — press Win+CapsLock to continue and automate " . cand["continuation"].Length . " step(s)")
+    TrackToolTip("⚡ Sequence '" . cand["name"] . "' — press Win+CapsLock to continue and automate " . cand["continuation"].Length . " step(s)")
     SetTimer(VS_ClearOfferTip, -6000)
 }
 
 VS_ClearOfferTip(*) {
-    ToolTip()
+    TrackToolTip()
 }
 
 VS_DisarmOffer() {
@@ -1163,7 +1166,7 @@ VS_DisarmOffer() {
         g_VSOfferArmed := false
     }
     g_VSPending := Map()
-    ToolTip()
+    TrackToolTip()
 }
 
 VS_ContinueHandler(*) {
@@ -1380,14 +1383,14 @@ VS_BeginReviewScan(scope, *) {
     if scope = "window" {
         Loop 3 {
             left := 4 - A_Index
-            ToolTip("Vision Scout: focus the window to scan — " . left, 24, 24, 18)
+            TrackToolTip("Vision Scout: focus the window to scan — " . left, 24, 24, 18)
             Sleep(1000)
         }
     } else {
-        ToolTip("Vision Scout: scanning the visible desktop...", 24, 24, 18)
+        TrackToolTip("Vision Scout: scanning the visible desktop...", 24, 24, 18)
         Sleep(350)
     }
-    ToolTip("", , , 18)
+    TrackToolTip("", , , 18)
     VS_ScanScreen(scope, true)
 }
 
@@ -1476,6 +1479,13 @@ VS_ShowReviewOverlays(ids := "") {
             continue
         x := Integer(el["x"]), y := Integer(el["y"])
         drawW := Max(26, Integer(el["w"])), drawH := Max(18, Integer(el["h"]))
+        if LearningValidation_PrimaryRegion(x, y, drawW, drawH) {
+            LearningValidation_Event("Vision review", "observed", "Candidate #" . id, Map("x",x,"y",y,"w",drawW,"h",drawH))
+            if !firstId
+                firstId := Integer(id)
+            shown++
+            continue
+        }
         overlayGui := Gui("+AlwaysOnTop -Caption +ToolWindow +Border", "VS candidate " . id)
         overlayGui.MarginX := 0
         overlayGui.MarginY := 0
@@ -1528,7 +1538,11 @@ VS_ShowReviewPalette(count) {
         g_VSReviewPalette := p
     }
     g_VSReviewPalette.Title := "Vision Scout Review — " . count . " candidates"
-    g_VSReviewPalette.Show("x20 y20 w440 h146")
+    monitor := LearningValidation_Monitor()
+    if !monitor
+        return g_VSReviewPalette.Hide()
+    MonitorGetWorkArea(monitor, &left, &top, &right, &bottom)
+    g_VSReviewPalette.Show("NA x" . (left+20) . " y" . (top+20) . " w440 h146")
 }
 
 VS_SelectOverlay(id, updateList := true) {
@@ -1687,6 +1701,8 @@ VS_TestSelected(*) {
         TrackLogError("VS_TestSelected", err)
     VS_SetReviewVisualsVisible(true)
 
+    LearningLab_Record("Vision Scout", el["id"], "Visual candidate #" . el["id"] . " can be recognized", ok && ok.Length ? "pass" : "fail", LearningLab_Context(),
+        "Explicit current-screen FindText test. Absence may mean a changed or hidden application state, not a defective pattern.", "vs_element:" . el["id"], "Inspect the candidate in Vision Scout; test in the intended visible state before using its locator.")
     if ok && ok.Length {
         VS_UpdateElementMatch(el, ok[1])
         VS_MoveReviewOverlayToElement(el)
@@ -1729,6 +1745,8 @@ VS_CertifySelected(*) {
     el["bin_text"] := pattern
     el["review_state"] := "certified"
     el["review_note"] := "FindText verified on current screen"
+    LearningLab_Record("Vision Scout", el["id"], "Visual candidate #" . el["id"] . " can be recognized", "pass", LearningLab_Context(),
+        "User certification plus immediate FindText recognition. Control purpose and action success are separate questions.", "vs_element:" . el["id"], "Certified locator can be exported to Patterns. Recheck in a new state before running an action.")
     el["reviewed_at"] := TrackTS()
     el["promoted"] := 1
     VS_UpdateElementMatch(el, ok[1])

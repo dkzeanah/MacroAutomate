@@ -138,6 +138,10 @@ celerybeat.pid
 .env
 .envrc
 .venv
+.uv-cache/
+/fan/DeepSeekBridge/.runtime/
+/fan/DeepSeekBridge/*.sqlite3*
+/fan/DeepSeekBridge/agent_scripts/
 env/
 venv/
 ENV/
@@ -272,3 +276,14 @@ S-1-5-*
 .claude/
 # Local FindText pattern captures (runtime, keep local)
 Patterns/
+# Machine-local maintenance jobs, reports and storage routes.
+fan/.maintenance/
+fan/storage_paths.json
+data/learning_insights/
+
+# Disposable local desktop validation captures, traces and parser output.
+/fan/tests/runtime/
+
+# Code-indexer (atlas) cache + backups: generated index/backup data that can
+# contain secrets scraped from other projects. Never commit.
+.atlas/

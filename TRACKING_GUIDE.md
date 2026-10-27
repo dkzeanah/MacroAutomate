@@ -120,7 +120,11 @@ so it is off by default and guarded three ways:
   Tracking tab → **Key Privacy…**.
 
 **Explore it:** Tracking tab → **Key History**. Filter by window, click a minute
-to see each category in its own tab, or open the **Top Hotkeys** / **Clipboard
+and use **ALL** to see typed runs and clipboard captures together in numbered,
+chronological order (with a type label on every event). The other tabs retain
+the category-specific views. History created before the ordered-event schema is
+shown as a best-effort legacy minute entry because those rows did not timestamp
+each typed run. You can also open the **Top Hotkeys** / **Clipboard
 Log** views.
 
 ---
@@ -131,9 +135,9 @@ Every 5 minutes the engine walks every visible window and, for each, produces
 **three linked representations of the same frame**, all keyed to one database
 row:
 
-1. **Raw image** — a full‑resolution `.png` saved to a known, tracked path
-   (`data\tracking\snapshots\<cycle>\<n>_<window>.png`).
-2. **Base64** — the raw file's bytes, base64‑encoded, stored as text in the DB.
+1. **Raw image** — a full-resolution frame used temporarily during processing
+   and decoded on demand by the built-in viewer.
+2. **Base64** — the image bytes stored as text in the DB, the durable photo copy.
 3. **Binary image** — a thresholded 1‑bit image in the **exact FindText format**
    (`|<>*threshold$W.base64`), so it can be pasted straight into a FindText
    pattern. Otsu's method picks the threshold; the longest side is capped so the

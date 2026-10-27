@@ -183,25 +183,25 @@ SaveAppointments() {
     iniFile := A_ScriptDir . "\Data\appointments.ini"
     if !DirExist(DATA_DIR)
         DirCreate(DATA_DIR)
-    if FileExist(iniFile)
-        FileDelete(iniFile)
+    if FanFileExist(iniFile)
+        FanFileDelete(iniFile)
 
-    IniWrite(7, iniFile, "Meta", "Version")
+    FanIniWrite(7, iniFile, "Meta", "Version")
     for key, appointment in g_Appointments {
         section := "Appointment_" . key
         if IsObject(appointment) && appointment is Map {
-            IniWrite(appointment.Has("date") ? appointment["date"] : SubStr(key, 1, 8), iniFile, section, "Date")
-            IniWrite(appointment.Has("time") ? appointment["time"] : "", iniFile, section, "Time")
-            IniWrite(appointment.Has("patientID") ? appointment["patientID"] : 0, iniFile, section, "PatientID")
-            IniWrite(appointment.Has("patientName") ? appointment["patientName"] : CalendarAppointmentText(appointment), iniFile, section, "PatientName")
-            IniWrite(appointment.Has("appointmentType") ? appointment["appointmentType"] : "", iniFile, section, "AppointmentType")
-            IniWrite(appointment.Has("typeName") ? appointment["typeName"] : "", iniFile, section, "TypeName")
-            IniWrite(appointment.Has("status") ? appointment["status"] : "Scheduled", iniFile, section, "Status")
+            FanIniWrite(appointment.Has("date") ? appointment["date"] : SubStr(key, 1, 8), iniFile, section, "Date")
+            FanIniWrite(appointment.Has("time") ? appointment["time"] : "", iniFile, section, "Time")
+            FanIniWrite(appointment.Has("patientID") ? appointment["patientID"] : 0, iniFile, section, "PatientID")
+            FanIniWrite(appointment.Has("patientName") ? appointment["patientName"] : CalendarAppointmentText(appointment), iniFile, section, "PatientName")
+            FanIniWrite(appointment.Has("appointmentType") ? appointment["appointmentType"] : "", iniFile, section, "AppointmentType")
+            FanIniWrite(appointment.Has("typeName") ? appointment["typeName"] : "", iniFile, section, "TypeName")
+            FanIniWrite(appointment.Has("status") ? appointment["status"] : "Scheduled", iniFile, section, "Status")
         } else {
-            IniWrite(SubStr(key, 1, 8), iniFile, section, "Date")
-            IniWrite("", iniFile, section, "Time")
-            IniWrite(String(appointment), iniFile, section, "PatientName")
-            IniWrite("Legacy", iniFile, section, "Status")
+            FanIniWrite(SubStr(key, 1, 8), iniFile, section, "Date")
+            FanIniWrite("", iniFile, section, "Time")
+            FanIniWrite(String(appointment), iniFile, section, "PatientName")
+            FanIniWrite("Legacy", iniFile, section, "Status")
         }
     }
 }
@@ -209,23 +209,23 @@ SaveAppointments() {
 LoadAppointments() {
     global g_Appointments, g_AppointmentTypes
     iniFile := A_ScriptDir . "\Data\appointments.ini"
-    if !FileExist(iniFile)
+    if !FanFileExist(iniFile)
         return
 
     g_Appointments := Map()
     sections := ""
-    try sections := IniRead(iniFile)
+    try sections := FanIniRead(iniFile)
     for section in StrSplit(sections, "`n", "`r") {
         section := Trim(section)
         if InStr(section, "Appointment_") != 1
             continue
-        date := IniRead(iniFile, section, "Date", "")
-        time := IniRead(iniFile, section, "Time", "")
-        patientIDText := IniRead(iniFile, section, "PatientID", "0")
-        patientName := IniRead(iniFile, section, "PatientName", "")
-        appointmentType := IniRead(iniFile, section, "AppointmentType", "")
-        typeName := IniRead(iniFile, section, "TypeName", "")
-        status := IniRead(iniFile, section, "Status", "Scheduled")
+        date := FanIniRead(iniFile, section, "Date", "")
+        time := FanIniRead(iniFile, section, "Time", "")
+        patientIDText := FanIniRead(iniFile, section, "PatientID", "0")
+        patientName := FanIniRead(iniFile, section, "PatientName", "")
+        appointmentType := FanIniRead(iniFile, section, "AppointmentType", "")
+        typeName := FanIniRead(iniFile, section, "TypeName", "")
+        status := FanIniRead(iniFile, section, "Status", "Scheduled")
         if date = "" {
             keyFromSection := SubStr(section, 13)
             date := SubStr(keyFromSection, 1, 8)
@@ -254,7 +254,7 @@ LoadAppointments() {
 
     ; Backward compatibility with the repaired v6.1 single-section format.
     if g_Appointments.Count = 0 {
-        try sectionText := IniRead(iniFile, "Appointments")
+        try sectionText := FanIniRead(iniFile, "Appointments")
         catch
             sectionText := ""
         Loop Parse, sectionText, "`n", "`r" {
@@ -428,18 +428,18 @@ CreatePatient(name, phone := "", email := "", notes := "") {
 SavePatients() {
     global g_Patients, g_NextPatientID, DATA_DIR
     patientFile := DATA_DIR . "\patients.ini"
-    if FileExist(patientFile)
-        FileDelete(patientFile)
+    if FanFileExist(patientFile)
+        FanFileDelete(patientFile)
 
-    IniWrite(g_NextPatientID, patientFile, "Settings", "NextID")
+    FanIniWrite(g_NextPatientID, patientFile, "Settings", "NextID")
     for id, patient in g_Patients {
         section := "Patient_" . id
-        IniWrite(patient["name"], patientFile, section, "Name")
-        IniWrite(patient["phone"], patientFile, section, "Phone")
-        IniWrite(patient["email"], patientFile, section, "Email")
-        IniWrite(patient["notes"], patientFile, section, "Notes")
+        FanIniWrite(patient["name"], patientFile, section, "Name")
+        FanIniWrite(patient["phone"], patientFile, section, "Phone")
+        FanIniWrite(patient["email"], patientFile, section, "Email")
+        FanIniWrite(patient["notes"], patientFile, section, "Notes")
         history := patient.Has("visitHistory") ? StrJoin(patient["visitHistory"], "|") : ""
-        IniWrite(history, patientFile, section, "VisitHistory")
+        FanIniWrite(history, patientFile, section, "VisitHistory")
     }
 }
 
@@ -448,10 +448,10 @@ LoadPatients() {
     patientFile := DATA_DIR . "\patients.ini"
     g_Patients := Map()
     g_NextPatientID := 1
-    if !FileExist(patientFile)
+    if !FanFileExist(patientFile)
         return
 
-    sections := IniRead(patientFile)
+    sections := FanIniRead(patientFile)
     highestID := 0
     for section in StrSplit(sections, "`n", "`r") {
         section := Trim(section)
@@ -465,21 +465,21 @@ LoadPatients() {
             continue
         id := Integer(idText)
         history := []
-        historyText := IniRead(patientFile, section, "VisitHistory", "")
+        historyText := FanIniRead(patientFile, section, "VisitHistory", "")
         if historyText != ""
             for visitDate in StrSplit(historyText, "|")
                 history.Push(visitDate)
         g_Patients[id] := Map(
             "id", id,
-            "name", IniRead(patientFile, section, "Name", ""),
-            "phone", IniRead(patientFile, section, "Phone", ""),
-            "email", IniRead(patientFile, section, "Email", ""),
-            "notes", IniRead(patientFile, section, "Notes", ""),
+            "name", FanIniRead(patientFile, section, "Name", ""),
+            "phone", FanIniRead(patientFile, section, "Phone", ""),
+            "email", FanIniRead(patientFile, section, "Email", ""),
+            "notes", FanIniRead(patientFile, section, "Notes", ""),
             "visitHistory", history
         )
         highestID := Max(highestID, id)
     }
-    nextText := IniRead(patientFile, "Settings", "NextID", IniRead(patientFile, "Meta", "NextID", highestID + 1))
+    nextText := FanIniRead(patientFile, "Settings", "NextID", FanIniRead(patientFile, "Meta", "NextID", highestID + 1))
     g_NextPatientID := IsNumber(nextText) ? Max(Integer(nextText), highestID + 1) : highestID + 1
 }
 

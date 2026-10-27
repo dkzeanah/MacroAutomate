@@ -283,7 +283,6 @@ class GlobalCoderDatabase {
             ["Projects", "VSCodePath", "code"],
             ["Projects", "SublimePath", "C:\Program Files\Sublime Text\sublime_text.exe"],
             ["Projects", "GitBashPath", "C:\Program Files\Git\git-bash.exe"],
-            ["Knowledge", "PromptOnResume", "1"],
             ["Knowledge", "IdleThresholdMs", "900000"]
         ]
         for row in defaults {
@@ -1423,8 +1422,7 @@ class ActivityMonitor {
             try title := WinGetTitle("A")
             GlobalCoderDatabase.Exec("INSERT INTO activity_log(event_type,detail,active_window,idle_ms) VALUES("
                 . GlobalCoderDatabase.Q(eventType) . ",'' ," . GlobalCoderDatabase.Q(title) . "," . Integer(A_TimeIdlePhysical) . ");")
-            if !isIdle && GlobalCoderDatabase.GetSetting("Knowledge", "PromptOnResume", "1") = "1"
-                this.PromptForGap()
+            ; Activity tracking never opens knowledge prompts automatically.
             this.WasIdle := isIdle
         }
     }
@@ -2335,7 +2333,7 @@ SaveKnowledge(guiObj) {
     nodeId := KnowledgeBase.Add(Trim(values.Title), values.Content, Trim(values.Language), Trim(values.Feature))
     guiObj.Destroy()
     GUT_Display("Knowledge Saved", "Node " . nodeId . " was saved.`n`n"
-        . "Sparse notes automatically receive gap prompts for prerequisites, examples, failures, verification, and links.", 5000,
+        . "Knowledge gaps are available for manual review from the Knowledge Web menu.", 5000,
         Map("width", 620, "height", 330))
 }
 
@@ -2967,9 +2965,6 @@ ShowSettingsGUI(*) {
     guiObj.Add("Edit", "x220 y109 w110 vWidth Background252526 cFFFFFF", GC_OverlayWidth)
     guiObj.Add("Text", "x24 y149 w180 cE6E6E6", "Default height")
     guiObj.Add("Edit", "x220 y146 w110 vHeight Background252526 cFFFFFF", GC_OverlayHeight)
-    guiObj.Add("Checkbox", "x16 y206 vPromptOnResume cE6E6E6 "
-        . (GlobalCoderDatabase.GetSetting("Knowledge", "PromptOnResume", "1") = "1" ? "Checked" : ""),
-        "Prompt for a due knowledge gap after a long idle period")
     guiObj.Add("Text", "x12 y244 w416 h45 cA8C7E6", "All application state: " . GC_DB_PATH)
     guiObj.Add("Button", "x12 y296 w90 h32 Default", "Save").OnEvent("Click", (*) => SaveSettings(guiObj))
     guiObj.Add("Button", "x112 y296 w120 h32", "Project Paths").OnEvent("Click", (*) => ShowProjectSettings())
@@ -2987,7 +2982,6 @@ SaveSettings(guiObj) {
     GlobalCoderDatabase.SetSetting("Overlay", "Opacity", opacity)
     GlobalCoderDatabase.SetSetting("Overlay", "Width", width)
     GlobalCoderDatabase.SetSetting("Overlay", "Height", height)
-    GlobalCoderDatabase.SetSetting("Knowledge", "PromptOnResume", values.PromptOnResume ? "1" : "0")
     LoadRuntimeSettings()
     guiObj.Destroy()
     GUT_Display("Settings Saved", "All transparent boxes now use the updated shared controls.", 3000)

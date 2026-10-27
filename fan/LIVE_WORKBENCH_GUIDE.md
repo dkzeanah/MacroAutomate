@@ -1,0 +1,61 @@
+# Live Learning Workbench
+
+Open **DeepSeek Bridge → Live workbench**, or the tray's **Learning Workbench**.
+The default viewer is a native AutoHotkey GUI in its own AHK process. Chrome is not required. **Web (optional)** opens the companion browser view. Atlas remains its own Python project.
+
+1. Send a task in the native **Bridge**. **Follow new tasks** selects newly queued prompts automatically. Selecting an older run turns that option off. **Read full task** shows the full instructions.
+2. **Observation canvas** has chronological rows for window zoning, requests/results, images, control groups, grouped OCR, FindText, vision interpretation, knowledge reuse and estimated spending. Select a row to inspect its retained evidence. Double-click an image to enlarge it. **Follow newest entries** stays checked: you can inspect history until the next entry arrives.
+   Mouse or keyboard selection outlines retained candidate bounds in red for 1.6 seconds, without clicking or activating the target. Select an individual control row to outline only that control. Automatic following draws no overlays. Closed, replaced, minimized or moved/resized windows are rejected; covered candidates are skipped. The outlines show historical observations, not proof that the current contents still match.
+3. **Thinking** shows the provider's streamed thinking and follows new content at the bottom. The native Bridge also defaults to its full-width Thinking panel. Thinking effort defaults to **max**.
+4. **Usable tooling** lists the actual advertised agent tools. Switch to **Written .ahk files** to inspect source, revision, hash, input schema, usage and materialized path. New saves appear automatically. Running saved scripts are green; recent calls are amber.
+5. Choose **Library functions** and search FindText, OCR, Acc, screenshot or a function name. Double-click a row or use **Read selected source / schema**. These are AHK source references, callable through inspected code/SDK; they are not additional remote tool endpoints.
+6. **Discoveries** combines retained claims/lessons with the agent's knowledge notes. Search by claim number, words or source. Select a claim to read its lesson, outcomes, eligibility, context and provenance. **Show native lesson / rehearsal** opens the existing lesson player. **Lessons** opens the stored rehearsal controls. A rehearsal does not establish that the original application automation works.
+7. Paste a Windows Snipping Tool image into the native Bridge message box with **Ctrl+V**, or use **Paste image**. Review/remove it before Send. Up to four PNG/JPEG images per prompt, each up to 8 MiB and 12 million pixels. Vision analysis starts on Send; pasted-image coordinates describe that image, not current desktop click positions.
+8. **Copy analysis log** copies the selected run's instructions, chronological tool evidence/errors, usage-based USD estimate, and per-step reuse estimates. Image bytes and credential fields are omitted. Nothing is sent automatically to another LLM; review the copied paths/titles before pasting.
+9. **Knowledge stats** filters indexed window maps by app/title, shows fact counts, fresh/reused inspections and estimated tokens saved, and displays overall/selected-run spending. Select a window for its controls, zones, tabs, menu/shortcut relationships and provenance. **Next facts** pages through its facts. The path search below finds Desktop projects and folders indexed in place; source is not copied. Native previews use small pages to remain responsive; large control/OCR previews state their limits, and **Copy analysis log** retains the complete structured observations for that run (subject to the report's stated limits).
+
+## How the pre-LLM knowledge layer reduces calls
+
+The local layer looks up relevant saved scripts/workflows, empirical outcomes, window maps and matching Desktop paths before preparing a model request. Exact supported commands such as `open vscode` and `rehearse Learned rehearsal 38-6e3bf715` dispatch a stored native procedure without creating a model client. Native execution still resolves live targets and checks its result. Ambiguous requests and delayed actions do not trigger guessed retries.
+
+For broader tasks, DeepSeek still plans. It receives only relevant references approved for `api.deepseek.com`. Reusing an existing script avoids generating its source again. `fan_window_learn` first probes current identity, accessible structure and selected tabs. Among matching maps younger than seven days, it chooses 75% indexed reuse and 25% random fresh survey. New/changed contexts, unknown browser identity, incomplete probe-only maps and explicit refresh/layout/menu requests force fresh inspection. This probability applies to eligible decisions, not a quota or a guarantee of exhaustive interface coverage.
+
+An indexed reuse returns current probe controls plus labelled historical references and omits the screenshots that would trigger another vision call. It does not eliminate the planning call already in progress. Old coordinates are never certified by memory alone. Repeated observations increase context-scoped evidence; shortcut postconditions separately retain verified and unverified checks. Counts do not prove causality or universal validity.
+
+## Zoning and vision
+
+Native discovery builds a nine-region geometric map and available named accessibility sections before OCR recognition. OCR lines/words retain their original bounds and are grouped into their originating section/zone. Lines are sorted spatially within groups; raw recognizer text remains available. Boundary-crossing lines are flagged and kept intact. FindText capture/search establishes the full-window zoning first and returns zone membership. Spatial grouping is a reading convention, not proof of semantic document order or complete coverage.
+
+Flash receives the zones, native geometry, control legend, grouped OCR and original-detail PNG/JPEG image blocks in a user message. Its interpretation is saved separately as inference. Pro is rejected for image analysis. Local limits are stricter than the provider's: 8 MiB per image and at most 8192 pixels per side; pasted images also have a 12 MP limit. Image tokens are part of reported prompt usage and are not charged again by the estimator. [DeepSeek vision documentation](https://api-docs.deepseek.com/guides/vision/).
+
+## Spending versus estimated savings
+
+The versioned rate card is `fan/DeepSeekBridge/bridge/pricing_rates.json`, checked 2026-10-18 against [DeepSeek pricing](https://api-docs.deepseek.com/quick_start/pricing/). USD estimates use provider-reported cache-hit/cache-miss input and completion tokens, including vision usage. Completion totals already include billed reasoning; it is not added twice. Streaming cumulative usage is counted once per request. Missing usage is marked unknown, never assumed free.
+
+Weekend/outside-peak requests use off-peak rates. Weekday peak candidates show an off-peak-to-peak range until a verified Chinese holiday calendar is configured. Unknown cache splits also widen the range. Each new usage event retains its rate version and estimate; older logs are explicitly repriced using the current snapshot. These totals are recorded usage estimates, not an account balance or provider invoice. Native local tools are not DeepSeek Search/Fetch API calls; that standalone API is not connected here.
+
+Per-step token savings use text length divided by four, capped to the prior model-visible budget, less the returned reuse payload. Script/workflow savings are counterfactual source/map estimates, not proof that rewriting would otherwise have happened. Avoided vision calls are counted separately. Savings are never subtracted from recorded spending.
+
+Ctrl + right-drag moves the native viewer and its secondary windows. Default placement uses a second monitor when available and stays within one monitor. Viewing evidence sends no input to underlying applications.
+
+Every prompt has a durable performed-sequence entry and an event ledger in unified storage. This is an account of what ran, including failed attempts; an event history is not automatically an executable lesson. Saved native workflows and indexed AHK tools are separately reusable.
+
+The bottom-left dot is red once the selected running task has automation interactions, amber while paused, and gray when idle. The footer shows its goal, saved-unit subtask/branch, latest numbered tool/action, and what it needs next. **Pause / Resume** controls the executor at instrumented boundaries; **Stop run** remains available during pause. An already-issued action can finish. If pause interrupts the interval between coordinate observation and input, that action stops on resume and requires a fresh capture. Arbitrary uninstrumented scripts cannot be paused at every instruction.
+
+**DAA chains** shows numbered tool attempts, parents/callers, branches, checked results, narration cues, a mini desktop and local image translations. **Explorer paths** ranks observed foreground folder visits and conservative active time. Explorer sampling now runs as one timer inside MacroAutomator.ahk; there is no standalone ExplorerObserver.ahk or watcher supervisor. It reads only foreground Explorer windows, pauses collection during DAA tasks, and stops with the main app. Equivalent startup path spellings cannot create duplicate collectors. Full path history stays local.
+
+The canvas observes actual tool calls and retained learning. Native OCR, accessibility, screenshot and FindText methods report their use. Arbitrary AHK scripts calling other internal functions directly need explicit tracing to appear as method activity. Older results may lack raw image or pattern encoding; the UI reports missing retained evidence.
+
+## Verified real example
+
+The live verification task `91ebfd190a934345aa2b20b0a57a3ca8` reused `LearningTourDemo.ahk` revision 5 unchanged, with inputs 21 and 21. Its self-test asserted 42, then native inspection captured the owned GUI, OCR and accessible controls. The saved `LearningTour_Calculate` FindText pattern produced exactly one match. Native method events recorded `Acc.ElementFromHandle`, `OCR.FromRect`, `Gdip_BitmapFromScreen` and `FindTextClass.FindText`. The agent retained a knowledge note describing the evidence and limitations.
+
+Source SHA-256: `d204607ed1b4842e19cd628be669d14b279b0e5bebd64b8c69bba0cf8a8c53c1`.
+
+The 2026-10-18 local verification run `63c08fd0a9a9485eb29fcac114ac95f0` reused that same revision, asserted 42, collected zoning-first native evidence, detected a changed live structure and refreshed it, then reused the eligible indexed map with another live probe. It recorded **1,808 estimated text tokens saved** (970 from saved source reuse; 838 from map reuse) and one avoided vision invocation. This verification used local APIs with **zero model calls**; it is explicitly labelled local verification, not an LLM-authored run.
+
+For the earlier learned sequence, search **Discoveries → 38**. Its lesson explains three observed transition tokens and their historical continuations. The isolated reusable workflow is `Learned rehearsal 38-6e3bf715`; it does not verify the original application's behavior.
+
+Validation on 2026-10-24: **181 Bridge regression tests**, **37 native viewer checks** and **5 embedded Explorer collector checks** passed. Earlier **55 native perception/menu checks** cover actual OCR, menus, active tabs, layout restoration and safe refusal when foreground changes. The live copy test restored the previous clipboard after verification. Earlier inventory, clipboard, scrolling, scoped FindText and learning regressions remain available.
+
+The real DomeSim launcher-form tour subsequently passed **22 checked steps twice** with the same unit and AHK revisions. Its replay recorded **78 numbered tool attempts**, **zero provider requests**, and **$0 recorded API usage**. Both compared passes are local, so the avoided-request difference versus this baseline is zero. The comparison retains earlier failed planning costs and unknown usage separately. See `demos/daa_domesim_20261024/comparison.json`, the two run analyses, the saved unit, and `narrated-prompt.txt` for the manually paced replay.

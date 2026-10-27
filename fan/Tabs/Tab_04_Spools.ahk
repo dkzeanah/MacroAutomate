@@ -736,7 +736,7 @@ SpoolLogAdd(message) {
     timestamp := FormatTime(, "HH:mm:ss")
     entry := "[" . timestamp . "] " . message
     g_SpoolLog.Push(entry)
-    try FileAppend(FormatTime(, "yyyy-MM-dd ") . entry . "`r`n", SPOOL_ACTIVITY_LOG_FILE, "UTF-8")
+    try FanFileAppend(FormatTime(, "yyyy-MM-dd ") . entry . "`r`n", SPOOL_ACTIVITY_LOG_FILE, "UTF-8")
 
     ; Keep last 100 entries
     while g_SpoolLog.Length > 100
@@ -978,7 +978,7 @@ SelectSpoolRegion(*) {
     WinSetTransparent(1, overlayGui)  ; Nearly transparent but captures input
 
     ; Create instruction tooltip
-    ToolTip("🎯 Drag to select monitor region`nESC to cancel", A_ScreenWidth//2 - 150, 50)
+    TrackToolTip("🎯 Drag to select monitor region`nESC to cancel", A_ScreenWidth//2 - 150, 50)
 
     ; Track drag state
     x1 := 0, y1 := 0, x2 := 0, y2 := 0
@@ -997,7 +997,7 @@ SelectSpoolRegion(*) {
     }
 
     if cancelled {
-        ToolTip()
+        TrackToolTip()
         overlayGui.Destroy()
         Hotkey("Escape", "Off")
         MainGui.Show()
@@ -1027,13 +1027,13 @@ SelectSpoolRegion(*) {
             WinSetTransparent(100, selBox)
 
             ; Update tooltip with dimensions
-            ToolTip("Region: " . w . " x " . h . "`n(" . left . "," . top . ") to (" . (left+w) . "," . (top+h) . ")", x2 + 20, y2 + 20)
+            TrackToolTip("Region: " . w . " x " . h . "`n(" . left . "," . top . ") to (" . (left+w) . "," . (top+h) . ")", x2 + 20, y2 + 20)
         }
 
         Sleep(16)  ; ~60fps
     }
 
-    ToolTip()
+    TrackToolTip()
     Hotkey("Escape", "Off")
 
     try selBox.Destroy()
@@ -1385,9 +1385,9 @@ ExportSpoolByName(name) {
         selectedFile .= ".mas"
     output := BuildPortableSpoolText(name, g_Spools[name])
     try {
-        if FileExist(selectedFile)
-            FileDelete(selectedFile)
-        FileAppend(output, selectedFile, "UTF-8")
+        if FanFileExist(selectedFile)
+            FanFileDelete(selectedFile)
+        FanFileAppend(output, selectedFile, "UTF-8")
         SpoolLogAdd("Exported: " . name)
         MsgBox("Spool exported successfully.`n`n" . selectedFile, "Export Complete", "Iconi")
         return true
@@ -1441,7 +1441,7 @@ ImportSpool(*) {
 
 ImportSpoolFile(selectedFile, showSuccess := true) {
     global g_Spools, g_Sequences, g_SpoolMasterEnabled
-    try content := FileRead(selectedFile, "UTF-8")
+    try content := FanFileRead(selectedFile, "UTF-8")
     catch as err {
         LogErrorToFile(err, "caught", "Read imported Spool")
         MsgBox("Could not read the Spool file.`n`n" . err.Message, "Import Failed", "Iconx")

@@ -1,0 +1,16 @@
+python --version => Python 3.11.15
+
+py --version => Python 3.14.6
+
+qpdf --version => Python 3.14.6
+
+gswin64c --version => Python 3.14.6
+
+magick -version => Python 3.14.6
+
+python libs => pypdf True
+PyPDF2 False
+img2pdf False
+PIL True
+reportlab False
+

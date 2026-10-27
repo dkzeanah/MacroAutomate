@@ -1,0 +1,1 @@
+run learned unit DomeSim feature tour inputs {"hwnd": 333580, "manual": true}

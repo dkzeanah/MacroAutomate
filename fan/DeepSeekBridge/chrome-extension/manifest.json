@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Fan — Existing Chrome Job Runner",
+  "version": "0.1.0",
+  "description": "Connect Fan to the existing normal Chrome window you select.",
+  "permissions": ["debugger", "tabs", "storage", "alarms"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "incognito": "not_allowed",
+  "background": {"service_worker": "background.js", "type": "module"},
+  "action": {"default_popup": "popup.html", "default_title": "Connect this Chrome window to Fan"}
+}

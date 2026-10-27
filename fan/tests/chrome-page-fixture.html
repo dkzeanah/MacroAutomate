@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Chrome Page Learner Fixture</title>
+<style>
+body{font:16px 'Segoe UI',sans-serif;margin:0;color:#1f2937;background:#f1f5f9}
+nav{display:flex;gap:30px;align-items:center;background:white;border-bottom:1px solid #ccd4dd;padding:22px}
+main{display:grid;grid-template-columns:220px 1fr 230px;gap:20px;margin:24px}
+section,aside{padding:20px;background:white;border:1px solid #d8e0ea;border-radius:12px}
+button,input,select{font:inherit;padding:9px;margin:5px;border:1px solid #9ba9ba;border-radius:7px}
+button{color:#0759bd;background:white}h2{font-size:21px}li{margin:18px 0}label{display:block;margin:15px 0}
+</style>
+<nav aria-label="Primary navigation"><strong>Example Careers</strong>
+<a href="https://example.test/home">Home</a><a href="https://example.test/jobs">Jobs</a>
+<a href="https://example.test/messages">Messages</a>
+<label>Search <input type="search" placeholder="Search roles" aria-label="Search roles"></label></nav>
+<main><aside aria-label="Search filters"><h2>Filters</h2>
+<label><input type="checkbox" checked>Remote roles</label>
+<label>Location<select aria-label="Location"><option>Chicago</option><option>Atlanta</option></select></label>
+<button type="button">Jobs</button><button type="button" disabled>Unavailable</button></aside>
+<section aria-label="Job results"><h2>Software opportunities</h2>
+<article><h3>Junior software developer</h3><p>Acme Labs · Chicago · Hybrid</p>
+<a href="https://example.test/jobs/123">View opportunity</a><button type="button">Save role</button></article>
+<article><h3>Automation engineer</h3><p>Orbit Systems · Remote</p>
+<a href="https://example.test/jobs/456">View opportunity</a><button type="button">Save role</button></article>
+<label>Protected field<input type="password" value="synthetic-only" aria-label="Protected field"></label>
+<p>Unmatched visual caption for OCR coverage.</p></section>
+<aside aria-label="Employer profile"><h2>Employer profile</h2>
+<svg role="img" aria-label="Blue orbital emblem" width="140" height="140" viewBox="0 0 140 140">
+<circle cx="70" cy="70" r="55" fill="#1373e6"/><ellipse cx="70" cy="70" rx="62" ry="20" fill="none" stroke="#ffb000" stroke-width="9" transform="rotate(-30 70 70)"/></svg>
+<p>A visual image with a useful accessible label.</p><button type="button" aria-label="Follow employer">Follow</button>
+</aside></main></html>

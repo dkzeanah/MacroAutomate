@@ -9,7 +9,7 @@
 SaveExtractionRules() {
     global g_ExtractionRules, RULES_FILE
     try {
-        file := FileOpen(RULES_FILE, "w", "UTF-8")
+        file := FanFileOpen(RULES_FILE, "w", "UTF-8")
         file.WriteLine("Name,Pattern")
         for r in g_ExtractionRules
             file.WriteLine(r["name"] . "," . r["pattern"])
@@ -19,17 +19,17 @@ SaveExtractionRules() {
 
 LoadExtractionRules() {
     global g_ExtractionRules, RULES_FILE
-    if !FileExist(RULES_FILE) {
+    if !FanFileExist(RULES_FILE) {
         g_ExtractionRules := [Map("name", "LastName", "pattern", "^([^,]+)"), Map("name", "FirstName", "pattern", ",\s*([^#\s]+)"), Map("name", "DOB", "pattern", "(\d{1,2}/\d{1,2}/\d{2,4})")]
         return
     }
     g_ExtractionRules := []
     lineNum := 0
-    Loop Read RULES_FILE {
+    for line in FanFile_Lines(RULES_FILE) {
         lineNum++
-        if lineNum = 1 || A_LoopReadLine = ""
+        if lineNum = 1 || line = ""
             continue
-        p := StrSplit(A_LoopReadLine, ",", , 2)
+        p := StrSplit(line, ",", , 2)
         if p.Length >= 2
             g_ExtractionRules.Push(Map("name", p[1], "pattern", p[2]))
     }
@@ -397,19 +397,19 @@ SaveRevolverBins() {
 
     filepath := DATA_DIR . "\revolver_bins.ini"
 
-    try FileDelete(filepath)
+    try FanFileDelete(filepath)
 
     ; Save bin order
-    FileAppend("[BinOrder]`n", filepath)
-    FileAppend("order=" . ArrayJoin(g_RevolverBinOrder, "|") . "`n`n", filepath)
+    FanFileAppend("[BinOrder]`n", filepath)
+    FanFileAppend("order=" . ArrayJoin(g_RevolverBinOrder, "|") . "`n`n", filepath)
 
     ; Save each bin
     for binName, bin in g_RevolverBins {
-        FileAppend("[" . binName . "]`n", filepath)
-        FileAppend("fieldOrder=" . ArrayJoin(bin["fieldOrder"], "|") . "`n", filepath)
-        FileAppend("formatRules=" . ArrayJoin(bin["formatRules"], "|") . "`n", filepath)
-        FileAppend("notifyBlock=" . bin["notifyBlock"] . "`n", filepath)
-        FileAppend("`n", filepath)
+        FanFileAppend("[" . binName . "]`n", filepath)
+        FanFileAppend("fieldOrder=" . ArrayJoin(bin["fieldOrder"], "|") . "`n", filepath)
+        FanFileAppend("formatRules=" . ArrayJoin(bin["formatRules"], "|") . "`n", filepath)
+        FanFileAppend("notifyBlock=" . bin["notifyBlock"] . "`n", filepath)
+        FanFileAppend("`n", filepath)
     }
 }
 
@@ -419,7 +419,7 @@ LoadRevolverBins() {
 
     filepath := DATA_DIR . "\revolver_bins.ini"
 
-    if !FileExist(filepath)
+    if !FanFileExist(filepath)
         return
 
     ; Parse INI file
@@ -427,7 +427,7 @@ LoadRevolverBins() {
     currentBin := ""
 
     try {
-        content := FileRead(filepath)
+        content := FanFileRead(filepath)
 
         for line in StrSplit(content, "`n") {
             line := Trim(line)
@@ -822,12 +822,12 @@ ArrayJoin(arr, sep := ", ") {
 SaveFieldOrder() {
     global g_RevolverFieldOrder, SETTINGS_FILE
     orderStr := ArrayJoin(g_RevolverFieldOrder, "|")
-    IniWrite(orderStr, SETTINGS_FILE, "Revolver", "FieldOrder")
+    FanIniWrite(orderStr, SETTINGS_FILE, "Revolver", "FieldOrder")
 }
 
 LoadFieldOrder() {
     global g_RevolverFieldOrder, SETTINGS_FILE
-    orderStr := IniRead(SETTINGS_FILE, "Revolver", "FieldOrder", "LastName|FirstName|DOB|CurrentDate")
+    orderStr := FanIniRead(SETTINGS_FILE, "Revolver", "FieldOrder", "LastName|FirstName|DOB|CurrentDate")
     g_RevolverFieldOrder := StrSplit(orderStr, "|")
 }
 

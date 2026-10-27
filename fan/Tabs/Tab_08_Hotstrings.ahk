@@ -48,11 +48,11 @@ Tab_Hotstrings_Build() {
 LoadHotstrings() {
     global g_Hotstrings, HOTSTRINGS_FILE
 
-    if !FileExist(HOTSTRINGS_FILE)
+    if !FanFileExist(HOTSTRINGS_FILE)
         return
 
     try {
-        content := FileRead(HOTSTRINGS_FILE, "UTF-8")
+        content := FanFileRead(HOTSTRINGS_FILE, "UTF-8")
         for line in StrSplit(content, "`n", "`r") {
             if line = "" || SubStr(line, 1, 1) = ";"
                 continue
@@ -88,9 +88,9 @@ SaveHotstrings() {
     }
 
     try {
-        if FileExist(HOTSTRINGS_FILE)
-            FileDelete(HOTSTRINGS_FILE)
-        FileAppend(output, HOTSTRINGS_FILE, "UTF-8")
+        if FanFileExist(HOTSTRINGS_FILE)
+            FanFileDelete(HOTSTRINGS_FILE)
+        FanFileAppend(output, HOTSTRINGS_FILE, "UTF-8")
     }
 }
 

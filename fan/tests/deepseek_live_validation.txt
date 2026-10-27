@@ -1,0 +1,213 @@
+﻿=== Native controller live validation 20261006025619 ===
+GATHERED 8 named controls; question type multi
+OCR: OK
+Macro Automator Practice Portal
+Local, disposable controller test. No network requests or scored assessment.
+Question 1. Type the name of the cell organelle that produces energy.
+Practice answer
+Apple
+o
+Capital
+London
+e Banana
+Carrot
+o
+Check answer
+Move answer field
+Reset demo
+Live input validation appears here.
+Keys: 0 • backspaces: 0 • pointer moves: 1 15 • answer length: 0
+CONTROL CATALOG:
+1 | edit | Practice answer | bounds 503,518 835x68
+2 | checkbox | Apple | bounds 508,612 17x18
+3 | checkbox | Banana | bounds 641,612 17x18
+4 | checkbox | Carrot | bounds 790,612 18x18
+5 | dropdown | Capital | bounds 503,720 806x65
+6 | button | Check answer | bounds 503,796 200x68
+7 | button | Move answer field | bounds 719,796 251x68
+8 | button | Reset demo | bounds 986,796 180x68
+
+Starting native click: Reset demo
+Located: Reset demo
+Completed native click: Reset demo
+GATHERED 8 named controls; question type multi
+OCR: OK
+Macro Automator Practice Portal
+Local, disposable controller test. No network requests or scored assessment.
+Question 1. Type the name of the cell organelle that produces energy.
+Practice answer
+Apple
+o
+Capital
+London
+e Banana
+Carrot
+o
+Check answer
+Move answer field
+Reset demo
+Live input validation appears here.
+Keys: 0 • backspaces: 0 • pointer moves: 1 • answer length: 0
+CONTROL CATALOG:
+1 | edit | Practice answer | bounds 503,518 835x68
+2 | checkbox | Apple | bounds 508,612 17x18
+3 | checkbox | Banana | bounds 641,612 17x18
+4 | checkbox | Carrot | bounds 790,612 18x18
+5 | dropdown | Capital | bounds 503,720 806x65
+6 | button | Check answer | bounds 503,796 200x68
+7 | button | Move answer field | bounds 719,796 251x68
+8 | button | Reset demo | bounds 986,796 180x68
+
+DeepSeek key source: DEEPSEEK_API_KEY environment variable
+Requesting a workflow from DeepSeek using the captured practice controls
+DeepSeek proposal received: deepseek-v4-pro / estimated $0.000697
+TYPE 1 Mitochondria
+SET 2 1
+SET 4 1
+SET 3 0
+CHOOSE 5 Paris
+text / checkboxes / dropdown
+PASS Click - focus field Practice answer
+PASS Send Keys - replace field text
+PASS Type Text - workflow type Practice answer (read-back field-value = Mitochondria)
+PASS Click - select option  (read-back checked = 1)
+PASS Click - select option  (read-back checked = 1)
+PASS Click - select option  (read-back checked = 0)
+PASS Choose Dropdown - select and verify dropdown Capital (read-back dropdown-value = Paris)
+PASS text / checkboxes / dropdown / 7 steps / 
+PASS final values: Mitochondria / Apple+Carrot / Banana cleared / Paris
+Starting native click: Move answer field
+Located: Move answer field
+Completed native click: Move answer field
+stale bounds relocate / repeated SET idempotence
+PASS Click - focus field Practice answer
+PASS Send Keys - replace field text
+PASS Type Text - workflow type Practice answer (read-back field-value = Mitochondria)
+PASS Click - select option  (read-back checked = 1)
+PASS Click - select option  (read-back checked = 1)
+PASS Click - select option  (read-back checked = 0)
+PASS Choose Dropdown - select and verify dropdown Capital (read-back dropdown-value = Paris)
+PASS stale bounds relocate / repeated SET idempotence / 7 steps / 
+GATHERED 8 named controls; question type multi
+OCR: OK
+Macro Automator Practice Portal
+Local, disposable controller test. No network requests or scored assessment.
+Question 1. Type the name of the cell organelle that produces energy.
+Practice answer
+Mitochondria
+o Apple
+Banana
+o
+e Carrot
+Capital
+Paris
+Check answer
+Move answer field
+Gathered value: Mitochondria
+Selected: Apple,
+Ca rrot
+Capital: Paris
+Reset demo
+CONTROL CATALOG:
+1 | edit | Practice answer | bounds 534,533 835x68
+2 | checkbox | Apple | bounds 508,612 17x18
+3 | checkbox | Banana | bounds 641,612 17x18
+4 | checkbox | Carrot | bounds 790,612 18x18
+5 | dropdown | Capital | bounds 503,720 806x65
+6 | button | Check answer | bounds 503,796 200x68
+7 | button | Move answer field | bounds 719,796 251x68
+8 | button | Reset demo | bounds 986,796 180x68
+
+prepare focus baseline
+PASS Click - focus field Practice answer
+PASS Send Keys - replace field text
+PASS Type Text - workflow type Practice answer (read-back field-value = Mitochondria)
+PASS prepare focus baseline / 3 steps / 
+focus interruption
+PASS Click - focus field Practice answer
+PASS Send Keys - replace field text
+FAIL Type Text - workflow type Practice answer (read-back field-value = Interrupted typing must stop immediately)
+STOPPED focus interruption / 2 steps / step failed: workflow type Practice answer - pinned Chrome lost foreground focus
+PASS focus stopped partial input at: I
+GATHERED 8 named controls; question type multi
+OCR: OK
+Macro Automator Practice Portal
+Local, disposable controller test. No network requests or scored assessment.
+Question 1. Type the name of the cell organelle that produces energy.
+Practice answer
+o Apple
+Capital
+Paris
+Banana
+o
+e Carrot
+Check answer
+Gathered value:
+Selected: Apple,
+Capital: Paris
+Move answer field
+Ca rrot
+Reset demo
+CONTROL CATALOG:
+1 | edit | Practice answer | bounds 534,533 835x68
+2 | checkbox | Apple | bounds 508,612 17x18
+3 | checkbox | Banana | bounds 641,612 17x18
+4 | checkbox | Carrot | bounds 790,612 18x18
+5 | dropdown | Capital | bounds 503,720 806x65
+6 | button | Check answer | bounds 503,796 200x68
+7 | button | Move answer field | bounds 719,796 251x68
+8 | button | Reset demo | bounds 986,796 180x68
+
+prepare cancel baseline
+PASS Click - focus field Practice answer
+PASS Send Keys - replace field text
+PASS Type Text - workflow type Practice answer (read-back field-value = Mitochondria)
+PASS prepare cancel baseline / 3 steps / 
+cancel interruption
+PASS Click - focus field Practice answer
+PASS Send Keys - replace field text
+FAIL Type Text - workflow type Practice answer (read-back field-value = Interrupted typing must stop immediately)
+STOPPED cancel interruption / 2 steps / step failed: workflow type Practice answer - ABORT requested
+PASS cancel stopped partial input at: I
+GATHERED 8 named controls; question type multi
+OCR: OK
+Macro Automator Practice Portal
+Local, disposable controller test. No network requests or scored assessment.
+Question 1. Type the name of the cell organelle that produces energy.
+Practice answer
+o Apple
+Capital
+Paris
+Banana
+o
+e Carrot
+Check answer
+Gathered value:
+Selected: Apple,
+Capital: Paris
+Move answer field
+Ca rrot
+Reset demo
+CONTROL CATALOG:
+1 | edit | Practice answer | bounds 534,533 835x68
+2 | checkbox | Apple | bounds 508,612 17x18
+3 | checkbox | Banana | bounds 641,612 17x18
+4 | checkbox | Carrot | bounds 790,612 18x18
+5 | dropdown | Capital | bounds 503,720 806x65
+6 | button | Check answer | bounds 503,796 200x68
+7 | button | Move answer field | bounds 719,796 251x68
+8 | button | Reset demo | bounds 986,796 180x68
+
+final demonstration
+PASS Click - focus field Practice answer
+PASS Send Keys - replace field text
+PASS Type Text - workflow type Practice answer (read-back field-value = Mitochondria)
+PASS Click - select option  (read-back checked = 1)
+PASS Click - select option  (read-back checked = 1)
+PASS Click - select option  (read-back checked = 0)
+PASS Choose Dropdown - select and verify dropdown Capital (read-back dropdown-value = Paris)
+PASS final demonstration / 7 steps / 
+Starting native click: Check answer
+Located: Check answer
+Completed native click: Check answer
+LIVE VALIDATION COMPLETE: values, relocation, idempotence, focus loss and ABORT passed. The page shows the gathered values and input counters.

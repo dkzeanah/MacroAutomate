@@ -188,11 +188,11 @@ NotificationSingleClick(notifID, *) {
 LoadNotificationSchedule() {
     global g_NotificationSchedule, SCHEDULE_FILE
 
-    if !FileExist(SCHEDULE_FILE)
+    if !FanFileExist(SCHEDULE_FILE)
         return
 
     try {
-        content := FileRead(SCHEDULE_FILE, "UTF-8")
+        content := FanFileRead(SCHEDULE_FILE, "UTF-8")
         for line in StrSplit(content, "`n", "`r") {
             if line = "" || SubStr(line, 1, 1) = ";"
                 continue
@@ -223,9 +223,9 @@ SaveNotificationSchedule() {
     }
 
     try {
-        if FileExist(SCHEDULE_FILE)
-            FileDelete(SCHEDULE_FILE)
-        FileAppend(output, SCHEDULE_FILE, "UTF-8")
+        if FanFileExist(SCHEDULE_FILE)
+            FanFileDelete(SCHEDULE_FILE)
+        FanFileAppend(output, SCHEDULE_FILE, "UTF-8")
     }
 }
 

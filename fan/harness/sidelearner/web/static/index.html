@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SideLearner Dashboard</title>
+  <style>
+    :root { --bg: #0f1115; --panel: #181b21; --text: #e6e6e6; --muted: #8b949e; --accent: #58a6ff; --ok: #3fb950; --warn: #d29922; --danger: #f85149; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: var(--bg); color: var(--text); }
+    header { padding: 1rem 1.5rem; border-bottom: 1px solid #30363d; display: flex; gap: 1rem; align-items: center; justify-content: space-between; }
+    h1 { margin: 0; font-size: 1.2rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1rem; padding: 1rem; }
+    .panel { background: var(--panel); border: 1px solid #30363d; border-radius: 8px; padding: 1rem; }
+    .panel h2 { margin: 0 0 0.75rem; font-size: 1rem; color: var(--accent); }
+    .row { display: flex; justify-content: space-between; padding: 0.35rem 0; border-bottom: 1px solid #21262d; gap: 1rem; }
+    .row:last-child { border-bottom: none; }
+    .muted { color: var(--muted); }
+    .tag { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; background: #21262d; font-size: 0.8rem; }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+    pre { white-space: pre-wrap; word-break: break-word; background: #0f1115; padding: 0.5rem; border-radius: 4px; max-height: 220px; overflow: auto; }
+    input, textarea, button { font: inherit; background: #0f1115; color: var(--text); border: 1px solid #30363d; border-radius: 4px; padding: 0.5rem; }
+    button { cursor: pointer; background: var(--accent); color: #fff; border: none; }
+    button:hover { opacity: 0.9; }
+    button.secondary { background: #21262d; color: var(--text); border: 1px solid #30363d; }
+    .chat-box { display: flex; flex-direction: column; gap: 0.5rem; }
+    .chat-output { min-height: 120px; }
+    .event-log { max-height: 240px; overflow: auto; font-size: 0.8rem; }
+    .event-log .entry { padding: 0.15rem 0; border-bottom: 1px solid #21262d; }
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+    .tab { cursor: pointer; padding: 0.4rem 0.8rem; border-radius: 4px; background: #0f1115; border: 1px solid #30363d; color: var(--muted); font-size: 0.85rem; }
+    .tab:hover { border-color: var(--accent); }
+    .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    #latest-screenshot { max-width: 100%; border-radius: 4px; margin-top: 0.5rem; display: none; }
+    .facts-list { max-height: 300px; overflow: auto; }
+    .fact-item { padding: 0.5rem; margin-bottom: 0.35rem; background: #0f1115; border-radius: 4px; border-left: 3px solid var(--accent); }
+    .fact-domain { font-size: 0.75rem; color: var(--accent); text-transform: uppercase; }
+    .fact-meta { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+    .search-box { width: 100%; margin-bottom: 0.5rem; }
+    .caption-preview { min-height: 90px; display: flex; align-items: center; justify-content: center; text-align: center; font-family: "Segoe UI", sans-serif; font-size: 1.35rem; font-weight: 700; line-height: 1.35; background: #050505; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .capture-list { display: grid; gap: 0.75rem; margin-top: 0.75rem; max-height: 620px; overflow: auto; }
+    .capture-item { background: #0f1115; border: 1px solid #30363d; border-radius: 6px; padding: 0.75rem; }
+    .capture-head { display: flex; justify-content: space-between; gap: 1rem; align-items: center; margin-bottom: 0.5rem; }
+    .capture-item audio { width: 100%; height: 36px; }
+    .capture-text { margin-top: 0.5rem; padding: 0.6rem; background: #181b21; border-radius: 4px; white-space: pre-wrap; line-height: 1.4; }
+    .insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+    .metric { background: #0f1115; padding: 0.65rem; border-radius: 4px; }
+    .metric strong { display: block; color: var(--accent); font-size: 1.15rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>SideLearner</h1>
+    <div class="muted">local-first LLM harness & digital twin</div>
+    <div id="conn-status" class="tag">ws: connecting…</div>
+  </header>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Status</h2>
+      <div id="status">Loading…</div>
+    </div>
+
+    <div class="panel">
+      <h2>Live Events</h2>
+      <div id="events" class="event-log"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Live Desktop Captions</h2>
+      <div class="switch-row">
+        <span id="caption-status" class="muted">checking overlay…</span>
+        <span><button id="caption-toggle" onclick="toggleCaptions()">Show overlay</button> <button class="secondary" onclick="shutdownSideLearner()">Shutdown app</button></span>
+      </div>
+      <div id="caption-preview" class="caption-preview muted">Listening for desktop audio…</div>
+      <div class="muted" style="margin-top:0.5rem;font-size:0.8rem;">Always-on-top Windows overlay. Final transcripts are saved to memory.db and enter the twin learning pipeline.</div>
+    </div>
+
+    <div class="panel" style="grid-column: 1 / -1;">
+      <h2>Captured Audio & Transcripts</h2>
+      <div class="switch-row">
+        <span class="muted">Finalized after a long pause; newest capture first.</span>
+        <span><button onclick="loadCaptures()">Refresh</button> <button class="secondary" onclick="showLatestTranscript()">Show latest text</button></span>
+      </div>
+      <div id="latest-captured-text" class="capture-text muted" style="display:none;"></div>
+      <div id="captures" class="capture-list"><div class="muted">Loading captured audio…</div></div>
+    </div>
+
+    <div class="panel" style="grid-column: 1 / -1;">
+      <h2>Audio Knowledge Insights</h2>
+      <div class="switch-row" style="margin-bottom:0.75rem;">
+        <span class="muted">What audio was retained, learned, classified, and made retrievable.</span>
+        <span><button onclick="loadAudioInsights()">Refresh insights</button> <button class="secondary" onclick="compressAudioKnowledge()">Process pending knowledge</button></span>
+      </div>
+      <div id="audio-insights">Loading audio insights…</div>
+    </div>
+
+    <div class="panel">
+      <h2>Twin Knowledge</h2>
+      <div class="tabs">
+        <span class="tab active" data-twin="status">Status</span>
+        <span class="tab" data-twin="facts">Facts</span>
+        <span class="tab" data-twin="gaps">Gaps</span>
+        <span class="tab" data-twin="query">Query</span>
+      </div>
+      <div id="twin-view">Loading…</div>
+    </div>
+
+    <div class="panel">
+      <h2>Screenshot</h2>
+      <button onclick="loadScreenshot()">Refresh</button>
+      <img id="latest-screenshot" alt="latest screenshot" />
+      <div id="screenshot-path" class="muted" style="margin-top:0.5rem; font-size:0.8rem;"></div>
+    </div>
+
+    <div class="panel" style="grid-column: 1 / -1;">
+      <h2>Chat / Task</h2>
+      <div class="chat-box">
+        <textarea id="task-input" rows="2" placeholder="Ask the agent to do something…"></textarea>
+        <button onclick="sendTask()">Run task</button>
+        <pre id="chat-output" class="chat-output"></pre>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Prompts</h2>
+      <div id="prompts">Loading…</div>
+    </div>
+
+    <div class="panel">
+      <h2>Skills</h2>
+      <div id="skills">Loading…</div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

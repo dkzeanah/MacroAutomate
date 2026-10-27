@@ -68,7 +68,11 @@ AppLog_Open() {
     global g_AppLogGui, g_AppLogEdit
     if (IsObject(g_AppLogGui)) {
         try {
-            g_AppLogGui.Show("NA")
+            monitor := LearningValidation_Monitor()
+            if !monitor
+                return g_AppLogGui.Hide()
+            MonitorGetWorkArea(monitor, &left, &top, &right, &bottom)
+            g_AppLogGui.Show("NA x" . (left+12) . " y" . (top+50))
             return
         }
     }
@@ -82,8 +86,11 @@ AppLog_Open() {
     v.OnEvent("Size", AppLog_Resize)
     g_AppLogGui := v
     g_AppLogEdit := ed
-    ; right-hand side of the primary screen, clear of most app windows
-    v.Show("NA x" . (A_ScreenWidth - 730) . " y60 w700 h522")
+    monitor := LearningValidation_Monitor()
+    if monitor {
+        MonitorGetWorkArea(monitor, &left, &top, &right, &bottom)
+        v.Show("NA x" . (left+12) . " y" . (top+50) . " w" . Min(700,right-left-24) . " h" . Min(522,bottom-top-70))
+    }
 }
 
 AppLog_Resize(g, minMax, w, h) {
@@ -123,7 +130,8 @@ AppMapDB() {
         return ""
     }
     try {
-        g_AppMapDB := TrackSQLite(DATA_DIR . "\appmap.db")
+        path := FanData_DbAvailable("appmap", FanData_DbPath("appmap", DATA_DIR . "\appmap.db"))
+        g_AppMapDB := TrackSQLite(path)
         AppMap_Schema(g_AppMapDB)
     } catch as err {
         g_AppMapDBError := err.Message
@@ -135,10 +143,12 @@ AppMapDB() {
 
 ; NOTE: SQL is built line-by-line (not a continuation section) because AHK v2
 ; ends a continuation section at any line starting with ")" - which SQL loves.
+AppMap_AppTable() => FanData_Routes().Has("unified_db") ? "appmap_app" : "app"
+
 AppMap_Schema(db) {
     ; Text columns are nullable on purpose: the TrackSQLite wrapper binds an
     ; empty AHK string as SQL NULL, and NULL reads back as "" - symmetrical.
-    sql := "CREATE TABLE IF NOT EXISTS app ("
+    sql := "CREATE TABLE IF NOT EXISTS " . AppMap_AppTable() . " ("
          . "id INTEGER PRIMARY KEY AUTOINCREMENT, "
          . "name TEXT, "
          . "exe TEXT DEFAULT '', "
@@ -179,6 +189,7 @@ AppMap_Schema(db) {
     db.Exec(sql)
 
     db.Exec("CREATE INDEX IF NOT EXISTS idx_uiel_app ON ui_element(app_id)")
+    db.AddColumnIfMissing("ui_element", "source_title", "TEXT DEFAULT ''")
     db.Exec("CREATE INDEX IF NOT EXISTS idx_uiel_name ON ui_element(app_id, name)")
     db.Exec("CREATE TABLE IF NOT EXISTS app_setting ("
           . "key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')")
@@ -237,14 +248,14 @@ AppMap_LearnWindow(hwnd, opts) {
     }
 
     ; One app row per exe+class pair; relearning replaces its elements.
-    appId := db.Scalar("SELECT id FROM app WHERE exe=? AND cls=?", exe, cls)
+    appId := db.Scalar("SELECT id FROM " . AppMap_AppTable() . " WHERE exe=? AND cls=?", exe, cls)
     if IsInteger(appId) && Integer(appId) > 0 {
         appId := Integer(appId)
-        db.Run("UPDATE app SET name=?, title=?, win_x=?, win_y=?, win_w=?, win_h=?, learned_ts=? WHERE id=?"
+        db.Run("UPDATE " . AppMap_AppTable() . " SET name=?, title=?, win_x=?, win_y=?, win_w=?, win_h=?, learned_ts=? WHERE id=?"
              , title, title, wx, wy, ww, wh, AppMap_TS(), appId)
         db.Run("DELETE FROM ui_element WHERE app_id=?", appId)
     } else {
-        db.Run("INSERT INTO app(name, exe, cls, title, win_x, win_y, win_w, win_h, learned_ts) "
+        db.Run("INSERT INTO " . AppMap_AppTable() . "(name, exe, cls, title, win_x, win_y, win_w, win_h, learned_ts) "
              . "VALUES(?,?,?,?,?,?,?,?,?)", title, exe, cls, title, wx, wy, ww, wh, AppMap_TS())
         appId := Integer(db.Scalar("SELECT last_insert_rowid()"))
     }
@@ -348,6 +359,7 @@ AppLearn_Controls(appId, hwnd, wx, wy, ww, wh) {
              , ax, ay, cw, ch
              , (ax - wx) / ww, (ay - wy) / wh, cw / ww, ch / wh)
         AppLog("  [control] " . nn . (text != "" ? "  '" . text . "'" : "") . "  @" . ax . "," . ay)
+        LearningValidation_Event("App Learner", "observed", "Control: " . name, Map("x",ax,"y",ay,"w",cw,"h",ch),hwnd)
         n++
     }
     return n
@@ -398,6 +410,7 @@ AppLearn_AccWalk(appId, el, path, depth, wx, wy, ww, wh, &count, maxDepth := 14,
         AppLog("  [acc] " . role . "  '" . TrackEllipsis(name, 40) . "'"
              . (shortcut != "" ? "  [key: " . shortcut . "]" : "") . "  @" . x . "," . y)
         count++
+        LearningValidation_Event("App Learner", "observed", "Accessibility: " . name . " [" . role . "]", Map("x",x,"y",y,"w",w,"h",h))
     }
 
     children := ""
@@ -854,14 +867,14 @@ AppMap_Apps() {
     if !db
         return []
     return db.Query("SELECT a.*, (SELECT COUNT(*) FROM ui_element e WHERE e.app_id=a.id) AS elements "
-                  . "FROM app a ORDER BY a.learned_ts DESC")
+                  . "FROM " . AppMap_AppTable() . " a ORDER BY a.learned_ts DESC")
 }
 
 AppMap_AppRow(appId) {
     db := AppMapDB()
     if !db
         return Map()
-    return db.QueryRow("SELECT * FROM app WHERE id=?", appId)
+    return db.QueryRow("SELECT * FROM " . AppMap_AppTable() . " WHERE id=?", appId)
 }
 
 AppMap_Elements(appId, kind := "", filter := "") {
@@ -888,7 +901,7 @@ AppMap_DeleteApp(appId) {
     if !db
         return
     db.Run("DELETE FROM ui_element WHERE app_id=?", appId)
-    db.Run("DELETE FROM app WHERE id=?", appId)
+    db.Run("DELETE FROM " . AppMap_AppTable() . " WHERE id=?", appId)
 }
 
 ; Find one element for a script reference: "#123" (id) or a name / menu path.
@@ -939,17 +952,32 @@ AppMap_Locate(app, el) {
     if !el.Count
         return result
     hwnd := AppMap_LiveHwnd(app)
+    if el["kind"] = "auto-acc" {
+        hwnd := 0
+        for candidate in WinGetList("ahk_exe " . app["exe"] . " ahk_class " . app["cls"])
+            if WinGetTitle("ahk_id " . candidate) = el.Get("source_title", "") {
+                hwnd := candidate
+                break
+            }
+        if !hwnd
+            return Map()
+    }
 
     ; 1. Acc path (strongest: tracks the real element wherever it is now)
     if (hwnd && el["acc_path"] != "") {
         try {
             live := Acc.ElementFromPath(el["acc_path"], hwnd)
             loc := live.Location
+            if el["kind"] = "auto-acc" && (SubStr(live.Name,1,120) != el["name"] || live.RoleText != el["role"])
+                return Map()
             if (loc.w > 0 && loc.h > 0)
                 return Map("x", loc.x, "y", loc.y, "w", loc.w, "h", loc.h
                          , "cx", loc.x + loc.w // 2, "cy", loc.y + loc.h // 2, "method", "acc")
         }
     }
+
+    if el["kind"] = "auto-acc"
+        return Map()
 
     ; 2. ClassNN
     if (hwnd && el["class_nn"] != "") {
@@ -1621,7 +1649,7 @@ AppExec_Line(app, line) {
             db := AppMapDB()
             if !db
                 return false
-            id := db.Scalar("SELECT id FROM app WHERE exe LIKE ? OR name LIKE ? "
+            id := db.Scalar("SELECT id FROM " . AppMap_AppTable() . " WHERE exe LIKE ? OR name LIKE ? "
                           . "ORDER BY learned_ts DESC LIMIT 1", "%" . arg . "%", "%" . arg . "%")
             if (!IsInteger(id) || Integer(id) <= 0) {
                 ShowStatus("No learned app matches: " . arg, "fail")

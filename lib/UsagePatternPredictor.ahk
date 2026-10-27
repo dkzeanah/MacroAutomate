@@ -587,6 +587,8 @@ UsagePredictor_LearnTransitions(nextToken, nextKind, nextData) {
             prefixTokens.Push(g_UPRecentEvents[start + A_Index - 1]["token"])
         prefixText := UsagePredictor_Join(prefixTokens, " > ")
         prefixHash := TrackHash(prefixText)
+        if prefixLen = 2
+            LearningLab_CheckPrediction(prefixHash,prefixText,nextToken)
         db.Run("INSERT INTO usage_transition(prefix_hash,prefix_text,prefix_len,next_token,next_kind,next_data,support,last_ts) "
             . "VALUES(?,?,?,?,?,?,1,?) ON CONFLICT(prefix_hash,next_token) DO UPDATE SET "
             . "support=usage_transition.support+1, next_kind=excluded.next_kind, "
@@ -653,6 +655,7 @@ UsagePredictor_BuildPrediction() {
         return
     g_UPPredictionSignature := signature
     g_UPLastPredictionTick := A_TickCount
+    LearningValidation_Event("Usage Predictor", "observed", "Repeated workflow continuation: " . chain.Length . " steps; awaiting acceptance")
     UsagePredictor_ShowPredictionTip()
 }
 
@@ -700,14 +703,14 @@ UsagePredictor_ShowPredictionTip() {
     message := "Repeated sequence found:`n" . UsagePredictor_Join(lines, "`n") . more
         . "`n`nPress Win+Shift+CapsLock to continue automatically."
     MouseGetPos(&mx, &my)
-    ToolTip(message, mx + 22, my + 22, 19)
+    TrackToolTip(message, mx + 22, my + 22, 19)
     SetTimer(UsagePredictor_ClearTip, -9000)
     UsagePredictor_SetStatus("Sequence prediction ready: " . g_UPPrediction.Length
         . " step(s). Press Win+Shift+CapsLock to run it.")
 }
 
 UsagePredictor_ClearTip(*) {
-    ToolTip(, , , 19)
+    TrackToolTip(, , , 19)
 }
 
 ; ---------------------------------------------------------------------------
@@ -969,7 +972,13 @@ UsagePredictor_SaveRegion(ctx, region, patternInfo, role, visualScore := 0) {
     relH := h / Max(1, ctx["h"])
     pattern := patternInfo["pattern"]
     signature := TrackHash(pattern != "" ? pattern : ctx["win_id"] . "|" . relX . "|" . relY)
+    LearningLab_Record("Usage Predictor", ctx["win_id"] . ":" . signature,
+        role . " visual recognition in window #" . ctx["win_id"], patternInfo["verified"] ? "pass" : "observed",
+        LearningLab_Context(ctx["hwnd"]), patternInfo["verified"] ? "FindText matched current pixels; semantic purpose and action outcome remain unverified." : "Region captured; recognition not verified.",
+        "usage_element signature:" . signature, "Review the region in Usage Predictor. Use a fresh locator check before accepting a continuation; a match only validates appearance.")
     now := TrackTS()
+    LearningValidation_Event("Usage Predictor", patternInfo["verified"] ? "verified" : "observed",
+        role . ": FindText " . (patternInfo["verified"] ? "matched live pixels" : "candidate captured"), region, ctx["hwnd"])
 
     row := db.QueryRow("SELECT * FROM usage_element WHERE win_id=? AND "
         . "(signature=? OR (ABS(rel_x-?)<0.035 AND ABS(rel_y-?)<0.035 "
@@ -1139,12 +1148,12 @@ UsagePredictor_CopySelectedPattern(*) {
 UsagePredictor_AcceptPrediction(*) {
     global g_UPOn, g_UPPrediction, g_UPReplaying, g_UPRecentEvents
     if !g_UPOn {
-        ToolTip("Usage Predictor is paused.", , , 19)
+        TrackToolTip("Usage Predictor is paused.", , , 19)
         SetTimer(UsagePredictor_ClearTip, -1500)
         return
     }
     if !g_UPPrediction.Length {
-        ToolTip("No confidence-qualified continuation is ready yet.", , , 19)
+        TrackToolTip("No confidence-qualified continuation is ready yet.", , , 19)
         SetTimer(UsagePredictor_ClearTip, -1800)
         return
     }

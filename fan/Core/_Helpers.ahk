@@ -75,7 +75,7 @@ LogErrorToFile(thrown, mode := "", context := "") {
         entry .= "Message: " . String(thrown) . "`r`n"
     }
 
-    try FileAppend(entry, ERROR_LOG_FILE, "UTF-8")
+    try FanFileAppend(entry, ERROR_LOG_FILE, "UTF-8")
     return entry
 }
 
@@ -94,9 +94,9 @@ LogUnhandledError(thrown, mode) {
 
 OpenErrorLog(*) {
     global ERROR_LOG_FILE
-    if !FileExist(ERROR_LOG_FILE)
-        FileAppend("Macro Automator runtime error log`r`nCreated: " . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "`r`n", ERROR_LOG_FILE, "UTF-8")
-    Run('notepad.exe "' . ERROR_LOG_FILE . '"')
+    if !FanFileExist(ERROR_LOG_FILE)
+        FanFileAppend("Macro Automator runtime error log`r`nCreated: " . FormatTime(, "yyyy-MM-dd HH:mm:ss") . "`r`n", ERROR_LOG_FILE, "UTF-8")
+    FanFile_View(ERROR_LOG_FILE)
 }
 
 GenerateCoordName(type := "Point") {
@@ -122,10 +122,10 @@ ShowTooltipTimed(text, duration := 0, x := "", y := "") {
     if duration = 0
         duration := g_Settings["TooltipDuration"]
     if x != "" && y != ""
-        ToolTip(text, x, y)
+        TrackToolTip(text, x, y)
     else
-        ToolTip(text)
-    SetTimer(() => ToolTip(), -duration)
+        TrackToolTip(text)
+    SetTimer(() => TrackToolTip(), -duration)
 }
 
 ; Get window under mouse
@@ -192,6 +192,16 @@ IsNearCloseButton(x, y, tolerance := 50) {
 global TASKBAR_FILE := DATA_DIR . "\taskbar.ini"
 
 IndexTaskbarManual() {
+    try {
+        result := TaskbarKnowledge_Learn()
+        ShowStatus("Learned " . result["count"] . " taskbar targets without activating applications. Open Explain learning to inspect them.","ok")
+        LearningLab_Open()
+    } catch as taskbarError
+        ShowStatus("Taskbar capture failed: " . taskbarError.Message,"fail")
+}
+
+; Retained for old integrations; the normal Index Taskbar button uses the passive learner.
+IndexTaskbarLegacy() {
     global g_TaskbarApps, MainGui, TASKBAR_FILE
 
     ; Confirm with user - this will cycle through apps
@@ -291,18 +301,18 @@ IndexTaskbarManual() {
 SaveTaskbarIndex() {
     global g_TaskbarApps, TASKBAR_FILE
     try {
-        if FileExist(TASKBAR_FILE)
-            FileDelete(TASKBAR_FILE)
+        if FanFileExist(TASKBAR_FILE)
+            FanFileDelete(TASKBAR_FILE)
 
         for i, app in g_TaskbarApps {
-            IniWrite(app["position"], TASKBAR_FILE, "App" . i, "Position")
-            IniWrite(app["hotkey"], TASKBAR_FILE, "App" . i, "Hotkey")
-            IniWrite(app["hotkeyDisplay"], TASKBAR_FILE, "App" . i, "HotkeyDisplay")
-            IniWrite(app["title"], TASKBAR_FILE, "App" . i, "Title")
-            IniWrite(app["exe"], TASKBAR_FILE, "App" . i, "Exe")
-            IniWrite(app["class"], TASKBAR_FILE, "App" . i, "Class")
+            FanIniWrite(app["position"], TASKBAR_FILE, "App" . i, "Position")
+            FanIniWrite(app["hotkey"], TASKBAR_FILE, "App" . i, "Hotkey")
+            FanIniWrite(app["hotkeyDisplay"], TASKBAR_FILE, "App" . i, "HotkeyDisplay")
+            FanIniWrite(app["title"], TASKBAR_FILE, "App" . i, "Title")
+            FanIniWrite(app["exe"], TASKBAR_FILE, "App" . i, "Exe")
+            FanIniWrite(app["class"], TASKBAR_FILE, "App" . i, "Class")
         }
-        IniWrite(g_TaskbarApps.Length, TASKBAR_FILE, "Meta", "Count")
+        FanIniWrite(g_TaskbarApps.Length, TASKBAR_FILE, "Meta", "Count")
     }
 }
 
@@ -310,18 +320,18 @@ LoadTaskbarIndex() {
     global g_TaskbarApps, TASKBAR_FILE
     g_TaskbarApps := []
 
-    if !FileExist(TASKBAR_FILE)
+    if !FanFileExist(TASKBAR_FILE)
         return
 
-    count := IniRead(TASKBAR_FILE, "Meta", "Count", 0)
+    count := FanIniRead(TASKBAR_FILE, "Meta", "Count", 0)
 
     Loop count {
-        pos := IniRead(TASKBAR_FILE, "App" . A_Index, "Position", A_Index)
-        hotkey := IniRead(TASKBAR_FILE, "App" . A_Index, "Hotkey", "")
-        hotkeyDisplay := IniRead(TASKBAR_FILE, "App" . A_Index, "HotkeyDisplay", "")
-        title := IniRead(TASKBAR_FILE, "App" . A_Index, "Title", "")
-        exe := IniRead(TASKBAR_FILE, "App" . A_Index, "Exe", "")
-        class := IniRead(TASKBAR_FILE, "App" . A_Index, "Class", "")
+        pos := FanIniRead(TASKBAR_FILE, "App" . A_Index, "Position", A_Index)
+        hotkey := FanIniRead(TASKBAR_FILE, "App" . A_Index, "Hotkey", "")
+        hotkeyDisplay := FanIniRead(TASKBAR_FILE, "App" . A_Index, "HotkeyDisplay", "")
+        title := FanIniRead(TASKBAR_FILE, "App" . A_Index, "Title", "")
+        exe := FanIniRead(TASKBAR_FILE, "App" . A_Index, "Exe", "")
+        class := FanIniRead(TASKBAR_FILE, "App" . A_Index, "Class", "")
 
         g_TaskbarApps.Push(Map(
             "position", pos,
@@ -364,13 +374,13 @@ ShowStatus(msg, type := "info") {
         case "retry": prefix := "[RETRY] "
         case "fail": prefix := "[FAIL] "
     }
-    ToolTip(prefix . msg)
+    TrackToolTip(prefix . msg)
     duration := g_Settings["TooltipDuration"]
     if type = "wait"
         duration := 10000  ; Wait messages stay longer
     else if type = "ok" || type = "fail"
         duration := g_Settings["TooltipDuration"]
-    SetTimer(() => ToolTip(), -duration)
+    SetTimer(() => TrackToolTip(), -duration)
 }
 
 
@@ -395,6 +405,14 @@ ShowStatus(msg, type := "info") {
 ; Returns: overlay ID for later removal
 CreateOverlay(x, y, w, h, style := "highlight", duration := 0, label := "") {
     global g_Overlays, g_OverlayCounter, g_OverlayStyles
+    if LearningValidation_PrimaryRegion(x, y, w, h) {
+        ; Explicit live validation uses hollow click-through targets on every
+        ; display; the secondary panel still retains the evidence explanation.
+        DeepActivity_Target(Map("x",x,"y",y,"w",w,"h",h),label != "" ? label : "Automation target")
+        LearningValidation_Event("Target", style = "error" ? "error" : "observed", label != "" ? label : style,
+            Map("x",x,"y",y,"w",w,"h",h))
+        return 0
+    }
 
     g_OverlayCounter++
     id := g_OverlayCounter
@@ -571,9 +589,9 @@ FlashHighlightWorker(x, y, w, h, times, interval, style, count, overlayId) {
 ShowCoordTooltip(x, y, text := "", duration := 2000) {
     if text = ""
         text := "X: " . x . " Y: " . y
-    ToolTip(text, x + 15, y + 15)
+    TrackToolTip(text, x + 15, y + 15)
     if duration > 0
-        SetTimer(() => ToolTip(), -duration)
+        SetTimer(() => TrackToolTip(), -duration)
 }
 
 
@@ -666,6 +684,7 @@ ActivateWindowRobust(windowIdentifier, maxRetries := 0, timeout := 0) {
     ; Check if it's a taskbar hotkey (Win+1, Win+2, etc.)
     if RegExMatch(windowIdentifier, "^Win\+(\d):", &m) {
         key := m[1]
+        DeepActivity_Before("window_activate","ahk_class Shell_TrayWnd")
         Send("#" . key)
         Sleep(200)
         ShowStatus("Sent Win+" . key, "ok")
@@ -674,6 +693,7 @@ ActivateWindowRobust(windowIdentifier, maxRetries := 0, timeout := 0) {
 
     Loop maxRetries {
         if WinExist(windowIdentifier) {
+            DeepActivity_Before("window_activate",windowIdentifier)
             WinActivate(windowIdentifier)
             Sleep(100)
             if WinActive(windowIdentifier) {
@@ -686,6 +706,7 @@ ActivateWindowRobust(windowIdentifier, maxRetries := 0, timeout := 0) {
             try title := WinGetTitle(hwnd)
             if title != "" && InStr(title, windowIdentifier) {
                 try {
+                    DeepActivity_Before("window_activate","ahk_id " . hwnd)
                     WinActivate(hwnd)
                     Sleep(100)
                     if WinActive("ahk_id " . hwnd) {
@@ -696,6 +717,7 @@ ActivateWindowRobust(windowIdentifier, maxRetries := 0, timeout := 0) {
             }
         }
         if WinExist("ahk_exe " . windowIdentifier) {
+            DeepActivity_Before("window_activate","ahk_exe " . windowIdentifier)
             WinActivate("ahk_exe " . windowIdentifier)
             Sleep(100)
             if WinActive("ahk_exe " . windowIdentifier) {
@@ -712,7 +734,9 @@ ActivateWindowRobust(windowIdentifier, maxRetries := 0, timeout := 0) {
     return false
 }
 
-MoveMouseVerified(x, y, speed := 5, maxRetries := 3) {
+MoveMouseVerified(x, y, speed := 5, maxRetries := 3, feedback := true) {
+    if feedback
+        DeepActivity_Before("mouse_move",x . "," . y)
     Loop maxRetries {
         MouseMove(x, y, speed)
         Sleep(50)
@@ -732,7 +756,8 @@ ClickVerified(x, y, button := "Left", count := 1) {
         return false
     }
 
-    if !MoveMouseVerified(x, y)
+    DeepActivity_Before("mouse_click",x . "," . y)
+    if !MoveMouseVerified(x, y,5,3,false)
         return false
     Sleep(g_Settings["PreActionDelay"])
     Click(x, y, button, count)
@@ -744,6 +769,7 @@ ClickVerified(x, y, button := "Left", count := 1) {
 
 SendKeysVerified(keys) {
     global g_Settings
+    DeepActivity_Before("key_send")
     Sleep(g_Settings["PreActionDelay"])
     Send(keys)
     Sleep(g_Settings["PostActionDelay"])
@@ -753,6 +779,7 @@ SendKeysVerified(keys) {
 
 TypeTextVerified(text) {
     global g_Settings
+    DeepActivity_Before("text_type")
     Sleep(g_Settings["PreActionDelay"])
     SendText(text)
     Sleep(g_Settings["PostActionDelay"])
@@ -935,7 +962,7 @@ HideMarker() {
 SaveCoordinates() {
     global g_Coordinates, COORDS_FILE
     try {
-        file := FileOpen(COORDS_FILE, "w", "UTF-8")
+        file := FanFileOpen(COORDS_FILE, "w", "UTF-8")
         file.WriteLine("Name,X,Y,EndX,EndY,Type")
         for name, c in g_Coordinates
             file.WriteLine(name . "," . c["x"] . "," . c["y"] . "," . c["endX"] . "," . c["endY"] . "," . c["type"])
@@ -945,15 +972,15 @@ SaveCoordinates() {
 
 LoadCoordinates() {
     global g_Coordinates, COORDS_FILE
-    if !FileExist(COORDS_FILE)
+    if !FanFileExist(COORDS_FILE)
         return
     g_Coordinates := Map()
     lineNum := 0
-    Loop Read COORDS_FILE {
+    for line in FanFile_Lines(COORDS_FILE) {
         lineNum++
-        if lineNum = 1 || A_LoopReadLine = ""
+        if lineNum = 1 || line = ""
             continue
-        p := StrSplit(A_LoopReadLine, ",")
+        p := StrSplit(line, ",")
         if p.Length >= 6
             g_Coordinates[p[1]] := Map("x", Integer(p[2]), "y", Integer(p[3]), "endX", p[4] = "" ? "" : Integer(p[4]), "endY", p[5] = "" ? "" : Integer(p[5]), "type", p[6])
     }
@@ -973,6 +1000,7 @@ GuiResize(thisGui, minMax, w, h) {
     try SnapRec_Layout(w - 20, h - 110)
     ; Tabs that were laid out by hand get the inferred anchor treatment.
     try AutoFlow_Resize(w - 10, h - 75)
+    try DeepBridge_Resize(thisGui, minMax, w, h)
     try {
         listW := Max(650, w - 250)
         listH := 103
@@ -1010,7 +1038,7 @@ UpdateMousePos() {
 
 InitializeInstructions() {
     global INSTRUCTIONS_FILE
-    if FileExist(INSTRUCTIONS_FILE)
+    if FanFileExist(INSTRUCTIONS_FILE)
         return
 
     instructions := "
@@ -1124,7 +1152,7 @@ Variables: Letters, numbers, underscores only (no spaces or special chars)
 )"
 
     try {
-        FileAppend(instructions, INSTRUCTIONS_FILE, "UTF-8")
+        FanFileAppend(instructions, INSTRUCTIONS_FILE, "UTF-8")
     } catch as err {
         MsgBox("Failed to create instructions file: " . err.Message)
     }
@@ -1137,8 +1165,20 @@ Variables: Letters, numbers, underscores only (no spaces or special chars)
 ; ═══════════════════════════════════════════════════════════════════════════════
 
 ShowInstructionsFile(*) {
-    global INSTRUCTIONS_FILE
-    if FileExist(INSTRUCTIONS_FILE) {
+    global INSTRUCTIONS_FILE, APP_ROOT
+    ; Prefer the current fan guide; keep the legacy instructions as a fallback.
+    for guideDir in [A_ScriptDir, APP_ROOT . "\fan"] {
+        for extension in ["html", "md"] {
+            guidePath := guideDir . "\AUTOMATION_USER_GUIDE." . extension
+            if FanFileExist(guidePath) {
+                try Run(guidePath)
+                catch
+                    Run('notepad.exe "' . guidePath . '"')
+                return
+            }
+        }
+    }
+    if FanFileExist(INSTRUCTIONS_FILE) {
         Run(INSTRUCTIONS_FILE)
     } else {
         MsgBox("Instructions file not found. Recreating...")

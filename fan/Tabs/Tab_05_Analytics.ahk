@@ -133,7 +133,7 @@ SaveRecordingLog() {
     global g_FullRecordLog, RECORDING_FILE
 
     try {
-        file := FileOpen(RECORDING_FILE, "w", "UTF-8")
+        file := FanFileOpen(RECORDING_FILE, "w", "UTF-8")
         file.WriteLine("Time,Action,X,Y,Window,Exe,Pattern,Method")
         for entry in g_FullRecordLog {
             line := entry["time"] . ","
@@ -248,8 +248,8 @@ ClearRecordingLog(*) {
 ExportRecording(*) {
     global RECORDING_FILE
     SaveRecordingLog()
-    if FileExist(RECORDING_FILE)
-        Run(RECORDING_FILE)
+    if FanFileExist(RECORDING_FILE)
+        FanFile_View(RECORDING_FILE)
     else
         MsgBoxTop("No recording to export.", "Empty")
 }

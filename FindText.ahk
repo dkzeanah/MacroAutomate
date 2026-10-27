@@ -1,4 +1,4 @@
-﻿;/*
+;/*
 ;===========================================
 ;  FindText - Capture screen image into text and then find it
 ;  https://autohotkey.com/boards/viewtopic.php?f=6&t=17834
@@ -1444,6 +1444,9 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
   
 	  ToolTip(s:="", x:="", y:="", num:=1, arg:="")
 	  {
+		global g_TrackTooltipsDisabled
+		if IsSet(g_TrackTooltipsDisabled) && g_TrackTooltipsDisabled
+		  return
 		static ini:=Map(), ToolTipOff:=""
 		f:= "ToolTip_" . Round(num)
 		if (s="")
@@ -2080,7 +2083,7 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
 			if (oldx=x and oldy=y)
 			  Continue
 			oldx:=x, oldy:=y
-			ToolTip(r[1] " : " x "," y "`n" r[2])
+			FindTextNativeTip(r[1] " : " x "," y "`n" r[2])
 		  }
 		  Until (hk="RButton") or (State!=Gui_("State"))
 		  timeout:=A_TickCount+3000
@@ -2103,13 +2106,13 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
 			if (oldx=x1 and oldy=y1)
 			  Continue
 			oldx:=x1, oldy:=y1
-			ToolTip(r[1] " : " x "," y "`n" r[2])
+			FindTextNativeTip(r[1] " : " x "," y "`n" r[2])
 		  }
 		  Until (hk="RButton") or (State!=Gui_("State"))
 		  timeout:=A_TickCount+3000
 		  While (A_TickCount<timeout) and (State!=Gui_("State"))
 			Sleep(50)
-		  ToolTip()
+		  FindTextNativeTip()
 		  Critical()
 		  this.RangeTip()
 		  For k,v in StrSplit("RButton|Up|Down|Left|Right","|")
@@ -2149,7 +2152,7 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
 		  FindText_Capture.Opt("+LastFound")
 		  ErrorLevel := WinWaitClose("ahk_id " WinExist()) , ErrorLevel := ErrorLevel = 0 ? 1 : 0
 		  Critical()
-		  ToolTip()
+		  FindTextNativeTip()
 		  ;--------------------------------
 		  if (cors.Has("bind") && cors.bind!="")
 		  {
@@ -2333,7 +2336,7 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
 			if (oldx=x and oldy=y)
 			  Continue
 			oldx:=x, oldy:=y
-			ToolTip(r)
+			FindTextNativeTip(r)
 		  }
 		  Until (hk!="") or (State!=Gui_("State",1))
 		  hk:="", State:=Gui_("State",1)
@@ -2347,13 +2350,13 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
 			if (oldx=x2 and oldy=y2)
 			  Continue
 			oldx:=x2, oldy:=y2
-			ToolTip(r)
+			FindTextNativeTip(r)
 		  }
 		  Until (hk!="") or (State!=Gui_("State",1))
 		  timeout:=A_TickCount+3000
 		  While (A_TickCount<timeout) and (State=Gui_("State",1))
 			Sleep(50)
-		  ToolTip()
+		  FindTextNativeTip()
 		  Critical()
 		  this.RangeTip()
 		  Hotkey("*LButton", Gui_Off, "Off")
@@ -2527,13 +2530,13 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
 			;---------------
 			px:=x, py:=y, Gui_("getcors",1)
 			Gui_("Reset"), r:=StrSplit(Lang["s10"],"|")
-			ToolTip(r[1] " : " x "," y "`n" r[2])
+			FindTextNativeTip(r[1] " : " x "," y "`n" r[2])
 		  }
 		  Until (hk!="") or (State!=Gui_("State"))
 		  timeout:=A_TickCount+3000
 		  While (A_TickCount<timeout) and (State!=Gui_("State"))
 			Sleep(50)
-		  ToolTip()
+		  FindTextNativeTip()
 		  Critical()
 		  Hotkey("*RButton", Gui_Off, "Off")
 		  HotIfWinExist()
@@ -2810,11 +2813,11 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
 		Case "MultiColor":
 		  MultiColor := ogcCheckboxMultiColor.Value
 		  result:=""
-		  ToolTip()
+		  FindTextNativeTip()
 		  return
 		Case "Undo":
 		  result:=RegExReplace(result, ",[^/]+/[^/]+/[^/]+$")
-		  ToolTip(Trim(result,"/,"))
+		  FindTextNativeTip(Trim(result,"/,"))
 		  return
 		Case "Similar1":
 		  ogcSliderSimilar2.Value := ogcSliderSimilar1.Value
@@ -3016,7 +3019,7 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
 			c:="," Mod(k-1,nW) "/" k3 "/"
 			. Format("{:06X}",cors[k]&0xFFFFFF)
 			, result.=InStr(result, c) ? "":c
-			ToolTip(Trim(result,"/,"))
+			FindTextNativeTip(Trim(result,"/,"))
 		  }
 		  else if (Modify and bg!="" and show[k])
 		  {
@@ -3042,16 +3045,16 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
 			PrevControl:=A_GuiControl
 			SetTimer(Gui_ToolTip,PrevControl ? -500 : 0)
 			SetTimer(Gui_ToolTipOff,PrevControl ? -5500 : 0)
-			ToolTip()
+			FindTextNativeTip()
 		  }
 		  return
 		Case "ToolTip":
 		  MouseGetPos(, , &_TT)
 		  if WinExist("ahk_id " _TT " ahk_class AutoHotkeyGUI")
-			try ToolTip(Tip_Text[PrevControl])
+			try FindTextNativeTip(Tip_Text[PrevControl])
 		  return
 		Case "ToolTipOff":
-		  ToolTip()
+		  FindTextNativeTip()
 		  return
 		Case "CutL2","CutR2","CutU2","CutD2":
 		  s := ogcEditMyPic.Value
@@ -3248,4 +3251,12 @@ if (!A_IsCompiled and A_LineFile=A_ScriptFullPath)
   
   
   
-  
+
+
+; Optional host policy, with the native behavior retained for standalone use.
+FindTextNativeTip(text := "", x := "", y := "", number := 1) {
+    global g_FindTextTooltipHandler
+    if IsSet(g_FindTextTooltipHandler) && IsObject(g_FindTextTooltipHandler)
+        return g_FindTextTooltipHandler(text, x, y, number)
+    return ToolTip(text, x, y, number)
+}

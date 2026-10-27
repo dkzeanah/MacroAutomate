@@ -1,0 +1,5 @@
+# install-developer-agent.ps1 generates the real patch with your resolved DSH_HOME.
+- id: session-query-sqlite
+  config:
+    path: 'C:/Users/Don/.dsh/session-query/developer-memory.sqlite'
+    openAt: first-search

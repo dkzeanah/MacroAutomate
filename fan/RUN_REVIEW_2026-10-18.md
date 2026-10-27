@@ -1,0 +1,31 @@
+# Review of run c694d016859540faace9ad6aa552b5a2
+
+The request was “continue last instructions. show when done”, but its recorded history was empty. The run was cancelled about 30 seconds later. The ledger contains observation/search/status calls, not a file write or execution. It does not establish successful task completion.
+
+| Finding | Evidence and implication | Improvement |
+| --- | --- | --- |
+| Missing task context | The agent explicitly noticed it had no preceding instructions. It nevertheless queried job status and inferred a possible continuation from stopped runs several days old. Historical state cannot identify the user's intended task. | Preserve interrupted prompts/checkpoints. Loading a recorded request must attach that selected request as context. A bare continuation with no context should stop locally before any model/tool calls. Implemented. |
+| Unrelated state expanded the prompt | `fan_job_status` returned a large queue and `fan_job_config_get` was queried without evidence that the task concerned jobs. | Retrieve a task-scoped checkpoint first; use narrow status queries after the goal is established. Do not treat a queue's existence as permission to resume it. |
+| Memory query was too literal | The query “last instructions pending task plan next step” returned no records. | An empty phrase search is not proof that memory is absent. Retry an exact run ID, tool name or short relevant term. Improve relevance ranking and typed run checkpoints rather than broadening into unrelated stores. |
+| Repeated unchanged failure | `fan_page_probe` twice and `fan_window_inspect` once returned “w must be an integer from 1 to 8192”. Changing observation tools did not repair geometry. | Restore/verify the exact target's state before another capture. Added explicit minimized/no-visible-rectangle diagnostics. The old log does not prove whether the cause was minimization, off-screen placement or another rectangle defect. |
+| Context grew without progress | Five reported model calls accumulated 85,642 prompt tokens and 1,337 completion tokens. These are cumulative request tokens, not unique new text. | Limit unrelated catalogs/status results; separate detailed local evidence from the compact context needed by the next decision. Added bounded grouped OCR for vision and removed a duplicate native control catalog from inspection results. |
+| Cost is incomplete | Repriced recorded usage estimates $0.015562404, with one unpriced/missing-usage request. | Treat this as recorded usage cost, not a complete bill or balance. Cache-hit input and reasoning already included in reported totals must not be counted twice. The final cancelled request may have incurred cost that is absent from the ledger. |
+| No demonstrated reuse | The report has no window-reuse ledger entries. | This older run predates the new accounting, so zero entries are not proof that all memory was absent. Demonstrate exact saved-revision replay, actual postconditions, provider request counts and a comparable cost record. |
+
+The central weakness was task selection and state validation, not an inability to generate more code. A reliable continuation needs an explicit goal, a bounded checkpoint, verified current state and a stopping condition. A local knowledge layer should reduce uncertainty before a model call rather than merely add more historical material to its prompt.
+
+For the new VS Code exercise, compare the first pass with a deterministic replay of its exact saved AHK revision. Report original authoring/discovery separately from repeated execution; these are different workloads. “Calls avoided versus the first pass” is a measured baseline difference, not proof that every first-pass call would otherwise recur. Any text-token savings remain counterfactual estimates, separate from reported API spending.
+
+## Findings from attempting the real VS Code demonstration
+
+The first new attempt, `4f97ad2f46b640cb93a6c1ad6b0182c0`, did retain a real VS Code map and verified a read-only environment probe, but then reached the old 8,192-token response limit while preparing the main procedure. No Python source had been saved at that point. This is a response-length failure, distinct from a tool-call-round limit.
+
+The agent now defaults to a 32,768-token response allowance (configurable, bounded to 65,536). At most two output-length recoveries continue from completed evidence; incomplete tool calls are discarded and never executed. This increases the possible cost of an individual response, so the usage ledger remains important. It is not an unlimited-retry policy.
+
+Exact replay syntax is `replay saved tool NAME.ahk inputs {JSON}`. It requires an existing indexed script and validates inputs through the existing executor. The local dispatcher reports the saved revision, process result and zero model calls; application outcome still requires its recorded checks. A replay never silently repairs or regenerates the source.
+
+The generated VS Code tool needed semantic review after parsing: an earlier revision confused window class with executable, and the later draft treated RunWait's output PID as an exit code. The reviewed procedure checks Code.exe, captures the actual process exit code, and separately verifies saved source and application JSON. Parsing alone cannot establish these semantics.
+
+A real-world accessibility limitation also appeared: Monaco reported “The editor is not accessible at this time” and exposed an empty Value. The tool stopped before saving. The repaired lesson uses guarded Copy-and-compare only in its owned editor, restoring the clipboard in finally. Recovery checks the exact recorded Untitled-1/workspace title suffix, allowing VS Code's observed unsaved-content prefix; it verifies the entire buffer before saving and does not paste again. Model summaries can still misdescribe a branch: one response said a new editor was created during recovery, while the actual procedure had only checked preconditions. Captured output and postconditions take precedence over that prose.
+
+The final comparison retains all stopped preparation attempts and missing-usage counts separately. A cheap deterministic replay does not erase the initial cost of discovery, authoring, debugging or review.

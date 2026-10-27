@@ -100,7 +100,7 @@ Vw_BuildGui() {
     global g_VwB64Edit, g_VwBinPic, g_VwBinAscii, g_VwOcrEdit, g_VwElemLV
     global g_VwInfoText, g_VwMarkBtn, g_VwTmpBinPng, DATA_DIR
 
-    g_VwTmpBinPng := DATA_DIR . "\tracking\_viewer_bin.png"
+    g_VwTmpBinPng := Photo_TempPath()
 
     g := Gui("+Resize +MinSize900x600", "Snapshot Viewer & Element Registry")
     g.SetFont("s9", "Segoe UI")
@@ -136,7 +136,7 @@ Vw_BuildGui() {
     g_VwTabs.UseTab(1)
     g_VwMarkBtn := g.Add("Button", "x300 y76 w120 h24", "Mark Element")
     g_VwMarkBtn.OnEvent("Click", Vw_ToggleMarkMode)
-    g.Add("Button", "x425 y76 w110 h24", "Open File").OnEvent("Click", Vw_OpenRawFile)
+    g.Add("Button", "x425 y76 w110 h24", "Export Image").OnEvent("Click", Vw_OpenRawFile)
     g.Add("Button", "x540 y76 w150 h24", "Re-extract Features").OnEvent("Click", Vw_ReExtract)
     g.Add("Text", "x700 y80 w270 cGray", "Drag on the image to mark an element region")
     g_VwPic := g.Add("Picture", "x300 y106 w670 h420 Border")
@@ -282,7 +282,8 @@ Vw_ShowEntry(entryId) {
 
     ; ─── Raw image ───────────────────────────────────────────────────────────
     Vw_ResetMarkMode()
-    if (e["image_path"] != "" && FileExist(e["image_path"])) {
+    imagePath := Photo_Path(e["image_path"], e["b64"], e["image_format"])
+    if imagePath != "" {
         ; Fit within the picture control, remembering the scale for coord mapping.
         boxW := 670, boxH := 420
         capW := Max(1, Integer(e["w"])), capH := Max(1, Integer(e["h"]))
@@ -290,14 +291,14 @@ Vw_ShowEntry(entryId) {
         g_VwDispScale := scale
         g_VwPicDispW := Integer(Round(capW * scale))
         g_VwPicDispH := Integer(Round(capH * scale))
-        g_VwPic.Value := "*w" . g_VwPicDispW . " *h" . g_VwPicDispH . " " . e["image_path"]
+        g_VwPic.Value := "*w" . g_VwPicDispW . " *h" . g_VwPicDispH . " " . imagePath
     } else {
         g_VwPic.Value := ""
         g_VwDispScale := 1.0
     }
 
     ; ─── Base64 ──────────────────────────────────────────────────────────────
-    g_VwB64Edit.Value := e["b64"]
+    g_VwB64Edit.Value := e["b64"] != "" ? e["b64"] : "Generated from the image file when copied/exported."
 
     ; ─── Binary image ────────────────────────────────────────────────────────
     if (e["bin_text"] != "") {
@@ -364,7 +365,7 @@ Vw_ToggleMarkMode(*) {
 Vw_EnterMarkMode() {
     global g_VwMarkMode, g_VwMarkBtn, g_VwEntry, g_VwPicScreenX, g_VwPicScreenY, g_VwPic
 
-    if !g_VwEntry.Count || g_VwEntry["image_path"] = "" {
+    if !g_VwEntry.Count || Photo_Path(g_VwEntry["image_path"], g_VwEntry["b64"], g_VwEntry["image_format"]) = "" {
         ShowStatus("No image to mark", "fail")
         return
     }
@@ -562,18 +563,15 @@ Vw_SaveElementRegion(name, role, desc, imgX, imgY, imgW, imgH) {
     relH := Round(imgH / capH, 5)
 
     ; Crop a thumbnail + build a FindText pattern of just this element.
-    elemsDir := DATA_DIR . "\tracking\elements"
-    if !DirExist(elemsDir) {
-        try DirCreate(elemsDir)
-    }
-    cropName := TrackSafeName(e["win_id"] . "_" . name) . "_" . A_TickCount . ".png"
-    cropPath := elemsDir . "\" . cropName
+    cropPath := Photo_TempPath()
+    cleanup := {__Delete: (*) => FileExist(cropPath) ? FileDelete(cropPath) : 0}
 
     b64 := ""
     binText := ""
-    if (e["image_path"] != "" && FileExist(e["image_path"])) {
+    imagePath := Photo_Path(e["image_path"], e["b64"], e["image_format"])
+    if imagePath != "" {
         saved := ""
-        try saved := Snap_CropToFile(e["image_path"], imgX, imgY, imgW, imgH, cropPath)
+        try saved := Snap_CropToFile(imagePath, imgX, imgY, imgW, imgH, cropPath)
         if (saved != "") {
             try b64 := TrackBase64EncodeFile(saved)
             try {
@@ -594,7 +592,7 @@ Vw_SaveElementRegion(name, role, desc, imgX, imgY, imgW, imgH) {
         "rel_x", relX, "rel_y", relY, "rel_w", relW, "rel_h", relH,
         "bin_text", binText,
         "ocr_text", "",
-        "image_path", cropPath,
+        "image_path", "",
         "b64", b64
     )
 
@@ -683,8 +681,8 @@ Vw_TestElement(*) {
     if res.Count {
         ShowStatus("Found '" . el["name"] . "' at " . res["x"] . "," . res["y"], "ok")
         try {
-            ToolTip("Found: " . el["name"], res["x"] + 15, res["y"])
-            SetTimer(() => ToolTip(), -1500)
+            TrackToolTip("Found: " . el["name"], res["x"] + 15, res["y"])
+            SetTimer(() => TrackToolTip(), -1500)
         }
     } else {
         ShowStatus("Element not found on screen right now", "fail")
@@ -734,10 +732,13 @@ Vw_PostSnapshotRefresh() {
 
 Vw_OpenRawFile(*) {
     global g_VwEntry
-    if (g_VwEntry.Count && g_VwEntry["image_path"] != "" && FileExist(g_VwEntry["image_path"]))
-        try Run(g_VwEntry["image_path"])
-    ;else
-        ShowStatus("No image file", "fail")
+    if !g_VwEntry.Count
+        return
+    path := Photo_Path(g_VwEntry["image_path"], g_VwEntry["b64"], g_VwEntry["image_format"])
+    if path != ""
+        Photo_Export(path, "snapshot_" . g_VwEntryId . "." . g_VwEntry["image_format"])
+    else
+        ShowStatus("No stored image", "fail")
 }
 
 Vw_ReExtract(*) {
@@ -752,6 +753,7 @@ Vw_ReExtract(*) {
 
 Vw_CopyB64(*) {
     global g_VwEntry
+    Vw_EnsureB64()
     if (g_VwEntry.Count && g_VwEntry["b64"] != "") {
         A_Clipboard := g_VwEntry["b64"]
         ShowStatus("Base64 copied (" . StrLen(g_VwEntry["b64"]) . " chars)", "ok")
@@ -760,6 +762,7 @@ Vw_CopyB64(*) {
 
 Vw_SaveB64(*) {
     global g_VwEntry, DATA_DIR
+    Vw_EnsureB64()
     if (!g_VwEntry.Count || g_VwEntry["b64"] = "")
         return
     path := DATA_DIR . "\tracking\snap_" . g_VwEntryId . "_base64.txt"
@@ -767,6 +770,14 @@ Vw_SaveB64(*) {
         FileDelete(path)
     FileAppend(g_VwEntry["b64"], path, "UTF-8")
     ShowStatus("Saved base64 to " . path, "ok")
+}
+
+Vw_EnsureB64() {
+    global g_VwEntry, g_VwB64Edit
+    if g_VwEntry.Count && g_VwEntry["b64"] = "" && FileExist(g_VwEntry["image_path"]) {
+        g_VwEntry["b64"] := TrackBase64EncodeFile(g_VwEntry["image_path"])
+        g_VwB64Edit.Value := g_VwEntry["b64"]
+    }
 }
 
 Vw_CopyBinary(*) {

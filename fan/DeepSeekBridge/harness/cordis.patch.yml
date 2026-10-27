@@ -1,0 +1,12 @@
+# Merge this entry into the active DeepSeek Harness profile patch.
+# Change cwd and python executable to absolute paths for your installation.
+- insert:
+    - id: mcp-ahk-windows
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: ahk-windows
+        transport: stdio
+        command: python
+        args: ['-m', 'bridge.mcp_server']
+        env: {}
+        cwd: 'C:\\deepseek_ahk_bridge'

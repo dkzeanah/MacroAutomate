@@ -1,0 +1,43 @@
+name: invoice_processing
+description: Scans the invoices/ folder, extracts supplier/amount/date from each invoice (LLM step when a provider is available, filename heuristics otherwise) and writes invoices_summary.csv. A canonical business workflow example.
+keywords: [invoice, invoices, process, extract, supplier, billing, accounts]
+triggers:
+  - event: fs.*
+requires: [fs]
+model_invocable: true
+user_invocable: true
+steps:
+  - name: find_invoices
+    kind: tool
+    tool: fs.glob
+    args: { pattern: "invoices/*.*" }
+    collect: matches
+    continue_on_fail: true
+  - name: read_invoices
+    kind: repeat
+    over: "matches.get('matches', [])"
+    as: invoice_path
+    steps:
+      - name: read_one
+        kind: tool
+        tool: fs.read_text
+        args: { path: "{{ invoice_path }}", max_chars: 4000 }
+        collect: doc
+        continue_on_fail: true
+      - name: extract_fields
+        kind: prompt
+        prompt: "Extract from this invoice: supplier, amount, date. Reply with ONLY: supplier|amount|date\n\n{{ doc.text }}"
+        collect: extracted
+      - name: store_row
+        kind: set
+        vars: { rows: "vars.get('rows', []) + [(invoice_path, extracted)]" }
+  - name: write_csv
+    kind: tool
+    tool: fs.write_text
+    args:
+      path: "{{ vars.cwd or '.' }}/invoices_summary.csv"
+      content: "{{ 'file,supplier,amount,date\\n' + join('\\n', ['%s,%s' % (r[0], r[1].replace(',', ';')) for r in vars.get('rows', [])]) }}"
+  - name: finish
+    kind: stop
+    ok: true
+    message: "Processed {{ len(vars.get('rows', [])) }} invoices -> invoices_summary.csv"

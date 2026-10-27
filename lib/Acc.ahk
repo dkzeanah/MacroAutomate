@@ -1737,14 +1737,14 @@ class Acc {
                         continue
                     out .= ", " (GuiCtrlObj.Hwnd = this.LVWin.Hwnd ? "" : LVData[1] ": ") (LVData[1] ~= "Role$|State$|ChildId" ? LVData[2] : LVData[1] = "Location" ? "{" LVData[2] "}" : "`"" StrReplace(StrReplace(LVData[2], "``", "````"), "`"", "```"") "`"")
                 }
-                ToolTip("Copied: " (A_Clipboard := SubStr(out, 3)))
-            SetTimer((*) => ToolTip(), -3000)
+                AccHostToolTip("Copied: " (A_Clipboard := SubStr(out, 3)))
+            SetTimer((*) => AccHostToolTip(), -3000)
         }
         ; Copies the Acc path to clipboard when statusbar is clicked
         SBMain_Click(GuiCtrlObj, Info, *) {
             if InStr(this.SBMain.Text, "Path:") {
-                ToolTip("Copied: " (A_Clipboard := SubStr(this.SBMain.Text, 9)))
-                SetTimer((*) => ToolTip(), -3000)
+                AccHostToolTip("Copied: " (A_Clipboard := SubStr(this.SBMain.Text, 9)))
+                SetTimer((*) => AccHostToolTip(), -3000)
             }
         }
         ; Stops capturing elements under mouse, unhooks CaptureCallback
@@ -1883,4 +1883,11 @@ class Acc {
             return elDesc
         }
     }
+}
+
+AccHostToolTip(text := "") {
+    global g_FindTextTooltipHandler
+    if IsSet(g_FindTextTooltipHandler) && IsObject(g_FindTextTooltipHandler)
+        return g_FindTextTooltipHandler(text)
+    return ToolTip(text)
 }

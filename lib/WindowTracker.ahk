@@ -338,5 +338,5 @@ TrackLogError(where, err) {
     g_TrackErrorLog.Push(msg)
     if (g_TrackErrorLog.Length > 200)
         g_TrackErrorLog.RemoveAt(1)
-    try FileAppend(msg . "`n", DATA_DIR . "\tracking_errors.log", "UTF-8")
+    try FanFileAppend(msg . "`n", DATA_DIR . "\tracking_errors.log", "UTF-8")
 }

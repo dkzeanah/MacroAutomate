@@ -17,10 +17,16 @@ InitDB() {
         DirCreate(DATA_DIR)
 
     g_DB := SQLiteDB()
+    try FanData_DbAvailable("macro", DB_FILE)
+    catch as missingDatabase {
+        MsgBoxTop(missingDatabase.Message, "Storage unavailable")
+        return
+    }
     if !g_DB.OpenDB(DB_FILE) {
         MsgBoxTop("Failed to open database:`n" . g_DB.ErrorMsg . "`n`nData will not be saved this session.", "Database Error")
         return
     }
+    g_DB.Exec("PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
 
     if !g_DB.Exec("CREATE TABLE IF NOT EXISTS patterns (name TEXT PRIMARY KEY, text TEXT, desc TEXT, screenshot TEXT, captureX INTEGER, captureY INTEGER, captureWindow TEXT, qualifier TEXT);")
         MsgBoxTop("Failed to create patterns table:`n" . g_DB.ErrorMsg, "Database Error")
@@ -73,46 +79,49 @@ ImportLegacyIniIfEmpty() {
 
     if !IsObject(g_DB)
         return
+    ; An explicitly archived database starts empty instead of reimporting INIs.
+    if FanData_Routes().Has("unified_db") || FanData_Config().Has("last_archive")
+        return
 
     patternCount := 0
     if g_DB.GetTable("SELECT COUNT(*) FROM patterns;", &tb) && tb.RowCount
         patternCount := Integer(tb.Rows[1][1])
-    if patternCount = 0 && FileExist(PATTERNS_FILE) {
-        for section in StrSplit(IniRead(PATTERNS_FILE), "`n") {
+    if patternCount = 0 && FanFileExist(PATTERNS_FILE) {
+        for section in StrSplit(FanIniRead(PATTERNS_FILE), "`n") {
             if section = ""
                 continue
-            text := IniRead(PATTERNS_FILE, section, "Text", "")
+            text := FanIniRead(PATTERNS_FILE, section, "Text", "")
             if text = ""
                 continue
             g_DB.Exec("INSERT OR REPLACE INTO patterns (name, text, desc, screenshot, captureX, captureY, captureWindow, qualifier) VALUES ("
                 . SQLQuote(section) . ", " . SQLQuote(text) . ", "
-                . SQLQuote(IniRead(PATTERNS_FILE, section, "Desc", "")) . ", "
-                . SQLQuote(IniRead(PATTERNS_FILE, section, "Screenshot", "")) . ", "
-                . Integer(IniRead(PATTERNS_FILE, section, "CaptureX", 0)) . ", "
-                . Integer(IniRead(PATTERNS_FILE, section, "CaptureY", 0)) . ", "
-                . SQLQuote(IniRead(PATTERNS_FILE, section, "CaptureWindow", "")) . ", "
-                . SQLQuote(IniRead(PATTERNS_FILE, section, "Qualifier", "")) . ");")
+                . SQLQuote(FanIniRead(PATTERNS_FILE, section, "Desc", "")) . ", "
+                . SQLQuote(FanIniRead(PATTERNS_FILE, section, "Screenshot", "")) . ", "
+                . Integer(FanIniRead(PATTERNS_FILE, section, "CaptureX", 0)) . ", "
+                . Integer(FanIniRead(PATTERNS_FILE, section, "CaptureY", 0)) . ", "
+                . SQLQuote(FanIniRead(PATTERNS_FILE, section, "CaptureWindow", "")) . ", "
+                . SQLQuote(FanIniRead(PATTERNS_FILE, section, "Qualifier", "")) . ");")
         }
     }
 
     seqCount := 0
     if g_DB.GetTable("SELECT COUNT(*) FROM sequences;", &tb) && tb.RowCount
         seqCount := Integer(tb.Rows[1][1])
-    if seqCount = 0 && FileExist(SEQUENCES_FILE) {
-        for section in StrSplit(IniRead(SEQUENCES_FILE), "`n") {
+    if seqCount = 0 && FanFileExist(SEQUENCES_FILE) {
+        for section in StrSplit(FanIniRead(SEQUENCES_FILE), "`n") {
             if section = ""
                 continue
-            count := IniRead(SEQUENCES_FILE, section, "_Count", 0)
+            count := FanIniRead(SEQUENCES_FILE, section, "_Count", 0)
             if count = 0
                 continue
-            speed := IniRead(SEQUENCES_FILE, section, "_Speed", 1.0)
+            speed := FanIniRead(SEQUENCES_FILE, section, "_Speed", 1.0)
             g_DB.Exec("INSERT OR REPLACE INTO sequences (name, speed) VALUES (" . SQLQuote(section) . ", " . Float(speed) . ");")
             Loop count {
-                data := IniRead(SEQUENCES_FILE, section, "Step" . A_Index, "")
+                data := FanIniRead(SEQUENCES_FILE, section, "Step" . A_Index, "")
                 if data = ""
                     continue
                 p := StrSplit(data, "|")
-                fsData := IniRead(SEQUENCES_FILE, section, "Failsafe" . A_Index, "")
+                fsData := FanIniRead(SEQUENCES_FILE, section, "Failsafe" . A_Index, "")
                 g_DB.Exec("INSERT OR REPLACE INTO sequence_steps (seq_name, step_index, action, target, param, enabled, failsafe) VALUES ("
                     . SQLQuote(section) . ", " . A_Index . ", "
                     . SQLQuote(p[1]) . ", " . SQLQuote(p.Length >= 2 ? p[2] : "") . ", " . SQLQuote(p.Length >= 3 ? p[3] : "") . ", "
@@ -124,41 +133,46 @@ ImportLegacyIniIfEmpty() {
     spoolCount := 0
     if g_DB.GetTable("SELECT COUNT(*) FROM spools;", &tb) && tb.RowCount
         spoolCount := Integer(tb.Rows[1][1])
-    if spoolCount = 0 && FileExist(SPOOLS_FILE) {
-        for section in StrSplit(IniRead(SPOOLS_FILE), "`n") {
+    if spoolCount = 0 && FanFileExist(SPOOLS_FILE) {
+        for section in StrSplit(FanIniRead(SPOOLS_FILE), "`n") {
             if section = ""
                 continue
             g_DB.Exec("INSERT OR REPLACE INTO spools (name, enabled, region, regionCoords, detectType, target, interval, condition, action, actionTarget, extractOCR, ocrVar, autoComplete, completion, completionTarget, timeout, mode, cooldown, notifTime) VALUES ("
                 . SQLQuote(section) . ", "
-                . Integer(IniRead(SPOOLS_FILE, section, "Enabled", 1)) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "Region", "Full Screen")) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "RegionCoords", "")) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "DetectType", "Pattern Match")) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "Target", "")) . ", "
-                . Integer(IniRead(SPOOLS_FILE, section, "Interval", 500)) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "Condition", "Found")) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "Action", "Show Notification")) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "ActionTarget", "")) . ", "
-                . Integer(IniRead(SPOOLS_FILE, section, "ExtractOCR", 0)) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "OCRVar", "")) . ", "
-                . Integer(IniRead(SPOOLS_FILE, section, "AutoComplete", 0)) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "Completion", "Pattern Found")) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "CompletionTarget", "")) . ", "
-                . Integer(IniRead(SPOOLS_FILE, section, "Timeout", 0)) . ", "
-                . SQLQuote(IniRead(SPOOLS_FILE, section, "Mode", "Continuous")) . ", "
-                . Integer(IniRead(SPOOLS_FILE, section, "Cooldown", 5)) . ", "
-                . Integer(IniRead(SPOOLS_FILE, section, "NotifTime", 5)) . ");")
+                . Integer(FanIniRead(SPOOLS_FILE, section, "Enabled", 1)) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "Region", "Full Screen")) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "RegionCoords", "")) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "DetectType", "Pattern Match")) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "Target", "")) . ", "
+                . Integer(FanIniRead(SPOOLS_FILE, section, "Interval", 500)) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "Condition", "Found")) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "Action", "Show Notification")) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "ActionTarget", "")) . ", "
+                . Integer(FanIniRead(SPOOLS_FILE, section, "ExtractOCR", 0)) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "OCRVar", "")) . ", "
+                . Integer(FanIniRead(SPOOLS_FILE, section, "AutoComplete", 0)) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "Completion", "Pattern Found")) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "CompletionTarget", "")) . ", "
+                . Integer(FanIniRead(SPOOLS_FILE, section, "Timeout", 0)) . ", "
+                . SQLQuote(FanIniRead(SPOOLS_FILE, section, "Mode", "Continuous")) . ", "
+                . Integer(FanIniRead(SPOOLS_FILE, section, "Cooldown", 5)) . ", "
+                . Integer(FanIniRead(SPOOLS_FILE, section, "NotifTime", 5)) . ");")
         }
     }
 }
 
 SavePatterns() {
-    global g_Patterns, g_DB
-    if !IsObject(g_DB)
-        return
-    g_DB.Exec("DELETE FROM patterns;")
+    global g_Patterns, g_DB, g_LastPatternSaveError
+    g_LastPatternSaveError := ""
+    if !IsObject(g_DB) {
+        g_LastPatternSaveError := "The pattern database is not open."
+        return false
+    }
+    try {
+    DBExecOrThrow("BEGIN IMMEDIATE;")
+    DBExecOrThrow("DELETE FROM patterns;")
     for name, data in g_Patterns {
-        g_DB.Exec("INSERT OR REPLACE INTO patterns (name, text, desc, screenshot, captureX, captureY, captureWindow, qualifier) VALUES ("
+        DBExecOrThrow("INSERT OR REPLACE INTO patterns (name, text, desc, screenshot, captureX, captureY, captureWindow, qualifier) VALUES ("
             . SQLQuote(name) . ", "
             . SQLQuote(data["text"]) . ", "
             . SQLQuote(data.Has("desc") ? data["desc"] : "") . ", "
@@ -167,6 +181,13 @@ SavePatterns() {
             . Integer(data.Has("captureY") ? data["captureY"] : 0) . ", "
             . SQLQuote(data.Has("captureWindow") ? data["captureWindow"] : "") . ", "
             . SQLQuote(data.Has("qualifier") ? data["qualifier"] : "") . ");")
+    }
+    DBExecOrThrow("COMMIT;")
+    return true
+    } catch as patternError {
+        try g_DB.Exec("ROLLBACK;")
+        g_LastPatternSaveError := patternError.Message
+        return false
     }
 }
 

@@ -1,0 +1,28 @@
+name: daily_digest
+description: "Writes a daily digest of what the digital twin learned: observation stats, top entities, open learning gaps. Fully offline."
+keywords: [digest, daily, summary, recap, twin, gaps, learned]
+triggers: []
+requires: [twin, fs]
+model_invocable: true
+user_invocable: true
+steps:
+  - name: twin_status
+    kind: tool
+    tool: twin.status
+    args: {}
+    collect: status
+  - name: twin_gaps
+    kind: tool
+    tool: twin.gaps
+    args: {}
+    collect: gaps
+  - name: write_digest
+    kind: tool
+    tool: fs.write_text
+    args:
+      path: "{{ vars.cwd or '.' }}/.sl_daily_digest.md"
+      content: "{{ '# Daily Digest\\n\\n' + status.text + '\\n\\n## Learning gaps\\n' + gaps.text }}"
+  - name: finish
+    kind: stop
+    ok: true
+    message: "Daily digest written to .sl_daily_digest.md"
