@@ -40,10 +40,11 @@ MediaIntel_BuildTab(g) {
     g.Add("Text", "x762 y98 w40", "Batch:")
     g_MediaCtl["batch"] := g.Add("Edit", "x802 y95 w36 h22", "8")
 
-    g_MediaCtl["run"] := g.Add("Button", "x28 y124 w200 h26", "Extract + Analyze video")
-    g_MediaCtl["analyze"] := g.Add("Button", "x234 y124 w150 h26", "Analyze selected job")
-    g_MediaCtl["cancel"] := g.Add("Button", "x390 y124 w90 h26", "Cancel")
-    g_MediaCtl["status"] := g.Add("Text", "x490 y128 w380 h20 cGray", "")
+    g_MediaCtl["run"] := g.Add("Button", "x28 y124 w186 h26", "Extract + Analyze (DeepSeek)")
+    g_MediaCtl["bridge"] := g.Add("Button", "x218 y124 w196 h26", "Analyze via avideditor (shots/cuts)")
+    g_MediaCtl["analyze"] := g.Add("Button", "x418 y124 w130 h26", "Analyze selected")
+    g_MediaCtl["cancel"] := g.Add("Button", "x552 y124 w70 h26", "Cancel")
+    g_MediaCtl["status"] := g.Add("Text", "x628 y128 w246 h20 cGray", "")
 
     g_MediaCtl["jobs"] := g.Add("ListView", "x28 y158 w300 h150 Grid -Multi"
         , ["id", "Title", "Frames", "Status"])
@@ -92,6 +93,7 @@ MediaIntel_BuildTab(g) {
     ; ── events ───────────────────────────────────────────────────────────────
     g_MediaCtl["browse"].OnEvent("Click", (*) => MediaUI_PickVideo())
     g_MediaCtl["run"].OnEvent("Click", (*) => MediaUI_Run())
+    g_MediaCtl["bridge"].OnEvent("Click", (*) => MediaUI_BridgeAnalyze())
     g_MediaCtl["analyze"].OnEvent("Click", (*) => MediaUI_AnalyzeSelected())
     g_MediaCtl["cancel"].OnEvent("Click", (*) => (Media_CancelAll(), StudyLLM_CancelRequest()
         , MediaUI_Status("Cancelling...")))
@@ -125,9 +127,42 @@ MediaUI_Status(msg) {
 MediaUI_RefreshFfLine() {
     global g_MediaCtl
     exe := Media_FfmpegExe()
-    try g_MediaCtl["ffline"].Value := exe != ""
-        ? "ffmpeg: " . exe
-        : "ffmpeg NOT found - set its path below to enable extraction, clips and contact sheets."
+    ff := exe != "" ? "ffmpeg: " . exe
+                    : "ffmpeg NOT found - set its path below."
+    try g_MediaCtl["ffline"].Value := ff . "   |   " . MediaBridge_Status()
+}
+
+; Analyze the chosen video through the avideditor (Cutline) engine: OpenCV
+; shot/cut/motion analysis. Runs off the click thread.
+MediaUI_BridgeAnalyze() {
+    global g_MediaCtl
+    path := Trim(g_MediaCtl["video"].Value)
+    if (path = "" || !FileExist(path)) {
+        MediaUI_Status("Pick a valid video first")
+        return
+    }
+    if !MediaBridge_Available() {
+        MediaUI_Status("avideditor engine not found - " . MediaBridge_Status())
+        return
+    }
+    MediaUI_Status("Analyzing via avideditor (OpenCV)...")
+    SetTimer(() => MediaUI_BridgeWork(path), -30)
+}
+
+MediaUI_BridgeWork(path) {
+    res := MediaBridge_AnalyzeVideo(path)
+    if !res["ok"] {
+        MediaUI_Status("avideditor analyze failed: " . res["error"])
+        return
+    }
+    jobId := MediaBridge_StoreAnalysis(path, res["result"])
+    MediaUI_RefreshJobs()
+    MediaUI_SelectJob(jobId)
+    MediaUI_LoadTimeline(jobId)
+    r := res["result"]
+    shots := (IsObject(r) && r.Has("shots") && r["shots"] is Array) ? r["shots"].Length : 0
+    cuts := (IsObject(r) && r.Has("cuts") && r["cuts"] is Array) ? r["cuts"].Length : 0
+    MediaUI_Status("avideditor: " . shots . " shots, " . cuts . " cuts (no API cost)")
 }
 
 MediaUI_PickVideo() {

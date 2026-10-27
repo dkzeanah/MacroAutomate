@@ -163,6 +163,9 @@ CoordMode("ToolTip", "Screen") ; Tooltip positioning relative to screen
 #Include ..\lib\MediaLLM.ahk
 #Include ..\lib\MediaPipeline.ahk
 #Include ..\lib\EnvIntel.ahk
+; Bridge to the avideditor ("Cutline") Python video engine (OpenCV shot/cut
+; analysis via its own venv). The /fan ffmpeg path stays as a fallback.
+#Include ..\lib\MediaBridge.ahk
 ; Live accumulated-knowledge dashboard (reads the one unified DB) + on-screen
 ; playback; also persists EnvIntel feature maps so they accumulate.
 #Include ..\lib\KnowledgeDash.ahk
