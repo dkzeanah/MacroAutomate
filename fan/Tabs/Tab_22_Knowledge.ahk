@@ -48,8 +48,14 @@ Know_BuildTab(g) {
     g_KnowCtl["flash"] := g.Add("Button", "x445 y384 w160 h26", "Flash on screen (playback)")
     g_KnowCtl["playstatus"] := g.Add("Text", "x612 y388 w263 h20 cGray", "")
 
-    g.Add("Text", "x15 y414 w400", "Detail / source")
-    g_KnowCtl["viewer"] := g.Add("Edit", "x15 y434 w860 h250 ReadOnly Multi VScroll")
+    ; "Big picture" utility actions - not counts: see real records, validate
+    ; live, and get DeepSeek to turn the knowledge into next actions.
+    g_KnowCtl["sample"] := g.Add("Button", "x15 y414 w140 h26", "Sample records")
+    g_KnowCtl["validate"] := g.Add("Button", "x160 y414 w150 h26", "Bulk live-validate")
+    g_KnowCtl["insights"] := g.Add("Button", "x315 y414 w160 h26", "DeepSeek insights")
+    g_KnowCtl["bigstatus"] := g.Add("Text", "x485 y418 w390 h20 cGray", "")
+
+    g_KnowCtl["viewer"] := g.Add("Edit", "x15 y446 w860 h238 ReadOnly Multi VScroll")
     g_KnowCtl["viewer"].SetFont("s9", "Consolas")
 
     g_KnowCtl["refresh"].OnEvent("Click", (*) => Know_UiRefresh())
@@ -58,8 +64,67 @@ Know_BuildTab(g) {
     g_KnowCtl["score"].OnEvent("ItemSelect", (lv, r, sel) => (sel ? Know_UiScoreSelect() : 0))
     g_KnowCtl["detail"].OnEvent("ItemSelect", (lv, r, sel) => (sel ? Know_UiDetailSelect() : 0))
     g_KnowCtl["flash"].OnEvent("Click", (*) => Know_UiFlash())
+    g_KnowCtl["sample"].OnEvent("Click", (*) => Know_UiSample())
+    g_KnowCtl["validate"].OnEvent("Click", (*) => Know_UiValidate())
+    g_KnowCtl["insights"].OnEvent("Click", (*) => Know_UiInsights())
 
     Know_UiRefresh()
+}
+
+; Show a randomized sample of real records (not counts) in the detail list.
+Know_UiSample() {
+    global g_KnowCtl, g_KnowRows, g_KnowCurKey
+    g_KnowCurKey := "sample"
+    g_KnowRows := Know_SampleRecords(40)
+    lv := g_KnowCtl["detail"]
+    lv.Opt("-Redraw"), lv.Delete()
+    for , r in g_KnowRows
+        lv.Add(, r["label"], r["detail"], SubStr(r["when"], 1, 16))
+    lv.Opt("+Redraw")
+    try g_KnowCtl["bigstatus"].Value := "Random sample of " . g_KnowRows.Length
+        . " real records - select one to view / flash"
+    try g_KnowCtl["viewer"].Value := "A randomized cross-section of what the system has actually captured.`r`n"
+        . "Spatial items flash on screen when selected."
+}
+
+; Bulk live validation with a score.
+Know_UiValidate() {
+    global g_KnowCtl, g_KnowRows, g_KnowCurKey
+    try g_KnowCtl["bigstatus"].Value := "Validating remembered targets against live windows..."
+    res := Know_BulkValidate(40)
+    g_KnowCurKey := "validate"
+    g_KnowRows := res["rows"]
+    lv := g_KnowCtl["detail"]
+    lv.Opt("-Redraw"), lv.Delete()
+    for , r in g_KnowRows
+        lv.Add(, r["label"], r["detail"], "")
+    lv.Opt("+Redraw")
+    try g_KnowCtl["bigstatus"].Value := "Validation score " . res["score"] . "%  ("
+        . res["passed"] . "/" . res["total"] . " still valid) - logged for ranking"
+    try g_KnowCtl["viewer"].Value := "Bulk live-validation: sampled " . res["total"]
+        . " remembered spatial targets and checked each against live windows + screen bounds.`r`n"
+        . "Passed: " . res["passed"] . "   Score: " . res["score"] . "%`r`n`r`n"
+        . "Select a row to flash where that target was remembered."
+}
+
+; DeepSeek insights over the accumulated knowledge (off the click thread).
+Know_UiInsights() {
+    global g_KnowCtl
+    try g_KnowCtl["bigstatus"].Value := "Asking DeepSeek for insights over your knowledge..."
+    try g_KnowCtl["viewer"].Value := "Contacting DeepSeek..."
+    SetTimer(() => Know_UiInsightsWork(), -30)
+}
+
+Know_UiInsightsWork() {
+    global g_KnowCtl
+    res := Know_InsightsDeepSeek()
+    if !res["ok"] {
+        try g_KnowCtl["bigstatus"].Value := "Insights: " . res["error"]
+        try g_KnowCtl["viewer"].Value := res["error"]
+        return
+    }
+    try g_KnowCtl["bigstatus"].Value := "DeepSeek insights ready (est $" . Round(res["cost"], 4) . ")"
+    try g_KnowCtl["viewer"].Value := res["text"]
 }
 
 ; ─────────────────────────────────────────────────────────────────────────────

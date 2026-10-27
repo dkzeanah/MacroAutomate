@@ -60,7 +60,7 @@ AutoConfig_Probe() {
     facts["bridge_root"] := bridgeRoot
     facts["bridge_env"] := FileExist(bridgeRoot . "\.env") ? bridgeRoot . "\.env" : ""
     facts["bridge_venv_python"] := bridgeRoot . "\.venv\Scripts\python.exe"
-    facts["bridge_python_ready"] := FileExist(facts["bridge_venv_python"])
+    facts["bridge_python_ready"] := FileExist(facts["bridge_venv_python"]) != ""
 
     ; Provider hints (the key itself is never read or printed — presence only).
     facts["deepseek_key_in_env"] := EnvGet("DEEPSEEK_API_KEY") != ""
@@ -86,23 +86,18 @@ AutoConfig_Deduce() {
     settings := out["settings"]
     notes := out["notes"]
 
-    ; (a) OCR language from the OS locale → common Windows OCR tag.
+    ; (a) OCR language from the OS locale (A_Language is the 4-hex-digit LCID,
+    ; e.g. "0409" = en-US). Match the exact LCID; never substring-match hex.
     locale := facts["locale"]
-    lang := "en-US"
-    if InStr(locale, "04")      ; zh-*
-        lang := "zh-Hans"
-    else if InStr(locale, "0c") ; fr-*
-        lang := "fr-FR"
-    else if InStr(locale, "07") ; de-*
-        lang := "de-DE"
-    else if InStr(locale, "0a") ; es-*
-        lang := "es-ES"
-    else if InStr(locale, "10") ; it-*
-        lang := "it-IT"
-    else if InStr(locale, "11") ; ja-*
-        lang := "ja-JP"
-    else if InStr(locale, "12") ; ko-*
-        lang := "ko-KR"
+    ocrLang := Map(
+        "0409", "en-US", "0809", "en-GB", "0c09", "en-AU", "1009", "en-CA",
+        "0804", "zh-Hans", "0404", "zh-Hant",
+        "040c", "fr-FR", "080c", "fr-BE", "0c0c", "fr-CA",
+        "0407", "de-DE", "0807", "de-CH", "0c07", "de-AT",
+        "040a", "es-ES", "080a", "es-MX", "0c0a", "es-ES",
+        "0410", "it-IT", "0411", "ja-JP", "0412", "ko-KR",
+        "0416", "pt-BR", "0419", "ru-RU", "041d", "sv-SE", "041f", "tr-TR")
+    lang := ocrLang.Has(locale) ? ocrLang[locale] : "en-US"
     settings["ocr_language"] := Map("value", lang, "source", "A_Language=" . locale)
 
     ; (b) Date format — a conservative, locale-neutral default.

@@ -39,6 +39,9 @@ Know_Schema() {
               . "id INTEGER PRIMARY KEY AUTOINCREMENT, map_id INTEGER, idx INTEGER,"
               . "role TEXT, text TEXT, x INTEGER, y INTEGER, w INTEGER, h INTEGER)")
         db.Exec("CREATE INDEX IF NOT EXISTS ix_envregion_map ON env_region(map_id)")
+        db.Exec("CREATE TABLE IF NOT EXISTS know_validation ("
+              . "id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, kind TEXT,"
+              . "total INTEGER, passed INTEGER, score INTEGER)")
     } catch as err {
         TrackLogError("Know_Schema", err)
         return false
@@ -306,4 +309,137 @@ Know_ExportSnapshot(path := "") {
         path := DATA_DIR . "\knowledge_snapshot_" . FormatTime(A_Now, "yyyyMMdd_HHmmss") . ".json"
     Track_WriteFile(path, TrackJsonEncode(doc, 2))
     return path
+}
+
+; ─────────────────────────────────────────────────────────────────────────────
+; "BIG PICTURE" UTILITY (not counts): random samples, live validation, insights
+; ─────────────────────────────────────────────────────────────────────────────
+
+; A randomized, interleaved sample of ACTUAL records across the useful
+; categories, so you can see what is captured and judge its quality - not counts.
+Know_SampleRecords(n := 36) {
+    cats := ["qa_item", "discovered_target", "ui_element", "app_file_ahk"
+           , "learning_claim", "usage_transition", "daa_step", "env_map"]
+    pool := []
+    per := Max(4, (n // cats.Length) + 3)
+    for , k in cats {
+        for , r in Know_CategoryRows(k, per) {
+            r["label"] := "[" . k . "] " . r["label"]
+            pool.Push(r)
+        }
+    }
+    Know_Shuffle(pool)
+    out := []
+    Loop Min(n, pool.Length)
+        out.Push(pool[A_Index])
+    return out
+}
+
+Know_Shuffle(arr) {
+    i := arr.Length
+    while (i > 1) {
+        j := Random(1, i)
+        tmp := arr[i], arr[i] := arr[j], arr[j] := tmp
+        i--
+    }
+}
+
+; Bulk live validation: sample remembered spatial items and check whether their
+; source window still exists and their bounds are on a real screen. Produces a
+; pass/fail per item and an overall score (how much mapped knowledge is still
+; valid), logged to know_validation for ranking over time.
+Know_BulkValidate(n := 40) {
+    out := Map("total", 0, "passed", 0, "score", 0, "rows", [])
+    db := TrackDB()
+    if !db
+        return out
+    rows := []
+    try rows := db.Query("SELECT title AS wtitle, name, x, y, w, h FROM discovered_target "
+                       . "WHERE title IS NOT NULL AND title<>'' ORDER BY RANDOM() LIMIT ?", n)
+    if db.TableExists("ui_element") {
+        uir := []
+        try uir := db.Query("SELECT source_title AS wtitle, name, x, y, w, h FROM ui_element "
+                          . "WHERE source_title IS NOT NULL AND source_title<>'' ORDER BY RANDOM() LIMIT ?", n)
+        for , r in uir
+            rows.Push(r)
+    }
+    ; virtual-desktop bounds
+    vx := SysGet(76), vy := SysGet(77), vw := SysGet(78), vh := SysGet(79)
+    total := 0, passed := 0, results := []
+    for , r in rows {
+        total++
+        winOk := false
+        try winOk := WinExist(r["wtitle"]) ? true : false
+        x := Integer(r["x"]), y := Integer(r["y"]), w := Integer(r["w"]), h := Integer(r["h"])
+        boundsOk := (w > 0 && h > 0 && x >= vx - 50 && y >= vy - 50 && x < vx + vw + 50 && y < vy + vh + 50)
+        ok := winOk && boundsOk
+        if ok
+            passed++
+        results.Push(Map("label", Know_Clip(r["name"] . " @ " . r["wtitle"], 72)
+                       , "detail", (winOk ? "win OK" : "win gone") . "  "
+                               . (boundsOk ? "bounds OK" : "bounds off")
+                       , "when", "", "bounds", [x, y, w, h], "content", ""))
+    }
+    score := total ? Round(passed * 100 / total) : 0
+    if Know_Schema()
+        try db.Run("INSERT INTO know_validation(ts,kind,total,passed,score) VALUES(?,?,?,?,?)"
+                 , FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss"), "spatial", total, passed, score)
+    out["total"] := total, out["passed"] := passed, out["score"] := score, out["rows"] := results
+    return out
+}
+
+; A compact digest of sampled knowledge, for a DeepSeek insight request.
+Know_Digest() {
+    db := TrackDB()
+    if !db
+        return ""
+    parts := []
+    Know_DigestBlock(db, parts, "Recent typed questions"
+        , "SELECT question AS v FROM qa_item WHERE kind='typed' ORDER BY id DESC LIMIT 15", 110)
+    Know_DigestBlock(db, parts, "Most-seen discovered UI targets"
+        , "SELECT (name || ' @ ' || substr(title,1,40) || '  x' || seen_count) AS v FROM discovered_target "
+        . "WHERE title<>'' ORDER BY seen_count DESC LIMIT 15", 90)
+    Know_DigestBlock(db, parts, "Written automation tools (.ahk)"
+        , "SELECT path AS v FROM app_file WHERE path LIKE '%.ahk' ORDER BY modified_ts DESC LIMIT 15", 90)
+    Know_DigestBlock(db, parts, "Recent learning claims"
+        , "SELECT claim AS v FROM learning_claim ORDER BY id DESC LIMIT 12", 110)
+    Know_DigestBlock(db, parts, "Recent DAA tool steps"
+        , "SELECT (tool || ' -> ' || status) AS v FROM daa_step ORDER BY id DESC LIMIT 12", 80)
+    out := ""
+    for , p in parts
+        out .= p . "`n"
+    return out
+}
+
+Know_DigestBlock(db, parts, title, sql, clip) {
+    rows := []
+    try rows := db.Query(sql)
+    if !rows.Length
+        return
+    s := title . ":`n"
+    for , r in rows
+        s .= "- " . Know_Clip("" . r["v"], clip) . "`n"
+    parts.Push(s)
+}
+
+; Ask DeepSeek for actionable insights over the accumulated knowledge.
+; Returns Map(ok, text, cost, error).
+Know_InsightsDeepSeek() {
+    if !StudyLLM_HasKey()
+        return Map("ok", false, "text", "", "cost", 0, "error", "No DeepSeek key (set one in Study Assistant)")
+    digest := Know_Digest()
+    if (Trim(digest) = "")
+        return Map("ok", false, "text", "", "cost", 0, "error", "No knowledge captured yet to analyze")
+    prompt := "You optimize a Windows desktop-automation agent's accumulated knowledge. "
+            . "From this sample of what it has learned, give concrete, actionable output:`n"
+            . "1) patterns/themes in what the user actually does;`n"
+            . "2) 2-4 specific automations or reusable tools worth building next;`n"
+            . "3) which captured knowledge looks stale/low-value and should be pruned;`n"
+            . "4) how to reinforce and rank the most useful items.`n"
+            . "Be specific and brief; reference the real items.`n`n"
+            . "KNOWLEDGE SAMPLE:`n" . digest
+    res := StudyLLM_Ask(prompt, Map("maxTokens", 1000))
+    if !res["ok"]
+        return Map("ok", false, "text", "", "cost", 0, "error", res["error"])
+    return Map("ok", true, "text", res["answer"], "cost", res["costUSD"], "error", "")
 }

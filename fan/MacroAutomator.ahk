@@ -166,6 +166,9 @@ CoordMode("ToolTip", "Screen") ; Tooltip positioning relative to screen
 ; Bridge to the avideditor ("Cutline") Python video engine (OpenCV shot/cut
 ; analysis via its own venv). The /fan ffmpeg path stays as a fallback.
 #Include ..\lib\MediaBridge.ahk
+; Typed-question capture: a "?" you type grabs the sentence before it as a clean
+; question (the main, non-OCR mechanism). Hooks the KeyTracker InputHook.
+#Include ..\lib\QuestionCapture.ahk
 ; Live accumulated-knowledge dashboard (reads the one unified DB) + on-screen
 ; playback; also persists EnvIntel feature maps so they accumulate.
 #Include ..\lib\KnowledgeDash.ahk
@@ -550,6 +553,14 @@ catch as err
 try Study_Init()
 catch as err
     LogErrorToFile(err, "caught", "Study Assistant initialization")
+; Typed-question capture switch, and the last-external-window tracker so the
+; "Map window" button targets the window you were using, not this app.
+try QCap_Restore()
+catch as err
+    LogErrorToFile(err, "caught", "QuestionCapture restore")
+try Env_TrackStart()
+catch as err
+    LogErrorToFile(err, "caught", "Env window tracker start")
 ; Live Portal: restore the browser-window pin and start the console/session
 ; automatically. Startup uses observe/suggest until an input mode is selected.
 try StudyLive_AutoStart()

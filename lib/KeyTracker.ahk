@@ -251,6 +251,9 @@ KeyTrack_OnChar(ih, char) {
     b["keystrokes"] := b["keystrokes"] + 1
     b["stream"].Push(KeyTrack_EscapeForSend(char))
     b["text"].Push(char)
+    ; Typed-question capture: a "?" grabs the sentence before it. Runs only here,
+    ; so it inherits KeyTracker's sensitive/excluded-window guard.
+    try QCap_OnChar(char)
 }
 ; Non-text keys: navigation, editing, function keys and modifier combos.
 KeyTrack_OnKeyDown(ih, vk, sc) {

@@ -13,7 +13,7 @@
 ## 1. Feature & ability highlights (at a glance)
 
 ### Automation engines
-- **Workflow builder** — 66 actions across mouse, keyboard, windows, FindText, OCR, clipboard, variables, loops, tracking, and research; guided per-action forms, templates, `.maw` portable export/import, Demo Lab, simulation, step-through.
+- **Workflow builder** — 67 actions (live `fan_capabilities` count) across mouse, keyboard, windows, FindText, OCR, clipboard, variables, loops, tracking, and research; guided per-action forms, templates, `.maw` portable export/import, Demo Lab, simulation, step-through.
 - **Spools** — event-driven `Detect → Respond → Repeat` monitors (Pattern / Pattern Sequence / OCR / Pixel Change / Window Title) with One-Shot / Cooldown / Continuous modes and `.mas` export.
 - **Clipboard revolver** — regex extraction rules → field ordering → sequential multi-field paste (bins + `Ctrl+B` / `Ctrl+Shift+B`).
 - **AppDSL** — line-oriented language to drive any learned application (`focus`, `click`, `menu File > Save`, `ocrclick`, `waitwin`, …), with a local-Ollama copilot.
@@ -77,7 +77,7 @@
 
 | # | Tab | Itemized abilities |
 |---|---|---|
-| 1 | **Workflow** | Build/run multi-step sequences from 66 actions; category-filtered action picker; guided per-action forms (pick, never type); contextual Target/Parameter fields + suggestions; templates; loops (`Loop Start/End/Break`); `Popup Detect`; failsafes & qualifiers; speed (0.25×–3×); autosave; `.maw` import/export/write; Demo Lab; simulation, step-through, pause/abort. |
+| 1 | **Workflow** | Build/run multi-step sequences from 67 actions; category-filtered action picker; guided per-action forms (pick, never type); contextual Target/Parameter fields + suggestions; templates; loops (`Loop Start/End/Break`); `Popup Detect`; failsafes & qualifiers; speed (0.25×–3×); autosave; `.maw` import/export/write; Demo Lab; simulation, step-through, pause/abort. |
 | 2 | **Patterns** | Quick Capture / FindText GUI capture; name + description + qualifier; ASCII preview; Test Pattern / Full View; saved pattern library. |
 | 3 | **Live OCR** | Continuous Windows OCR capture; multi-language + scale + grayscale; word/line boxes; **Watch Words** (dynamic variables); search; regex/split; OCR revolver; OCR log. |
 | 4 | **Spools** | Define monitor (Pattern/Pattern Sequence/OCR Contains/OCR Regex/Pixel Change/Window Title) → condition → response (Notify/Run Workflow/Click/Extract/Set Var/Key Chord/Run Program/Start|Stop Spool) → repeat mode + cooldown; `.mas` import/export; activity log. |
@@ -186,7 +186,7 @@ Returned programmatically by `FanBridge.Capabilities()` / `fan_capabilities`. Di
 
 ### 4.4 Workflow actions — programmatic schema
 
-`fan_workflow_save(name, steps, overwrite)` accepts an array of `Map("action", A, "target", T, "param", P, "enabled", bool, "failsafe", Map, "qualPattern", "", "qualWindow", "")`. `A` must be an exact name from `GetWorkflowActionNames()` (66 actions). Required target/param are validated; loops must balance; `fan_workflow_run(name, timeout_seconds)` executes through the same engine as the UI.
+`fan_workflow_save(name, steps, overwrite)` accepts an array of `Map("action", A, "target", T, "param", P, "enabled", bool, "failsafe", Map, "qualPattern", "", "qualWindow", "")`. `A` must be an exact name from `GetWorkflowActionNames()` (67 actions). Required target/param are validated; loops must balance; `fan_workflow_run(name, timeout_seconds)` executes through the same engine as the UI.
 
 ### 4.5 AppDSL (App Learner) — line-oriented runner
 
@@ -321,7 +321,7 @@ A realistic, **supervised** all-day loop (the codebase's own philosophy: bounded
 
 ## 10. Reference index
 
-- User-facing guide: [`fan\AUTOMATION_USER_GUIDE.md`](fan/AUTOMATION_USER_GUIDE.md) (66 actions, recipes, boundaries) + browser edition `fan\AUTOMATION_USER_GUIDE.html`.
+- User-facing guide: [`fan\AUTOMATION_USER_GUIDE.md`](fan/AUTOMATION_USER_GUIDE.md) (action reference, recipes, boundaries) + browser edition `fan\AUTOMATION_USER_GUIDE.html`.
 - Library API index: [`lib\LIBRARY_GUIDE.md`](lib/LIBRARY_GUIDE.md).
 - Split manifest: [`fan\SPLIT_MANIFEST.md`](fan/SPLIT_MANIFEST.md). Project README: [`fan\README.md`](fan/README.md), [`README.md`](README.md).
 - Tracking subsystem: [`TRACKING_GUIDE.md`](TRACKING_GUIDE.md). Spools: [`SPOOL_WORKFLOW_GUIDE.txt`](SPOOL_WORKFLOW_GUIDE.txt).

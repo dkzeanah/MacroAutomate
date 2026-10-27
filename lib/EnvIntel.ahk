@@ -48,13 +48,50 @@ Env_MapWindow(hwnd) {
     return fm
 }
 
-; Map the active window.
+; Map the active window (used by the Ctrl+Shift+9 hotkey, which correctly fires
+; while the TARGET window is focused).
 Env_MapActive() {
     hwnd := 0
     try hwnd := WinGetID("A")
     if !hwnd
         return Map("ok", false, "error", "no active window", "regions", [])
     return Env_MapWindow(hwnd)
+}
+
+; ── last-external-window tracking ─────────────────────────────────────────────
+; A GUI button cannot "map the active window": clicking it makes THIS app active,
+; so it would only ever map the /fan window. Instead a light timer remembers the
+; most recent real foreground window that is NOT part of this process, and the
+; button maps that - i.e. the window you were actually using.
+global g_EnvLastExt := 0
+
+Env_TrackStart() {
+    SetTimer(Env_TrackTick, 500)
+}
+Env_TrackStop() {
+    SetTimer(Env_TrackTick, 0)
+}
+Env_TrackTick() {
+    global g_EnvLastExt
+    hwnd := 0
+    try hwnd := WinGetID("A")
+    if !hwnd
+        return
+    pid := 0
+    try pid := WinGetPID("ahk_id " . hwnd)
+    if (pid = DllCall("GetCurrentProcessId", "UInt"))   ; our own window
+        return
+    t := ""
+    try t := WinGetTitle("ahk_id " . hwnd)
+    if (t = "")                                          ; skip tool/empty windows
+        return
+    g_EnvLastExt := hwnd
+}
+
+; The window the GUI "Map window" button should target: the last external one.
+Env_TargetWindow() {
+    global g_EnvLastExt
+    return (g_EnvLastExt && WinExist("ahk_id " . g_EnvLastExt)) ? g_EnvLastExt : 0
 }
 
 ; Map an image file (no live screen needed).

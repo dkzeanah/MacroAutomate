@@ -72,6 +72,12 @@ StudyLive_JoinLog() {
 ; ─────────────────────────────────────────────────────────────────────────────
 ; Persist the perceived question into the shared bank. Returns qaId (0 = fail).
 StudyLive_StoreQuestion(q, imagePath) {
+    ; Only persist perceived questions while actively answering (fill/submit) on
+    ; the pinned portal. Passive observe/suggest perception used to flood qa_item
+    ; with OCR of whatever was on screen (browser pages, chat windows, video).
+    global g_StudyMode
+    if !(g_StudyMode = "fill" || g_StudyMode = "submit")
+        return 0
     if imagePath != "" && FileExist(imagePath)
         imagePath := Photo_Store(imagePath, "Study question")
     if !Qa_Schema()

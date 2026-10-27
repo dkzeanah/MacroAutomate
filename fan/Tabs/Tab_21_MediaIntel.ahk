@@ -71,7 +71,7 @@ MediaIntel_BuildTab(g) {
 
     ; ── environment intelligence ─────────────────────────────────────────────
     g.Add("GroupBox", "x15 y382 w860 h300", "Environment intelligence  (OCR feature map -> machine-readable regions)")
-    g_MediaCtl["mapWin"] := g.Add("Button", "x28 y404 w170 h26", "Map active window")
+    g_MediaCtl["mapWin"] := g.Add("Button", "x28 y404 w170 h26", "Map last window (not this app)")
     g_MediaCtl["mapRegion"] := g.Add("Button", "x204 y404 w150 h26", "Map a region...")
     g_MediaCtl["mapImg"] := g.Add("Button", "x360 y404 w150 h26", "Map image file...")
     g_MediaCtl["envRefine"] := g.Add("CheckBox", "x520 y408 w180", "Refine roles with DeepSeek")
@@ -360,7 +360,15 @@ MediaUI_OpenResult(path) {
 
 ; ── environment intelligence handlers ────────────────────────────────────────
 MediaUI_MapActive() {
-    MediaUI_ShowMap(Env_MapActive())
+    hwnd := Env_TargetWindow()
+    if !hwnd {
+        MediaUI_EnvStatus("No external window seen yet - click the target window once, then retry (or use Ctrl+Shift+9 while on it)")
+        return
+    }
+    t := ""
+    try t := WinGetTitle("ahk_id " . hwnd)
+    MediaUI_EnvStatus("Mapping: " . SubStr(t, 1, 80))
+    MediaUI_ShowMap(Env_MapWindow(hwnd))
 }
 
 MediaUI_MapRegion() {

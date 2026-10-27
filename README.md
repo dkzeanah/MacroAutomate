@@ -351,6 +351,7 @@ See the preserved original project guide in [`ahkmcodegen_README.md`](ahkmcodege
 ## Documentation files
 
 - [`README.md`](README.md): this master guide.
+- [`PROGRAMMATIC_AUTOMATION_GUIDE.md`](PROGRAMMATIC_AUTOMATION_GUIDE.md): the programmatic API, panels, and DeepSeek-autonomy guide, with the self-discovery layer (`lib\AutoConfig.ahk`, `AutoPilot.ahk`).
 - [`Vis2_README.md`](Vis2_README.md): the original Vis2 guide formerly named `README.md` at the root.
 - [`AHKv2_Screenshot_Tools_README.md`](AHKv2_Screenshot_Tools_README.md): the screenshot tools guide formerly named `README (2).md`.
 - [`ahkmcodegen_README.md`](ahkmcodegen_README.md): the MCode generator guide formerly named `README (3).md`.
