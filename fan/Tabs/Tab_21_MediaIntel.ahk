@@ -10,6 +10,8 @@ global g_MediaCtl := Map()
 global g_MediaJobRows := []
 global g_MediaEnvMap := Map()
 global g_MediaTabIndex := 21
+global g_MediaWinList := []
+global g_MediaMonList := []
 
 Tab_MediaIntel_Build() {
     global g_MediaCtl, g_MediaTabIndex
@@ -71,15 +73,24 @@ MediaIntel_BuildTab(g) {
 
     ; ── environment intelligence ─────────────────────────────────────────────
     g.Add("GroupBox", "x15 y382 w860 h300", "Environment intelligence  (OCR feature map -> machine-readable regions)")
-    g_MediaCtl["mapWin"] := g.Add("Button", "x28 y404 w170 h26", "Map last window (not this app)")
-    g_MediaCtl["mapRegion"] := g.Add("Button", "x204 y404 w150 h26", "Map a region...")
-    g_MediaCtl["mapImg"] := g.Add("Button", "x360 y404 w150 h26", "Map image file...")
-    g_MediaCtl["envRefine"] := g.Add("CheckBox", "x520 y408 w180", "Refine roles with DeepSeek")
-    g_MediaCtl["envExport"] := g.Add("Button", "x706 y404 w160 h26", "Export map JSON")
-    g_MediaCtl["envStatus"] := g.Add("Text", "x28 y436 w838 h18 cGray"
-        , "Maps a window/region/image into roles + bounds. Pipeline: segment -> OCR -> group -> extract.")
+    ; Window targeting: pick any open window from a dropdown.
+    g.Add("Text", "x28 y409 w48", "Window:")
+    g_MediaCtl["winDD"] := g.Add("DropDownList", "x78 y405 w330 h320")
+    g_MediaCtl["winRefresh"] := g.Add("Button", "x412 y404 w26 h26", "R")
+    g_MediaCtl["mapWin"] := g.Add("Button", "x442 y404 w110 h26", "Map window")
+    g_MediaCtl["mapImg"] := g.Add("Button", "x556 y404 w120 h26", "Map image file...")
+    ; Region/monitor targeting: pick a monitor, map the whole monitor or drag.
+    g.Add("Text", "x28 y437 w50", "Monitor:")
+    g_MediaCtl["monDD"] := g.Add("DropDownList", "x80 y433 w130")
+    g_MediaCtl["mapMon"] := g.Add("Button", "x214 y432 w104 h26", "Map monitor")
+    g_MediaCtl["mapRegion"] := g.Add("Button", "x322 y432 w150 h26", "Map region (drag)")
+    g_MediaCtl["envRefine"] := g.Add("CheckBox", "x482 y436 w200", "Refine roles with DeepSeek")
 
-    g_MediaCtl["regions"] := g.Add("ListView", "x28 y458 w838 h190 Grid -Multi"
+    g_MediaCtl["envExport"] := g.Add("Button", "x28 y462 w160 h26", "Export map JSON")
+    g_MediaCtl["envStatus"] := g.Add("Text", "x196 y466 w678 h18 cGray"
+        , "Pick a window or monitor -> machine-readable regions (segment -> OCR -> group -> extract).")
+
+    g_MediaCtl["regions"] := g.Add("ListView", "x28 y490 w838 h156 Grid -Multi"
         , ["#", "Role", "Text", "X", "Y", "W", "H"])
     for col, w in [34, 90, 500, 50, 50, 50, 50]
         g_MediaCtl["regions"].ModifyCol(col, w)
@@ -103,7 +114,9 @@ MediaIntel_BuildTab(g) {
     g_MediaCtl["sheet"].OnEvent("Click", (*) => MediaUI_ContactSheet())
     g_MediaCtl["chapters"].OnEvent("Click", (*) => MediaUI_Chapters())
     g_MediaCtl["clip"].OnEvent("Click", (*) => MediaUI_Clip())
-    g_MediaCtl["mapWin"].OnEvent("Click", (*) => MediaUI_MapActive())
+    g_MediaCtl["mapWin"].OnEvent("Click", (*) => MediaUI_MapSelectedWindow())
+    g_MediaCtl["winRefresh"].OnEvent("Click", (*) => MediaUI_RefreshWindows())
+    g_MediaCtl["mapMon"].OnEvent("Click", (*) => MediaUI_MapMonitor())
     g_MediaCtl["mapRegion"].OnEvent("Click", (*) => MediaUI_MapRegion())
     g_MediaCtl["mapImg"].OnEvent("Click", (*) => MediaUI_MapImage())
     ; Selecting a region flashes it on screen - a "playback" to validate the map.
@@ -114,6 +127,8 @@ MediaIntel_BuildTab(g) {
 
     MediaUI_RefreshFfLine()
     MediaUI_RefreshJobs()
+    MediaUI_RefreshWindows()
+    MediaUI_RefreshMonitors()
 }
 
 ; ─────────────────────────────────────────────────────────────────────────────
@@ -359,16 +374,84 @@ MediaUI_OpenResult(path) {
 }
 
 ; ── environment intelligence handlers ────────────────────────────────────────
-MediaUI_MapActive() {
-    hwnd := Env_TargetWindow()
-    if !hwnd {
-        MediaUI_EnvStatus("No external window seen yet - click the target window once, then retry (or use Ctrl+Shift+9 while on it)")
+; Enumerate all open top-level windows (excluding this app) into the dropdown.
+MediaUI_RefreshWindows() {
+    global g_MediaCtl, g_MediaWinList
+    g_MediaWinList := []
+    items := []
+    myPid := DllCall("GetCurrentProcessId", "UInt")
+    for hwnd in WinGetList() {
+        t := ""
+        try t := WinGetTitle("ahk_id " . hwnd)
+        if (t = "")
+            continue
+        if !DllCall("IsWindowVisible", "Ptr", hwnd)
+            continue
+        pid := 0
+        try pid := WinGetPID("ahk_id " . hwnd)
+        if (pid = myPid)
+            continue
+        exe := ""
+        try exe := WinGetProcessName("ahk_id " . hwnd)
+        g_MediaWinList.Push(Map("hwnd", hwnd, "title", t, "exe", exe))
+        items.Push(SubStr(t, 1, 64) . (exe != "" ? "  [" . exe . "]" : ""))
+    }
+    dd := g_MediaCtl["winDD"]
+    dd.Delete()
+    if items.Length {
+        dd.Add(items)
+        dd.Choose(1)
+    }
+    MediaUI_EnvStatus(g_MediaWinList.Length . " open window(s) - pick one and Map window")
+}
+
+MediaUI_MapSelectedWindow() {
+    global g_MediaCtl, g_MediaWinList
+    idx := g_MediaCtl["winDD"].Value
+    if (!idx || idx > g_MediaWinList.Length) {
+        MediaUI_EnvStatus("Pick a window from the dropdown (R refreshes the list)")
         return
     }
-    t := ""
-    try t := WinGetTitle("ahk_id " . hwnd)
-    MediaUI_EnvStatus("Mapping: " . SubStr(t, 1, 80))
-    MediaUI_ShowMap(Env_MapWindow(hwnd))
+    w := g_MediaWinList[idx]
+    if !WinExist("ahk_id " . w["hwnd"]) {
+        MediaUI_EnvStatus("That window has closed - press R to refresh")
+        return
+    }
+    MediaUI_EnvStatus("Mapping window: " . SubStr(w["title"], 1, 60))
+    MediaUI_ShowMap(Env_MapWindow(w["hwnd"]))
+}
+
+; List monitors (with size/primary) into the dropdown.
+MediaUI_RefreshMonitors() {
+    global g_MediaCtl, g_MediaMonList
+    g_MediaMonList := []
+    items := []
+    cnt := MonitorGetCount()
+    primary := MonitorGetPrimary()
+    Loop cnt {
+        n := A_Index
+        MonitorGet(n, &l, &t, &r, &b)
+        g_MediaMonList.Push(Map("x", l, "y", t, "w", r - l, "h", b - t))
+        items.Push("Monitor " . n . (n = primary ? " (primary)" : "") . "  " . (r - l) . "x" . (b - t))
+    }
+    dd := g_MediaCtl["monDD"]
+    dd.Delete()
+    if items.Length {
+        dd.Add(items)
+        dd.Choose(primary >= 1 ? primary : 1)
+    }
+}
+
+MediaUI_MapMonitor() {
+    global g_MediaCtl, g_MediaMonList
+    idx := g_MediaCtl["monDD"].Value
+    if (!idx || idx > g_MediaMonList.Length) {
+        MediaUI_EnvStatus("Pick a monitor")
+        return
+    }
+    m := g_MediaMonList[idx]
+    MediaUI_EnvStatus("Mapping monitor " . idx . " (" . m["w"] . "x" . m["h"] . ")...")
+    MediaUI_ShowMap(Env_MapRegion(Map("x", m["x"], "y", m["y"], "w", m["w"], "h", m["h"])))
 }
 
 MediaUI_MapRegion() {

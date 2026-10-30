@@ -107,12 +107,15 @@ Media_ResolveExe(name, settingKey) {
     p := Media_GetSetting(settingKey, "")
     if (p != "" && FileExist(p))
         return p
-    ; 2. common install locations
+    ; 2. common install locations, modern builds FIRST. The ffmpeg in
+    ; %LOCALAPPDATA%\Python\bin on this machine is an ancient 2013 build that
+    ; rejects modern codecs/options, so Chocolatey's current build is preferred.
     cands := [
-        EnvGet("LOCALAPPDATA") . "\Python\bin\" . name . ".exe",
-        A_AppData . "\..\Local\Python\bin\" . name . ".exe",
+        "C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\" . name . ".exe",
+        "C:\ProgramData\chocolatey\bin\" . name . ".exe",
         "C:\ffmpeg\bin\" . name . ".exe",
-        A_ProgramFiles . "\ffmpeg\bin\" . name . ".exe" ]
+        A_ProgramFiles . "\ffmpeg\bin\" . name . ".exe",
+        EnvGet("LOCALAPPDATA") . "\Python\bin\" . name . ".exe" ]
     for , c in cands
         if (c != "" && FileExist(c))
             return c
