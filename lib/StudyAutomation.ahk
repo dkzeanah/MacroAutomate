@@ -555,9 +555,21 @@ StudyPercept_IsControl(el, i?, depth?) {
 ;   kind, role, name, value, x, y, w, h, stateText, checked, protected
 StudyPercept_Walk() {
     global g_StudyPin
+    static lastLog := 0
     out := []
     if !g_StudyPin["hwnd"]
         return out
+    ; If the pinned window is gone, stop chasing a dead accessibility tree —
+    ; otherwise the walk throws a COM failure (0x80004005) on every poll and
+    ; floods the log. Clear the pin once and bail.
+    if !WinExist("ahk_id " . g_StudyPin["hwnd"]) {
+        if (A_TickCount - lastLog > 60000) {
+            lastLog := A_TickCount
+            LogErrorToFile("Pinned window closed; clearing Live Portal pin", "caught (throttled)", "StudyPercept_Walk")
+        }
+        StudyAuto_Unpin()
+        return out
+    }
     try {
         root := StudyAuto_Document()
         els := root.FindElements(StudyPercept_IsControl, 4, 0, 30)
@@ -597,7 +609,13 @@ StudyPercept_Walk() {
             }
         }
     } catch as err {
-        LogErrorToFile(err, "caught", "StudyPercept_Walk")
+        ; Walking a live accessibility tree routinely hits elements that vanish
+        ; mid-walk (COM 0x80004005). That is expected transient noise, not a
+        ; fault - log at most once a minute so it cannot flood the error log.
+        if (A_TickCount - lastLog > 60000) {
+            lastLog := A_TickCount
+            LogErrorToFile(err, "caught (throttled)", "StudyPercept_Walk")
+        }
     }
     return out
 }

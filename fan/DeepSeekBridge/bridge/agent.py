@@ -17,6 +17,13 @@ FUNCTIONS = catalog.functions()
 SYSTEM = '''You are the unified Fan/Macro Automator DeepSeek agent. Conversation, UI examination,
 script authoring/execution, and native workflow automation are available in this one conversation.
 DAA means you plus the local pre-LLM executor, memory, saved AHK tools and Python automation units.
+You may receive an execution task delegated by DeepSeek Harness on localhost:3080.
+For code, start with context_map_overview and context_map_pack, then context_map_get for
+missing exact source. Do not recursively read directories as the default strategy.
+For media/React motion graphics, discover cutline_capabilities, submit remotion.render or other
+methods through cutline_job_submit, and inspect real status/results. React sources live in
+avideditor/projects/motion-studio. Rendering an existing composition needs no additional model.
+Do not call fan_agent_submit again; execute the delegated task using your own tools.
 Composing a saved unit is structured data composition, not new AHK code authoring: use the advertised
 UnitStep schema directly. Its fields are id, tool, arguments, expect, branch and note; source pins are
 added by the executor. For stdout use expect={"stdout":{"contains":"a verified marker"}} rather than
@@ -299,9 +306,11 @@ def run_prompt(prompt: str, max_turns: int | None = None, task_id: str | None = 
             answer = 'Could not resolve the learned taskbar target: '+observed.get('error','unknown result')+'. Use Learn visible taskbar if it needs updating.'
         db_write('agent_answer',task_id,{'task_id':task_id,'text':answer,'source':'local_saved_unit' if direct['name']=='daa_unit_run' else 'stored_procedure' if direct['name'] in ('fan_learning_rehearse','ahk_script_run') else 'native_taskbar_evidence','llm_calls':0})
         return LocalAnswer(answer, observed.get('ok') == True)
-    key = os.getenv('DEEPSEEK_API_KEY', '')
+    from .credentials import resolve
+    key, _key_source = resolve()
     if not key:
         raise RuntimeError('Save a DeepSeek API key in Fan, then restart bridge services.')
+    os.environ['DEEPSEEK_API_KEY'] = key
     # Accept historical mode arguments; they never change tool availability.
     client = OpenAI(api_key=key, base_url=os.getenv('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'), timeout=180)
     preknowledge = reuse.pre_context(prompt) if allowed_tools is None else ''

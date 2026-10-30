@@ -453,6 +453,13 @@ TOOLS.update({
     'daa_cue': (TourCue, 'Show a narration cue in the native workbench; pause briefly or wait for the operator Continue tour button. Cancels/timeouts stop the workflow. Does not start OBS, record audio, or speak on the user\'s behalf.'),
 })
 
+from .cutline import TOOL_DEFINITIONS as CUTLINE_TOOL_DEFINITIONS
+TOOLS.update(CUTLINE_TOOL_DEFINITIONS)
+from .delegation import TOOL_DEFINITIONS as DELEGATION_TOOL_DEFINITIONS
+from .atlas_tools import TOOL_DEFINITIONS as ATLAS_TOOL_DEFINITIONS
+TOOLS.update(DELEGATION_TOOL_DEFINITIONS)
+TOOLS.update(ATLAS_TOOL_DEFINITIONS)
+
 FAN_TOOLS = {name for name in TOOLS if name.startswith('fan_')}
 LOCAL_PAGE_TOOLS = {'fan_page_learn', 'fan_page_probe', 'fan_page_list', 'fan_page_get', 'fan_page_resolve', 'fan_page_image'}
 LOCAL_JOB_TOOLS = {name for name in TOOLS if name.startswith('fan_job_')}
@@ -467,6 +474,8 @@ def functions() -> list[dict]:
     from .job_sharing import enabled
     share_jobs = enabled()
     for name, (model, description) in TOOLS.items():
+        if name == 'fan_agent_submit':
+            continue
         if name in LOCAL_PAGE_TOOLS | LOCAL_JOB_TOOLS and not (share_jobs and name in APPROVED_JOB_TOOLS):
             continue
         schema = model.model_json_schema()

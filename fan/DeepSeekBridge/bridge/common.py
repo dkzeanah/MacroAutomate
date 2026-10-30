@@ -50,7 +50,9 @@ def read_app_document(project: Path, relative: str, limit: int = 7500) -> str:
 
 def request_tool(name: str, args: dict, timeout: float | None = None, task_id: str | None = None, origin: str = '') -> dict:
     if timeout is None:
-        timeout = (args.get('timeout_seconds', 600) + 15 if name in ('daa_unit_run', 'daa_cue') else
+        timeout = (135 if name in ('context_map_overview', 'context_map_pack') else
+                   args.get('timeout', 120) + 15 if name.startswith('cutline_') else
+                   args.get('timeout_seconds', 600) + 15 if name in ('daa_unit_run', 'daa_cue') else
                    600 if name == 'daa_explore' else 110 if name in ('fan_window_menu', 'fan_window_probe_item') else
                    180 if name == 'fan_window_learn' else 110 if name == 'fan_window_survey' else 270 if name == 'fan_taskbar_learn' else 110 if name == 'fan_taskbar_open' else 40)
     """Call the local gateway from an MCP tool or CLI."""

@@ -12,7 +12,9 @@ mcp = FastMCP('fan-windows-automation')
 def proxy(name: str, model, description: str):
     def invoke(**arguments) -> dict:
         args = validate(name, arguments)
-        timeout = args.get('timeout_seconds', 60) + 15 if name in ('ahk_script_run', 'fan_workflow_run') else 40
+        timeout = (135 if name in ('context_map_overview', 'context_map_pack') else
+                   args.get('timeout', 120) + 15 if name.startswith('cutline_') else
+                   args.get('timeout_seconds', 60) + 15 if name in ('ahk_script_run', 'fan_workflow_run') else 40)
         if name in ('fan_taskbar_learn', 'fan_taskbar_open'):
             timeout = 270 if name == 'fan_taskbar_learn' else 110
         return request_tool(name, args, timeout=timeout)

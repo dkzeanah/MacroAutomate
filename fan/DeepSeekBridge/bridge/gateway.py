@@ -249,6 +249,25 @@ def _tools(name: str, args: dict, x_bridge_token=None, x_bridge_task=None, x_bri
             return result
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
+    if name in ('context_map_overview', 'context_map_pack', 'context_map_compare'):
+        from .atlas_tools import dispatch
+        return dispatch(name, args)
+    if name.startswith('fan_agent_'):
+        from .delegation import dispatch
+        try:
+            return dispatch(name, args, x_bridge_token, x_bridge_task)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if name.startswith('cutline_'):
+        from .cutline import dispatch
+        db_write('tool_requested', name, {'task_id': x_bridge_task or '', 'origin': 'cutline_api'})
+        try:
+            result = dispatch(name, args)
+        except (ValueError, OSError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        db_write('tool_result', name, {'task_id': x_bridge_task or '',
+                 'status': result.get('status', ''), 'job_id': result.get('id', '')})
+        return result
     if name in SCRIPT_TOOLS:
         if x_bridge_task and name=='ahk_script_run' and args.get('inputs',{}).get('hwnd'):
             prepared=tools('fan_window_prepare',{'hwnd':args['inputs']['hwnd']},x_bridge_token,x_bridge_task,x_bridge_run)

@@ -172,6 +172,9 @@ CoordMode("ToolTip", "Screen") ; Tooltip positioning relative to screen
 ; Live accumulated-knowledge dashboard (reads the one unified DB) + on-screen
 ; playback; also persists EnvIntel feature maps so they accumulate.
 #Include ..\lib\KnowledgeDash.ahk
+; Workflow Scribe: visual capture of element interactions as frame "playbacks",
+; with DeepSeek reasoning and cross-window chains. Ctrl+Shift+R toggles recording.
+#Include ..\lib\Scribe.ahk
 #Include ..\lib\DeepSeekActivity.ahk
 #Include ..\lib\DeepSeekBridge.ahk
 #Include ..\lib\FanDataMaintenance.ahk
@@ -258,6 +261,7 @@ OnExit(Study_OnExit)
 #Include Tabs\Tab_20_DeepSeekBridge.ahk
 #Include Tabs\Tab_21_MediaIntel.ahk
 #Include Tabs\Tab_22_Knowledge.ahk
+#Include Tabs\Tab_23_Scribe.ahk
 #Include ..\lib\FanHarness.ahk
 #Include ..\lib\LearningProcedure.ahk
 
@@ -290,7 +294,7 @@ MainGui.Add("Button", "x400 y2 w50 h20 cRed", "ABORT").OnEvent("Click", (*) => (
 ; calendar section below already called TabCtrl.UseTab(12) - which left that UI
 ; attached to a tab that did not exist, so it never rendered. Declaring it here
 ; restores it. "Tracking" (tab 13) is the behavior-tracking subsystem.
-TabCtrl := MainGui.Add("Tab3", "x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking", "App Learner", "Snapshot Recovery", "Vision Scout", "Usage Predictor", "Study Assistant", "Live Portal", "DeepSeek Bridge", "Media Intel", "Knowledge"])
+TabCtrl := MainGui.Add("Tab3", "x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking", "App Learner", "Snapshot Recovery", "Vision Scout", "Usage Predictor", "Study Assistant", "Live Portal", "DeepSeek Bridge", "Media Intel", "Knowledge", "Scribe"])
 
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; TAB 1: WORKFLOW
@@ -332,6 +336,7 @@ Tab_PortalAssist_Build()
 Tab_DeepSeekBridge_Build()
 Tab_MediaIntel_Build()
 Tab_Knowledge_Build()
+Tab_Scribe_Build()
 TabCtrl.UseTab(0)
 
 ; Initialize the workflow tab for the first action (button visibility, hints,
@@ -446,6 +451,7 @@ Escape::DefModeCancel
 ^+7::WinModel_OpenPanel()  ; window structure map for a learned app
 ^+8::Study_UiReviewNow()  ; spaced review: surface the next due question card
 ^+9::Env_HotMapActive()   ; OCR feature map of the active window -> JSON (clipboard + file)
+^+r::Scribe_Toggle()      ; Workflow Scribe: start/stop recording element interactions
 ; Live Portal (real-time study assistant): watch the pinned Chrome portal tab
 ; and answer the question on screen (observe/suggest/fill/submit per mode).
 ^+y::StudyLive_ToggleSession()

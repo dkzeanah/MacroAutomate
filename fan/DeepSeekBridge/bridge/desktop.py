@@ -74,6 +74,10 @@ def main() -> None:
         return
     ensure_config()
     load_dotenv(ROOT / '.env')
+    from .credentials import resolve
+    resolved_key, _key_source = resolve()
+    if resolved_key:
+        os.environ['DEEPSEEK_API_KEY'] = resolved_key
     os.environ['ALLOW_AGENT_SCRIPTS'] = '1'
     stop = RUNTIME / 'stop'
     stop.unlink(missing_ok=True)
@@ -118,7 +122,7 @@ def main() -> None:
         child_env = os.environ.copy()
         child_env['PYTHONPATH'] = str(Path(sys.prefix) / 'Lib' / 'site-packages') + os.pathsep + str(ROOT)
         commands = {
-            'gateway': [python, '-m', 'uvicorn', 'bridge.gateway:app', '--host', '127.0.0.1', '--port', os.getenv('BRIDGE_PORT', '8765')],
+            'gateway': [python, '-m', 'bridge'],
             'observatory': [python, '-m', 'bridge.monitor'],
             'agent': [python, '-m', 'bridge.agent', '--daemon'],
             'worker': [os.environ['AUTOHOTKEY_EXE'], '/ErrorStdOut', str(ROOT / 'ahk' / 'Worker.ahk')],

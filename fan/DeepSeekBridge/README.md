@@ -1,5 +1,10 @@
 # DeepSeek Harness ↔ AutoHotkey v2 Bridge
 
+**Live Harness + avideditor connection:** run `../Connect_DeepSeek_Cutline.ps1`.
+It preserves the active web profile and connects the existing automation tools
+plus Cutline media, knowledge, presenter and motion graphics APIs. See
+[DEEPSEEK_CUTLINE.md](../DEEPSEEK_CUTLINE.md) for startup and live verification.
+
 Bidirectional Windows automation using **official DeepSeek Harness**, **DeepSeek V4 Pro**, AutoHotkey v2, a loopback Python gateway, SQLite, and an MCP stdio server.
 
 ## Components

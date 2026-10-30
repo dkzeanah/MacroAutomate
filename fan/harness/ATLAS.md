@@ -1,6 +1,6 @@
 # ATLAS
 
-spec 1.0 | 137 projects | 17 buckets | 327926 symbols | 4877091 lines | built 2026-10-18 03:59
+spec 1.0 | 137 projects | 17 buckets | 327926 symbols | 4877091 lines | built 2026-10-27 08:25
 
 This is tier 0. It is the only file you must always read.
 Pick a bucket, then read that project's `INDEX.md`, then fetch slices by address. Do not open source files.
@@ -232,4 +232,4 @@ When a request does not name a project, resolve it against pinned and high-prior
 1. `@media/avideditor` (p85, 2104 symbols) -- manual override
 1. `@agent/a-llm-harness-custom` (p83, 3916 symbols) -- manual override
 
-Workspace root: `.`
+Workspace root: `C:\Users\Don\Desktop\aAutomateMacro\fan\harness`

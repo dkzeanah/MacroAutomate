@@ -87,9 +87,21 @@ LogUnhandledError(thrown, mode) {
     global ERROR_LOG_FILE
     LogErrorToFile(thrown, mode, "Unhandled AutoHotkey runtime error")
     try ShowNotificationBasic("Macro Automator Error",
-        "The error was written to:`n" . ERROR_LOG_FILE . "`n`nUse Open Error Log to review or share it.",
+        "The error was written to:`n" . ERROR_LOG_FILE . "`n`nOpening the error log now.",
         0, "error")
+    ; Auto-open the error log whenever a red error notification fires, so the
+    ; failure is immediately visible instead of requiring a manual "Open Error
+    ; Log" click. Throttled so a burst of errors opens one editor, not many.
+    AutoOpenErrorLog()
     return true
+}
+
+AutoOpenErrorLog() {
+    static lastOpen := 0
+    if (A_TickCount - lastOpen < 30000)
+        return
+    lastOpen := A_TickCount
+    try OpenErrorLog()
 }
 
 OpenErrorLog(*) {

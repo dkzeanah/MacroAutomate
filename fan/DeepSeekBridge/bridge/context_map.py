@@ -3,14 +3,18 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from .common import ROOT
 
 
 def dispatch(name: str, args: dict) -> dict:
-    workspace = Path(os.getenv('FAN_CONTEXT_WORKSPACE', str(ROOT.parent / 'harness')))
+    maintained = Path(os.getenv('CUTLINE_ROOT', str(ROOT.parents[2] / 'avideditor'))) / 'projects' / 'harness'
+    workspace = Path(os.getenv('FAN_CONTEXT_WORKSPACE', str(maintained if maintained.is_dir() else ROOT.parent / 'harness')))
     interpreter = workspace / '.venv' / 'Scripts' / 'python.exe'
-    if not interpreter.is_file() or not (workspace / '.atlas' / 'atlas.sqlite3').is_file():
+    if not interpreter.is_file():
+        interpreter = Path(sys.executable)
+    if not (workspace / '.atlas' / 'atlas.sqlite3').is_file():
         return {'ok': False, 'error': 'The local Atlas workspace is not indexed or its Python interpreter is unavailable.'}
     if name == 'context_map_find':
         command = ['find', args['query']]
