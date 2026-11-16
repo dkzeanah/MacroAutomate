@@ -1,5 +1,9 @@
 # fan — Combined Multi-File Build of Macro Automator v9
 
+Start with the [task workspace guide](TASK_WORKSPACE.md): seven task groups,
+guided collection workflows, contextual instructions, and a common evidence
+review page. All 23 original tools remain available through the task selectors.
+
 The [Learning Workbench guide](EVIDENCE_LEARNING.md) explains evidence-backed
 claims, generated lessons and sequence rehearsals, randomized background replay,
 and Ctrl+right-drag movement for secondary windows. Open it from the tray or
