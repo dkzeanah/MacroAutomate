@@ -17,6 +17,12 @@ m::DefModeMenuSelect
 Escape::DefModeCancel
 #HotIf
 
+; Inside the main GUI, Tab navigates pages instead of individual fields.
+#HotIf IsSet(MainGui) && WinActive("ahk_id " . MainGui.Hwnd)
+Tab::FanNav_Cycle(1)
++Tab::FanNav_Cycle(-1)
+#HotIf
+
 ^+g:: {
     global g_GuiVisible, MainGui
     g_GuiVisible := !g_GuiVisible

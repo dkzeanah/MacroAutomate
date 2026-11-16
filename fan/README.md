@@ -1,8 +1,9 @@
 # fan — Combined Multi-File Build of Macro Automator v9
 
-Start with the [task workspace guide](TASK_WORKSPACE.md): seven task groups,
-guided collection workflows, contextual instructions, and a common evidence
-review page. All 23 original tools remain available through the task selectors.
+Start with the [interface guide](TASK_WORKSPACE.md). Original tabs is the default;
+only the related learner and study pages share tabs. **Settings > Interface**
+switches to the optional clean task workspace and back. All 23 original tools
+remain available, with their existing controls and shared evidence review.
 
 The [Learning Workbench guide](EVIDENCE_LEARNING.md) explains evidence-backed
 claims, generated lessons and sequence rehearsals, randomized background replay,

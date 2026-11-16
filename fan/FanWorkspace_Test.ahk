@@ -52,9 +52,42 @@ try {
         else {
             TabCtrl.UseTab(A_Index)
             MainGui.Add("Text", "x20 y70 w800", FanNav_Pages()[A_Index][2])
+            if A_Index = 10
+                FanNav_SettingsBuild()
         }
     }
     FanHome_Build(), FanNav_Init()
+    Check(g_FanNav["mode"] = "classic" && TabCtrl.Value = 1, "original tabbed interface and Workflow are the default")
+    FanNav_Cycle(1)
+    Check(TabCtrl.Value = 2, "Tab advances to the next original tab")
+    FanNav_Cycle(-1)
+    Check(TabCtrl.Value = 1, "Shift+Tab returns to the previous original tab")
+    FanNav_Cycle(-1)
+    Check(TabCtrl.Value = 23, "Shift+Tab wraps from the first tab to the last")
+    FanNav_Cycle(1)
+    Check(TabCtrl.Value = 1, "Tab wraps from the last tab to the first")
+    Check(g_FanNav["classicTabs"].Visible && !g_FanNav["group"].Visible, "classic mode shows real tabs and hides clean selectors")
+    members := Map()
+    for group in FanNav_ClassicGroups()
+        for page in group[2] {
+            Check(!members.Has(page), "original page " . page . " has one classic tab")
+            members[page] := true
+        }
+    Check(members.Count = 23 && FanNav_ClassicGroups().Length = 20, "only learners and study pages are consolidated; all 23 tools remain")
+    FanNav_Open(16)
+    Check(g_FanNav["classicTabs"].Text = "App Learning" && g_FanNav["section"].Text = "Vision Scout", "Vision Scout is available inside the combined learning tab")
+    g_FanNav["section"].Choose(3), FanNav_SectionChanged()
+    Check(TabCtrl.Value = 17, "combined learning selector opens Usage Predictor")
+    FanNav_Open(19)
+    Check(g_FanNav["classicTabs"].Text = "Study" && g_FanNav["section"].Text = "Live Portal", "Live Portal is available inside the combined Study tab")
+    FanNav_Open(10), FanNav_SetMode("clean")
+    Check(TabCtrl.Value = 10 && g_FanNav["modeSetting"].Value = 2, "switching to clean keeps Settings open")
+    Check(FanData_Config(true).Get("interface_mode", "") = "clean", "clean interface preference persists")
+    Check(!g_FanNav["classicTabs"].Visible && g_FanNav["group"].Visible, "clean mode hides tabs and shows task navigation")
+    FanNav_Open(24), FanNav_Cycle(1)
+    Check(TabCtrl.Value = 1, "Tab also advances through the optional clean view")
+    FanNav_Cycle(-1)
+    Check(TabCtrl.Value = 24, "Shift+Tab returns to the clean overview")
     seen := Map()
     for group in FanNav_Groups()
         for page in group["pages"] {
@@ -79,13 +112,17 @@ try {
     before := g_KnowCtl["viewer"].Value
     Know_UiRefresh(false)
     Check(g_KnowCtl["viewer"].Value = before && g_KnowCtl["detail"].GetNext() = 1, "background inventory refresh preserves the inspected record")
+    controlId := g_KnowCtl["viewer"].Hwnd
+    FanNav_SetMode("classic")
+    Check(TabCtrl.Value = 22 && g_KnowCtl["viewer"].Hwnd = controlId && g_KnowCtl["viewer"].Value = before, "returning to tabs preserves the page and in-progress record review")
+    Check(FanData_Config(true).Get("interface_mode", "") = "classic", "original interface preference persists")
+    FanNav_SetMode("clean"), FanNav_Open(24), FanNav_SetMode("classic")
+    Check(TabCtrl.Value = 1, "leaving clean overview returns to the original Workflow tab")
     g_KnowCtl["search"].Value := "", Know_UiFilter()
-    FanNav_Open(24)
+    FanNav_Open(10)
     FileAppend("RESULT failures=" . failures . "`n", "*")
-    if A_Args.Length && A_Args[1] = "--preview" {
-        MainGui.OnEvent("Close", (*) => ExitApp())
-        MainGui.Show("w920 h780")
-    } else
-        ExitApp(failures ? 1 : 0)
+    ; Fixture pages intentionally contain placeholders. Never display this
+    ; window as an app preview; FanGui_Test builds the actual tool controls.
+    ExitApp(failures ? 1 : 0)
 } catch as err
     TestError(err)

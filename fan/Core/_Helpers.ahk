@@ -1008,6 +1008,7 @@ GuiResize(thisGui, minMax, w, h) {
     if minMax = -1
         return
     try TabCtrl.Move(, , w - 10, h - 75)
+    try FanNav_Resize(w)
     ; Tabs that lay themselves out dynamically get told the new size.
     try SnapRec_Layout(w - 20, h - 110)
     ; Tabs that were laid out by hand get the inferred anchor treatment.

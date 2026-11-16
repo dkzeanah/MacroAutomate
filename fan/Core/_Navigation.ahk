@@ -1,5 +1,29 @@
-; Task navigation over the existing page IDs. IDs are also used by IPC and hotkeys.
-global g_FanNav := Map("controls", [], "current", 0)
+﻿; Task navigation over the existing page IDs. IDs are also used by IPC and hotkeys.
+global g_FanNav := Map("controls", [], "current", 0, "mode", "classic", "classicLast", Map())
+
+FanNav_ClassicGroups() {
+    ; Only closely related tools share a tab; all original pages keep their IDs.
+    return [
+        ["Workflow", [1]], ["Patterns", [2]], ["Live OCR", [3]],
+        ["Spools", [4]], ["Analytics", [5]], ["Clipboard", [6]],
+        ["Hotkeys", [7]], ["Hotstrings", [8]], ["Triggers", [9]],
+        ["Settings", [10]], ["Notepad", [11]], ["Calendar", [12]],
+        ["Tracking", [13]], ["App Learning", [14, 16, 17]],
+        ["Snapshot Recovery", [15]], ["Study", [18, 19]],
+        ["DeepSeek Bridge", [20]], ["Media Intel", [21]],
+        ["Knowledge", [22]], ["Scribe", [23]]]
+}
+
+FanNav_ClassicPageName(page) {
+    switch page {
+        case 14: return "App Learner"
+        case 16: return "Vision Scout"
+        case 17: return "Usage Predictor"
+        case 18: return "Study Assistant"
+        case 19: return "Live Portal"
+        default: return FanNav_Pages()[page][1]
+    }
+}
 
 FanNav_Groups() {
     return [Map("name", "Start", "pages", [24]),
@@ -55,13 +79,144 @@ FanNav_Init() {
     g_FanNav["page"].OnEvent("Change", FanNav_PageChanged)
     ; Keep the native page container and its IDs, but replace its crowded strip.
     ; TCS_BUTTONS | TCS_FIXEDWIDTH, single line; TCM_SETITEMSIZE = 1 x 1 px.
-    TabCtrl.Opt("-Wrap +0x500")
+    ; The page container must clip siblings so its dialog cannot paint over
+    ; either navigation header when the real, densely populated pages redraw.
+    TabCtrl.Opt("-Wrap +0x500 +0x4000000")
     SendMessage(0x1329, 0, 0x10001, TabCtrl)
-    MainGui.Add("Button", "x460 y2 w75 h21", "Start here").OnEvent("Click", (*) => FanNav_Open(24))
-    MainGui.Add("Button", "x540 y2 w105 h21", "How to use this").OnEvent("Click", FanNav_Help)
-    MainGui.Add("Button", "x650 y2 w115 h21", "Review evidence").OnEvent("Click", (*) => FanNav_Open(22))
+    g_FanNav["start"] := MainGui.Add("Button", "x460 y2 w75 h21", "Start here")
+    g_FanNav["start"].OnEvent("Click", (*) => FanNav_Open(24))
+    g_FanNav["helpButton"] := MainGui.Add("Button", "x540 y2 w105 h21", "How to use this")
+    g_FanNav["helpButton"].OnEvent("Click", FanNav_Help)
+    g_FanNav["reviewButton"] := MainGui.Add("Button", "x650 y2 w115 h21", "Review evidence")
+    g_FanNav["reviewButton"].OnEvent("Click", (*) => FanNav_Open(22))
+    titles := []
+    for group in FanNav_ClassicGroups()
+        titles.Push(group[1])
+    ; A header-only tab strip selects the stable native page container below.
+    ; It owns no page controls, so switching interface never rebuilds a tool.
+    g_FanNav["classicTabs"] := MainGui.Add("Tab", "x5 y24 w890 h27 -Wrap", titles)
+    g_FanNav["classicTabs"].UseTab(0)
+    g_FanNav["classicTabs"].OnEvent("Change", FanNav_ClassicChanged)
+    g_FanNav["sectionLabel"] := MainGui.Add("Text", "x460 y5 w50 h18", "View:")
+    g_FanNav["section"] := MainGui.Add("DropDownList", "x510 y2 w255", [])
+    g_FanNav["section"].OnEvent("Change", FanNav_SectionChanged)
+    for key in ["start", "helpButton", "reviewButton", "classicTabs", "sectionLabel", "section"]
+        g_FanNav["controls"].Push(g_FanNav[key])
     SetTimer(FanNav_Sync, 250)
-    FanNav_Open(24)
+    FanNav_SetMode(FanData_Config().Get("interface_mode", "classic"), false)
+}
+
+FanNav_SetMode(mode, persist := true) {
+    global g_FanNav, MainGui, TabCtrl
+    mode := mode = "clean" ? "clean" : "classic"
+    if persist {
+        config := FanData_Config()
+        config["interface_mode"] := mode
+        FanData_SaveConfig(config)
+    }
+    g_FanNav["mode"] := mode
+    for key in ["group", "page", "hint", "start", "helpButton", "reviewButton"]
+        g_FanNav[key].Visible := mode = "clean"
+    g_FanNav["classicTabs"].Visible := mode = "classic"
+    if g_FanNav.Has("modeSetting")
+        g_FanNav["modeSetting"].Choose(mode = "clean" ? 2 : 1)
+    MainGui.Title := mode = "clean" ? "Macro Automator - task workspace" : "Macro Automator - tabbed workspace"
+    if mode = "classic" && TabCtrl.Value = 24
+        TabCtrl.Choose(1)
+    else if mode = "clean" && !g_FanNav["current"]
+        TabCtrl.Choose(24)
+    g_FanNav["current"] := 0
+    FanNav_Sync()
+}
+
+FanNav_SettingsBuild() {
+    global g_FanNav, MainGui
+    MainGui.Add("Text", "x300 y469 w55 h18", "Interface:")
+    g_FanNav["modeSetting"] := MainGui.Add("DropDownList", "x360 y465 w270", ["Original tabs", "Clean task workspace"])
+    g_FanNav["modeSetting"].Choose(FanData_Config().Get("interface_mode", "classic") = "clean" ? 2 : 1)
+    g_FanNav["modeSetting"].OnEvent("Change", (ctl, *) => FanNav_SetMode(ctl.Value = 2 ? "clean" : "classic"))
+    MainGui.Add("Text", "x300 y491 w570 h14 cGray", "Switches immediately and is remembered. Both views use the same tools and data.")
+}
+
+FanNav_ClassicChanged(*) {
+    global g_FanNav
+    index := g_FanNav["classicTabs"].Value
+    group := FanNav_ClassicGroups()[index]
+    FanNav_Open(g_FanNav["classicLast"].Get(index, group[2][1]))
+}
+
+FanNav_SectionChanged(*) {
+    global g_FanNav
+    group := FanNav_ClassicGroups()[g_FanNav["classicTabs"].Value]
+    if g_FanNav["section"].Value
+        FanNav_Open(group[2][g_FanNav["section"].Value])
+}
+
+FanNav_SyncClassic(page) {
+    global g_FanNav
+    for index, group in FanNav_ClassicGroups() {
+        for section, id in group[2] {
+            if id != page
+                continue
+            g_FanNav["classicTabs"].Choose(index)
+            g_FanNav["classicLast"][index] := page
+            names := []
+            for member in group[2]
+                names.Push(FanNav_ClassicPageName(member))
+            g_FanNav["section"].Delete(), g_FanNav["section"].Add(names)
+            g_FanNav["section"].Choose(section)
+            showSections := g_FanNav["mode"] = "classic" && group[2].Length > 1
+            g_FanNav["section"].Visible := showSections
+            g_FanNav["sectionLabel"].Visible := showSections
+            return
+        }
+    }
+    g_FanNav["section"].Visible := false
+    g_FanNav["sectionLabel"].Visible := false
+}
+
+FanNav_Resize(width) {
+    global g_FanNav
+    if g_FanNav.Has("classicTabs")
+        g_FanNav["classicTabs"].Move(, , width - 10)
+    FanNav_Raise()
+}
+
+FanNav_Raise() {
+    global g_FanNav
+    ; Specialist pages can repaint their page dialog after Show/Size. Restore
+    ; navigation above that dialog even when the selected page has not changed.
+    for ctl in g_FanNav["controls"] {
+        if ctl.Visible
+            DllCall("SetWindowPos", "Ptr", ctl.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x13)
+    }
+    if g_FanNav["mode"] = "classic" && g_FanNav.Has("classicTabs")
+        DllCall("RedrawWindow", "Ptr", g_FanNav["classicTabs"].Hwnd, "Ptr", 0, "Ptr", 0, "UInt", 0x105)
+
+}
+
+FanNav_Cycle(direction) {
+    global g_FanNav, TabCtrl
+    if g_FanNav["mode"] = "classic" {
+        count := FanNav_ClassicGroups().Length
+        next := Mod(g_FanNav["classicTabs"].Value - 1 + direction + count, count) + 1
+        g_FanNav["classicTabs"].Choose(next)
+        FanNav_ClassicChanged()
+        g_FanNav["classicTabs"].Focus()
+        return
+    }
+    pages := []
+    for group in FanNav_Groups()
+        for page in group["pages"]
+            pages.Push(page)
+    for index, page in pages {
+        if page = TabCtrl.Value {
+            next := Mod(index - 1 + direction + pages.Length, pages.Length) + 1
+            FanNav_Open(pages[next])
+            g_FanNav["page"].Focus()
+            return
+        }
+    }
 }
 
 FanNav_Open(page, *) {
@@ -90,8 +245,11 @@ FanNav_PageChanged(*) {
 FanNav_Sync(*) {
     global g_FanNav, TabCtrl
     page := TabCtrl.Value
-    if page = g_FanNav["current"]
+    if page = g_FanNav["current"] {
+        FanNav_Raise()
         return
+    }
+    FanNav_SyncClassic(page)
     for gi, group in FanNav_Groups() {
         for pi, id in group["pages"] {
             if id != page
@@ -106,8 +264,10 @@ FanNav_Sync(*) {
             g_FanNav["current"] := page
             ; Tab3 repaints its page dialog on selection. Keep global navigation
             ; above that dialog rather than letting it cover the selectors.
-            for ctl in g_FanNav["controls"]
-                DllCall("SetWindowPos", "Ptr", ctl.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x13)
+            for ctl in g_FanNav["controls"] {
+                if ctl.Visible
+                    DllCall("SetWindowPos", "Ptr", ctl.Hwnd, "Ptr", 0, "Int", 0, "Int", 0, "Int", 0, "Int", 0, "UInt", 0x13)
+            }
             return
         }
     }

@@ -1,8 +1,24 @@
 # Fan task workspace
 
-Run `fan/MacroAutomator.ahk` using the normal launcher. Start here is the default
-page; `/settings`, `/bridge` and the workbench launch arguments still open their
-requested pages. Existing hotkeys and native IPC page IDs remain compatible.
+Run `fan/MacroAutomator.ahk` using the normal launcher. The original tabbed
+interface opens on Workflow by default. **Settings > Interface** switches between
+**Original tabs** and **Clean task workspace**, immediately and without rebuilding
+the tools. Your choice is remembered across launches. `/settings`, `/bridge` and
+the workbench launch arguments still open their requested pages. Existing
+hotkeys and native IPC page IDs remain compatible.
+
+The tabbed interface retains all 23 original tools under 20 visible tabs. Only
+closely related pages are combined: **App Learning** contains App Learner, Vision
+Scout and Usage Predictor; **Study** contains Study Assistant and Live Portal.
+Use the **View** selector in the top toolbar to choose the page within a combined
+tab. Each combined tab remembers its last selected page during the session.
+Other tabs retain their original names and contents. The tab strip scrolls at
+narrow window widths and expands with the window.
+
+While the main MacroAutomate window is active, **Tab** selects the next tab and
+**Shift+Tab** selects the previous one, wrapping at either end. In the clean view,
+they move through its tool pages. This takes precedence over moving between
+fields in the main window; separate dialogs and other apps keep normal Tab use.
 
 The Desktop **MacroAutomate** shortcut uses **Ctrl+Shift+G** to launch the app
 when closed. The app's existing shortcut shows/hides the window while running.
@@ -13,9 +29,11 @@ On machines where Application Control blocks unsigned compiled applications,
 use `-InstallShortcut -UseInterpreter` to target the installed AutoHotkey runtime
 and the same source instead. No application-control settings are changed.
 
-The first selector chooses a task group; the second chooses a tool. **How to use
-this** explains that tool's purpose and next action. **Review evidence** always
-returns to the common review destination.
+In Clean task workspace, the first selector chooses a task group; the second
+chooses a tool. **How to use this** explains that tool's purpose and next action.
+**Review evidence** always returns to the common review destination. Switching
+interfaces preserves the current tool and unsaved control values; leaving the
+clean Start page for Original tabs returns to Workflow.
 
 | Group | Tools |
 | --- | --- |
@@ -77,8 +95,9 @@ The entry point now lists seven lifecycle fragments in execution order:
 Extraction preserves the original initialization order and uses explicit include
 paths. The existing tab modules still own the specialist controls and handlers.
 
-The shell now organizes all 23 existing tools under seven task groups with a
-shared review workflow. Engines, individual collection switches and database
+The optional clean shell organizes all 23 existing tools under seven task groups
+with a shared review workflow; Original tabs is the default interface. Engines,
+individual collection switches and database
 schemas remain in their existing modules. This is a navigation and evidence
 review refactor, not a replacement of the learner algorithms or proof that
 previously collected data is relevant to a particular task.
@@ -92,8 +111,14 @@ silently approximated by category counts.
 ## Development checks
 
 `FanWorkspace_Test.ahk` uses a temporary SQLite fixture to check every page route,
-claim/evidence identity, negative evidence, content search and refresh behavior.
-Pass `--preview` for the isolated GUI (synthetic data only). The existing
+claim/evidence identity, negative evidence, content search, refresh behavior,
+both interfaces, combined-tab navigation, persistence and preservation of review
+state when switching interfaces. This test never shows its placeholder pages.
+`FanGui_Test.ahk /background` separately constructs the real original tool GUIs
+against a fresh temporary SQLite store, verifies each page's actual controls and
+checks for caught construction errors. It does not start the app's collectors.
+The Git checkout needs the native `sqlite3.dll` in `fan` for this check; the DLL
+is a runtime dependency excluded from Git. The existing
 `LearningWorkbench_Test.ahk` checks the evidence grading and rehearsal behavior.
 Validate the complete entry point with AutoHotkey v2 `/validate`.
 
