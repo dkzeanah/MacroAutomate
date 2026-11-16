@@ -473,6 +473,8 @@ class StudyLLM_StreamWorker {
             NumPut("Ptr", childInput, "Ptr", childOutput, "Ptr", childOutput, startup, inputOffset)
             info := Buffer(A_PtrSize * 2 + 8, 0)
             SplitPath(A_LineFile, , &libraryDir)
+            if A_IsCompiled
+                libraryDir := FanData_ProjectRoot() . "\lib"
             helper := libraryDir . "\StudyStream.ps1"
             if !FileExist(helper)
                 throw Error("Missing streaming worker: " . helper)

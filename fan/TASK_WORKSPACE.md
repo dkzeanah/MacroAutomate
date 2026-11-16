@@ -4,6 +4,15 @@ Run `fan/MacroAutomator.ahk` using the normal launcher. Start here is the defaul
 page; `/settings`, `/bridge` and the workbench launch arguments still open their
 requested pages. Existing hotkeys and native IPC page IDs remain compatible.
 
+The Desktop **MacroAutomate** shortcut uses **Ctrl+Shift+G** to launch the app
+when closed. The app's existing shortcut shows/hides the window while running.
+`Build_Executable.ps1 -InstallShortcut` builds the executable beside the entry
+script and assigns the Desktop shortcut. Keep the executable in `fan`; the
+Python bridge, streaming helper and data remain external runtime dependencies.
+On machines where Application Control blocks unsigned compiled applications,
+use `-InstallShortcut -UseInterpreter` to target the installed AutoHotkey runtime
+and the same source instead. No application-control settings are changed.
+
 The first selector chooses a task group; the second chooses a tool. **How to use
 this** explains that tool's purpose and next action. **Review evidence** always
 returns to the common review destination.

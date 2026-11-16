@@ -200,6 +200,8 @@ FanAPI_DiscoveredTargets(args) {
 }
 
 FanAPI_Repository() {
+    if A_IsCompiled
+        return FanData_ProjectRoot()
     SplitPath(A_LineFile,, &libDirectory)
     return RegExReplace(libDirectory, "\\lib$")
 }
