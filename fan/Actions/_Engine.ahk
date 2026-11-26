@@ -437,6 +437,9 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0, opts := 0) {
 
     ShowStatus("Running " . total . " steps @ " . speedText . modeText, "wait")
     WorkflowExecution_Event(opts, "start", Map("total", total, "speed", speedMultiplier))
+    ; Run ledger / audit trail (lib\Autopilot.ahk). Never allowed to affect the run.
+    if !nested
+        try Autopilot_RunBegin(steps, opts)
 
     ; ── Loop support: Loop Start / Loop End / Loop Break are handled here so
     ; the body in between re-runs. Each stack entry remembers where the body
@@ -467,6 +470,8 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0, opts := 0) {
             g_SkipNextAction := false
             ShowStatus("[" . i . "/" . total . "] Skipped by previous condition: " . enabled[i]["action"], "info")
             WorkflowExecution_Event(opts, "step", Map("index", i, "action", enabled[i]["action"], "status", "skipped"))
+            if !nested
+                try Autopilot_StepBegin(i, enabled[i]), Autopilot_StepEnd(i, enabled[i], "skipped")
             i++
             continue
         }
@@ -552,7 +557,22 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0, opts := 0) {
             }
         } else {
             g_LastActionError := ""
-            success := ExecuteActionVerified(s["action"], s["target"], s["param"], s, speedMultiplier)
+            heal := 0, preHeal := 0, healedTarget := ""
+            if !nested
+                try Autopilot_StepBegin(i, s)
+            ; Self-heal (lib\SelfHeal.ahk): a learned click target that visibly moved is
+            ; re-found before input; a failed click/find/wait step is retried once at a
+            ; re-found target. Both are recorded in the heal ledger.
+            try healedTarget := SelfHeal_Before(s, i, &preHeal)
+            success := ExecuteActionVerified(s["action"], healedTarget != "" ? healedTarget : s["target"], s["param"], s, speedMultiplier)
+            if !success && !g_AbortSequence
+                try success := SelfHeal_Recover(s, i, speedMultiplier, &heal)
+            if !IsObject(heal) && IsObject(preHeal)
+                heal := preHeal
+            if success
+                try SelfHeal_Learn(s, i)
+            if !nested
+                try Autopilot_StepEnd(i, s, success ? "completed" : "failed", success ? "" : g_LastActionError, heal)
 
             ; Popup Detect (and friends) may request a break: leave the current
             ; loop now and skip the rest of the body by jumping to its Loop End.
@@ -664,6 +684,8 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0, opts := 0) {
         g_SkipNextAction := nested ? priorSkip : false
         g_WorkflowRunning := nested
         g_WorkflowExecutionOptions := priorOptions
+        if !nested
+            try Autopilot_RunEnd(out)
         if !nested
             g_SequenceCallStack := []
         TrackToolTip()
@@ -1219,6 +1241,20 @@ ExecuteActionVerified(action, target, param, stepData := "", speedMultiplier := 
 
         case "Extract from Clipboard":
             return ExtractClipboardByRule(param)
+
+        ; ─── Autopilot: people in the loop, portals, audit trail (lib\AutopilotActions.ahk)
+        case "Ask Input":
+            return ExecuteAskInput(target, param)
+        case "Approval Gate":
+            return ExecuteApprovalGate(param)
+        case "Type Credential":
+            return ExecuteTypeCredential(target, param)
+        case "Open Page":
+            return ExecuteOpenPage(param)
+        case "Human Check":
+            return ExecuteHumanCheck(target, param)
+        case "Capture Evidence":
+            return ExecuteCaptureEvidence(target, param)
 
     }
 

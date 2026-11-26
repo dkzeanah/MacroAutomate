@@ -1,0 +1,11 @@
+﻿# Merge this entry into the active DeepSeek Harness profile patch.
+- insert:
+    - id: mcp-fan-ahk-windows
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: fan-ahk-windows
+        transport: stdio
+        command: 'C:\Users\Don\Desktop\aAutomateMacro\fan\DeepSeekBridge\.venv\Scripts\python.exe'
+        args: ['-m', 'bridge.mcp_server']
+        env: {}
+        cwd: 'C:\Users\Don\Desktop\aAutomateMacro\fan\DeepSeekBridge'

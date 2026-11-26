@@ -318,11 +318,16 @@ snapshots with `raw_stream`, `text_typed`, `hotkeys`, `strings`, `sentences`,
 `Snap_MakeBinary(x,y,w,h)` (thresholded FindText binary), `Snap_Otsu`,
 `Snap_RenderBinary`, `Snap_FileToBinary(path)`, `Snap_CropToFile`, `Snap_BinaryToAscii`.
 Every visible window per cycle gets a raw PNG + base64 + a FindText-compatible
-1-bit pattern, all keyed to a `snap_entry` row.
+1-bit pattern, all keyed to a `snap_entry` row. Persistence is Base64 inside the
+tracking database: the PNG is a session temp file that is deleted after encoding,
+so nothing is written under `data/tracking/snapshots`. A finished cycle calls the
+optional `g_SnapOnCycleDone(cycleId)` hook (wired by SnapshotRecovery so its
+list stays current). Capture itself is started by `Track_AutoStart` at launch.
 
 ### 4.8 `TrackingDashboard.ahk` — coordinator + UI
 `Track_InitAll`, `Track_StartAll/StopAll/ShutdownAll`, `Track_AutoStart`
-(restores last running trackers), `Track_PersistRunState`, `Track_BuildTab(g)`,
+(restores last running trackers, and turns snapshot capture on when no choice has
+been saved), `Track_PersistRunState`, `Track_BuildTab(g)`,
 `Track_RefreshStatus`, `Track_SyncCheckboxes`, `Track_SnapNow`,
 `Track_OpenElements`, `Track_OpenWindowTimes`, `Track_OpenMousePanel`,
 `Track_OpenKeyHistory`, `Track_OpenResearch`, `Track_ExportAll`,
@@ -387,9 +392,14 @@ Recover the source page of a snapshot three ways:
   `SnapClue_Tidy` / `SnapClue_UrlsFromText`.
 - Corroborating: `ChromeHist_Snapshot(force)` (copies the locked Chrome History),
   `ChromeHist_Search(text)`, `ChromeHist_Around(tsText)`, `ChromeHist_Time`.
-- UI + query glue: `SnapRec_BuildTab(g)`, `SnapRec_Search`,
+- UI + query glue: `SnapRec_BuildTab(g)`, `SnapRec_Search(queryOverride?)`,
   `SnapRec_Selected`, `SnapRec_OpenUrl`, `SnapRec_OcrSelected`,
   `SnapRec_HistoryMatch`, `SnapRec_EntriesForPaths`, `SnapRec_BackfillStart`.
+- Live list: `SnapRec_OnCycleDone(cycleId)` is registered as `g_SnapOnCycleDone`,
+  so the visible list re-queries after every capture cycle and keeps the
+  inspected row selected; `SnapRec_StartupSearch` preloads it at launch.
+  `SnapRec_SearchStatus(found)` distinguishes capture-off, no-cycle-yet, and
+  no-match-in-range instead of showing a bare "0 photos listed".
 
 ### 6.3 `Everything3Client.ahk`
 `class Everything3SDK` wraps `lib\Everything3.dll` (Everything 1.5).

@@ -11,6 +11,9 @@
 ; ─── Master state ────────────────────────────────────────────────────────────
 global g_TrackMasterOn := false
 global g_TrackStatusTimer := false
+; Set once Track_AutoStart() has finished restoring the saved tracker state, so
+; views built earlier can wait for the real state instead of guessing.
+global g_TrackAutoStartDone := false
 
 ; Tab control references (set by Track_BuildTab).
 global g_TrkStatusDB := ""
@@ -57,19 +60,36 @@ Track_SetSnapOcr(ctrl, *) {
 }
 
 ; Auto-start whichever trackers were running at last shutdown.
+;
+; Snapshots are the exception: run_snap defaults to ON, so a profile that has
+; never made a choice starts capturing at launch instead of needing the box
+; ticked first. An explicit "0" (Stop All, or the checkbox) is still honored.
+;
+; The store is opened here when the tab that normally opens it did not manage
+; to: a silently skipped auto-start looked exactly like "capture is off".
 Track_AutoStart() {
-    if !TrackDB_Ready()
-        return
+    global g_TrackDBError, g_TrackAutoStartDone
+
+    if !TrackDB_Ready() {
+        if !Track_InitAll() {
+            try TrackLogError("Track_AutoStart", "tracking storage unavailable: " . g_TrackDBError)
+            g_TrackAutoStartDone := true
+            return
+        }
+    }
     if (TrackDB_MetaGet("run_win", "0") = "1")
         WinTrack_Start()
     if (TrackDB_MetaGet("run_mouse", "0") = "1")
         MouseTrack_Start()
     if (TrackDB_MetaGet("run_key", "0") = "1")
         KeyTrack_Start()
-    if (TrackDB_MetaGet("run_snap", "0") = "1")
-        Snap_Start()
+    if (TrackDB_MetaGet("run_snap", "1") = "1") {
+        if !Snap_Start()
+            try TrackLogError("Track_AutoStart", "snapshot engine could not start")
+    }
     Track_SyncCheckboxes()
     Track_RefreshStatus()
+    g_TrackAutoStartDone := true
 }
 
 Track_PersistRunState() {

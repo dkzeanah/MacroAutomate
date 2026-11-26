@@ -4,11 +4,12 @@ import argparse
 import json
 import os
 import sqlite3
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
 from .transport import DeepSeekClient as OpenAI
-from .common import ROOT, request_tool, read_app_document
+from .common import ROOT, request_tool, read_app_document, write_agent_heartbeat
 from .gateway import DB, db_write
 from . import catalog, library, vision, reuse
 
@@ -193,6 +194,13 @@ def bounded_result(value, *, max_chars: int = 28000):
 
 class TaskCancelled(RuntimeError):
     pass
+
+
+def heartbeat_forever() -> None:
+    """Keep agent liveness fresh through long model turns and tool calls."""
+    while True:
+        write_agent_heartbeat()
+        time.sleep(5)
 
 
 def check_cancelled(task_id: str) -> None:
@@ -477,6 +485,7 @@ def run_prompt(prompt: str, max_turns: int | None = None, task_id: str | None = 
 def consume_queue() -> None:
     """One consumer process claims queued tasks transactionally."""
     print('Listening for AutoHotkey tasks. Ctrl+C to stop.', flush=True)
+    threading.Thread(target=heartbeat_forever, name='agent-heartbeat', daemon=True).start()
     last_index = 0.0
     while True:
         with sqlite3.connect(DB, timeout=10, isolation_level=None) as db:

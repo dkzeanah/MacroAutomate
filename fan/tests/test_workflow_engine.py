@@ -51,6 +51,15 @@ TrackToolTip(*) => 0
 LogErrorToFile(*) => 0
 UpdateAllWatchWords(*) => 0
 FlashClickPosition(*) => 0
+DeepActivity_Before(*) => 0
+; Autopilot run ledger and self-heal hooks are exercised in test_autopilot_ahk.py.
+Autopilot_RunBegin(*) => 0
+Autopilot_StepBegin(*) => 0
+Autopilot_StepEnd(*) => 0
+Autopilot_RunEnd(*) => 0
+SelfHeal_Before(step, index, &heal) => (heal := 0, "")
+SelfHeal_Recover(step, index, speed, &heal) => (heal := 0, false)
+SelfHeal_Learn(*) => 0
 TestPointerPos(&x, &y) => (x := 100, y := 200)
 RecordRawClick(*) {
     global pointerCalls

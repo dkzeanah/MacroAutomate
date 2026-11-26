@@ -96,6 +96,8 @@ Know_Catalog() {
       Map("key","daa_chain",         "label","DAA chains",           "table","daa_chain",          "ts","created_at","group","DAA planner"),
       Map("key","daa_step",          "label","DAA steps",            "table","daa_step",           "ts","started_at","group","DAA planner"),
       Map("key","learning_claim",    "label","Learning claims",      "table","learning_claim",     "ts","created_ts","group","Pre-knowledge / learning"),
+      Map("key","learning_review", "label","Claims with negative checks", "table","learning_claim", "where","EXISTS (SELECT 1 FROM learning_evidence e WHERE e.claim_id=learning_claim.id AND e.outcome='fail' AND e.eligible=1)", "ts","created_ts", "group","Review first"),
+      Map("key","learning_lesson", "label","Saved rehearsals", "table","learning_lesson", "ts","ts", "group","Review & reuse"),
       Map("key","learning_evidence", "label","Learning evidence",    "table","learning_evidence",  "group","Pre-knowledge / learning"),
       Map("key","automation_learning","label","Automation learnings","table","automation_learning","group","Pre-knowledge / learning"),
       Map("key","usage_element",     "label","Usage elements",       "table","usage_element",      "group","Usage patterns"),
@@ -140,6 +142,42 @@ Know_TotalLearned() {
     for , m in Know_Metrics()
         n += m["count"]
     return n
+}
+
+; Inventory is volume, not a count of independent or verified knowledge.
+Know_ReviewSummary() {
+    db := TrackDB()
+    if !db
+        return "The evidence store is unavailable. Refresh after initialization."
+    count := (table) => db.TableExists(table) ? db.Scalar("SELECT COUNT(*) FROM " . table) : 0
+    claims := count("learning_claim"), checks := count("learning_evidence")
+    lessons := count("learning_lesson"), failed := 0
+    if db.TableExists("learning_evidence")
+        failed := db.Scalar("SELECT COUNT(DISTINCT claim_id) FROM learning_evidence WHERE outcome='fail' AND eligible=1")
+    return "Inventory: " . Know_TotalLearned() . " records across categories (overlapping; not unique skills).`r`n"
+        . claims . " claims | " . checks . " evidence records | " . failed . " claims with negative checks | " . lessons . " saved rehearsals.`r`n"
+        . "Review negative checks first. Inspect source and context before reusing a claim."
+}
+
+Know_CategoryGuide(key) {
+    switch key {
+        case "learning_claim", "learning_review", "learning_evidence":
+            return "Evidence review: select a claim to inspect its spaced pass/fail checks, source and environment coverage. Observations and repeated scans alone do not verify a claim."
+        case "learning_lesson":
+            return "Saved rehearsals describe how to reuse an observation. Review the linked claim's checks and current application context. Replaying a stored example does not independently verify the original application's behavior."
+        case "ui_element", "discovered_target", "appmap_app", "taskbar_knowledge", "window_fact", "env_map":
+            return "Interface captures: check the original app, name and current layout. Show remembered bounds is a location preview; window/bounds checks do not prove the target's meaning. Recheck before using a named target in Workflow."
+        case "qa_item":
+            return "Study answers: read the question and answer, then check the original study material. Correct or review answers in Study > Study library. A stored answer can still be wrong."
+        case "usage_element", "usage_transition":
+            return "Usage observations: frequency describes repetition. Inspect the task and sequence under Capture & learn > Usage predictions before deciding whether it is useful to automate."
+        case "app_file_ahk", "revisions", "daa_chain", "daa_step", "automation_learning":
+            return "Automation history: inspect arguments, result and task context. A saved tool or completed step needs an outcome check before reuse. Continue in Automate > Workflow or Agent workbench."
+        case "media_job":
+            return "Media analysis: compare summaries with the original frames and timestamps in Capture & learn > Media analysis before applying conclusions."
+        default:
+            return "Inspect the source record and compare it with the original task. Decide what it helps you do before collecting more examples."
+    }
 }
 
 ; ─────────────────────────────────────────────────────────────────────────────
@@ -195,10 +233,29 @@ Know_CategoryRows(key, limit := 300) {
                      . "ORDER BY id DESC LIMIT " . limit)
                 out.Push(Know_Row("#" . r["number"] . "  " . r["tool"], r["status"], r["started_at"], ""
                        , "ARGS: " . r["arguments"] . "`r`n`r`nRESULT: " . r["result"]))
-        case "learning_claim":
-            for r in q("SELECT claim,use_text,source,created_ts FROM learning_claim "
+        case "learning_claim", "learning_review":
+            for r in q("SELECT id,claim,use_text,source,created_ts FROM learning_claim "
+                     . (key = "learning_review" ? "WHERE EXISTS (SELECT 1 FROM learning_evidence e WHERE e.claim_id=learning_claim.id AND e.outcome='fail' AND e.eligible=1) " : "")
                      . "ORDER BY id DESC LIMIT " . limit)
-                out.Push(Know_Row(Know_Clip(r["claim"], 90), r["source"], r["created_ts"], "", r["use_text"]))
+            {
+                item := Know_Row(Know_Clip(r["claim"], 90), r["source"], r["created_ts"], "", r["claim"] . "`r`nUse: " . r["use_text"])
+                item["claim_id"] := r["id"]
+                out.Push(item)
+            }
+        case "learning_lesson":
+            for r in q("SELECT l.claim_id,l.ts,l.revision,l.steps,c.claim,c.source FROM learning_lesson l LEFT JOIN learning_claim c ON c.id=l.claim_id ORDER BY l.ts DESC LIMIT " . limit) {
+                item := Know_Row(r["claim"], r["source"] . " | rehearsal revision " . r["revision"], r["ts"], "", r["steps"])
+                item["claim_id"] := r["claim_id"]
+                out.Push(item)
+            }
+        case "learning_evidence":
+            for r in q("SELECT id,claim_id,ts,outcome,context,detail,provenance,eligible FROM learning_evidence ORDER BY id DESC LIMIT " . limit) {
+                item := Know_Row("Evidence #" . r["id"], r["outcome"] . " | " . r["provenance"], r["ts"], ""
+                    , "Outcome: " . r["outcome"] . "`r`nEligible independent check: " . r["eligible"]
+                    . "`r`nSource: " . r["provenance"] . "`r`nContext: " . r["context"] . "`r`n" . r["detail"])
+                item["claim_id"] := r["claim_id"]
+                out.Push(item)
+            }
         case "qa_item":
             for r in q("SELECT question,answer,state,created_ts FROM qa_item "
                      . "ORDER BY id DESC LIMIT " . limit)
@@ -216,17 +273,18 @@ Know_CategoryRows(key, limit := 300) {
                        , r["created_ts"], [r["x"],r["y"],r["w"],r["h"]], "env_map_id:" . r["id"]))
         default:
             ; generic: show first text-ish columns
-            for r in q("SELECT * FROM " . Know_SafeTable(key) . " LIMIT " . Min(limit, 200)) {
-                label := "", detail := ""
+            for r in q("SELECT * FROM " . Know_SafeTable(key) . " ORDER BY rowid DESC LIMIT " . limit) {
+                label := "", detail := "", content := ""
                 for k, v in r {
+                    content .= k . ": " . v . "`r`n"
                     if (label = "")
                         label := k . "=" . Know_Clip("" . v, 60)
                     else if (detail = "") {
                         detail := k . "=" . Know_Clip("" . v, 60)
-                        break
                     }
                 }
-                out.Push(Know_Row(label, detail, "", "", ""))
+                stamp := r.Get("last_ts", r.Get("created_ts", r.Get("ts", "")))
+                out.Push(Know_Row(label, detail, stamp, "", content))
             }
     }
     return out
@@ -301,7 +359,9 @@ Know_ExportSnapshot(path := "") {
     global DATA_DIR
     metrics := Know_Metrics()
     doc := Map("captured_ts", FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")
-             , "total_items", Know_TotalLearned(), "categories", [])
+             , "total_items", Know_TotalLearned(), "categories", []
+             , "interpretation", "Overlapping inventory records, not unique or verified skills."
+             , "review_summary", Know_ReviewSummary())
     for , m in metrics
         doc["categories"].Push(Map("group", m["group"], "label", m["label"]
                               , "count", m["count"], "last", m["last"]))

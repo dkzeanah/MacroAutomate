@@ -1,5 +1,19 @@
 # fan — Combined Multi-File Build of Macro Automator v9
 
+**New: [Autopilot](AUTOPILOT.md)** finds the routines you repeat and drafts a workflow for each.
+It also turns plain English into checked workflows, signs in to web portals from Windows
+Credential Manager with an audit report for every run, and self-heals targets that moved.
+Look for the **Autopilot** tab.
+
+Start with the [interface guide](TASK_WORKSPACE.md). Original tabs is the default;
+the three learners now operate together in one **Learning** workspace, and
+**Chrome Learning** follows the focused browser window. Read the
+[Learning, Chrome and Study guide](LEARNING_CHROME_GUIDE.md) for capture, review,
+reuse, per-window profile labels and the original Live Portal workflow.
+**Settings > Interface**
+switches to the optional clean task workspace and back. All 23 original tools
+remain available through their engines and the combined collection/review controls.
+
 The [Learning Workbench guide](EVIDENCE_LEARNING.md) explains evidence-backed
 claims, generated lessons and sequence rehearsals, randomized background replay,
 and Ctrl+right-drag movement for secondary windows. Open it from the tray or

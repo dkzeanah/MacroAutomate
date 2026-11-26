@@ -6,12 +6,11 @@
 ; ===============================================================================
 
 Tab_VisionScout_Build() {
-    TabCtrl.UseTab(16)
     try VisionScout_Init()
     catch as err
         LogErrorToFile(err, "caught", "Vision Scout subsystem initialization")
-    try VisionScout_BuildTab(MainGui)
-    catch as err
-        LogErrorToFile(err, "caught", "Vision Scout tab construction")
+    ; Legacy page 16 is redirected to the real combined Learning workspace.
+    ; The visual engine remains independent; its separate builder is retained
+    ; as a library API for other entry points, not mounted as another view here.
 }
 

@@ -17,6 +17,9 @@
 global g_FanDataConfigOverride := ""
 
 FanData_ProjectRoot() {
+    ; Compiled scripts report A_LineFile as a resource name such as *#1.
+    if A_IsCompiled
+        return FileExist(A_ScriptDir . "\..\lib\TrackSQLite.ahk") ? A_ScriptDir . "\.." : A_ScriptDir
     SplitPath(A_LineFile,, &sourceDir)
     return RegExReplace(sourceDir, "\\lib$")
 }

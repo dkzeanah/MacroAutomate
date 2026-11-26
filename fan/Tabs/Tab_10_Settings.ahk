@@ -101,6 +101,7 @@ Tab_Settings_Build() {
     MainGui.Add("Text", "x390 y425", "  Configure field order with ▲▼ buttons")
     MainGui.Add("Text", "x390 y445", "VISUAL: Green=OK, Blue=Progress, Red=Fail")
 
+    FanNav_SettingsBuild()
     FanData_SettingsBuild(MainGui)
 
 

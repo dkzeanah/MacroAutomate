@@ -17,7 +17,7 @@ from fastapi import FastAPI, Request, HTTPException, Header, Body
 from fastapi.responses import PlainTextResponse, Response
 from pydantic import BaseModel, Field, ValidationError
 from jsonschema.exceptions import ValidationError as UnitValidationError, SchemaError as UnitSchemaError
-from .common import ROOT, TOKEN, storage_path
+from .common import ROOT, TOKEN, storage_path, agent_heartbeat
 from .catalog import TOOLS as TOOL_SCHEMAS, FAN_TOOLS, SCRIPT_TOOLS, CATALOG_TOOLS, LOCAL_PAGE_TOOLS, LOCAL_JOB_TOOLS, JOB_READ_ONLY_TOOLS, validate
 
 DB = storage_path('BRIDGE_DB', ROOT / 'bridge.sqlite3')
@@ -100,7 +100,9 @@ def health(x_bridge_token: str | None = Header(default=None)) -> dict:
     with job_library.connect() as db:
         job_initialize(db)
         job_active=db.execute("SELECT COUNT(*) FROM application_run WHERE status='running' AND deadline>?",(time.time(),)).fetchone()[0]
-    return {'healthy': True, 'windows_worker': worker_connected(), 'managed_scripts': active_runs(),
+    agent = agent_heartbeat()
+    return {'healthy': True, 'windows_worker': worker_connected(), 'agent_alive': bool(agent),
+            'agent_pid': agent.get('pid', 0), 'managed_scripts': active_runs(),
             'activity': {'running_tasks': running_tasks, 'tools': active_tools, 'application_runs':job_active},
             'fan_connected': time.monotonic() - _fan_last_seen < 5,
             'services': state, 'tools': sorted(TOOLS), 'agent_mode': 'unified'}

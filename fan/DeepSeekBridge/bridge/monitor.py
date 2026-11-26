@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import os
+import socket
 import sqlite3
 from datetime import datetime, timezone
 from html import escape
@@ -217,10 +218,20 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+class Observatory(ThreadingHTTPServer):
+    """One observatory per port: Windows SO_REUSEADDR would silently double-bind."""
+    allow_reuse_address = False
+
+    def server_bind(self):
+        if os.name == 'nt':
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
 def main():
     print(f'Observatory: http://{HOST}:{PORT}', flush=True)
     print(f'Reading database: {DB}', flush=True)
-    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    Observatory((HOST, PORT), Handler).serve_forever()
 
 
 if __name__ == '__main__':

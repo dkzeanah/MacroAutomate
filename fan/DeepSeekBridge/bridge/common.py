@@ -4,6 +4,7 @@ import os
 import json
 import sqlite3
 import sys
+import time
 from contextlib import closing
 from pathlib import Path
 import httpx
@@ -15,6 +16,33 @@ HOST = '127.0.0.1'
 PORT = int(os.getenv('BRIDGE_PORT', '8765'))
 BASE_URL = f'http://{HOST}:{PORT}'
 TOKEN = os.getenv('BRIDGE_TOKEN', '')
+AGENT_HEARTBEAT = ROOT / '.runtime' / 'agent.heartbeat'
+AGENT_HEARTBEAT_MAX_AGE = 15.0
+
+
+def agent_heartbeat(max_age: float = AGENT_HEARTBEAT_MAX_AGE) -> dict:
+    """The queue daemon's recent identity, or an empty map when it is not running.
+
+    Liveness is a freshness window rather than the presence of a file: a killed
+    daemon cannot remove its heartbeat, so a stale timestamp never counts.
+    """
+    try:
+        state = json.loads(AGENT_HEARTBEAT.read_text(encoding='utf-8'))
+        pid = int(state['pid'])
+        at = float(state['at'])
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+    if pid <= 0 or time.time() - at > max_age:
+        return {}
+    return {'pid': pid, 'at': at}
+
+
+def write_agent_heartbeat() -> None:
+    try:
+        AGENT_HEARTBEAT.parent.mkdir(parents=True, exist_ok=True)
+        AGENT_HEARTBEAT.write_text(json.dumps({'pid': os.getpid(), 'at': time.time()}), encoding='utf-8')
+    except OSError:
+        pass  # A missing heartbeat only hides liveness; it never stops task work.
 
 
 def storage_path(environment: str, fallback: Path) -> Path:

@@ -361,8 +361,9 @@ DeepBridge_Poll() {
         label := calls.Length ? "Tool · " . calls[1] : g_DeepBridge["scripts"].Length ? "Running script" : activity.Get("application_runs", 0) ? "Job application runner" : "Agent running"
         DeepActivity_Set(active, label)
         services := health.Get("services", Map()), children := services.Get("children", Map())
-        ready := health.Get("windows_worker", false) && children.Has("agent") && children["agent"].Get("alive", false)
-        g_DeepBridge["ui"]["services"].Value := "Gateway " . DeepBridge_Port() . " · Agent " . (children.Has("agent") ? "running" : "starting")
+        agentAlive := health.Get("agent_alive", false) || (children.Has("agent") && children["agent"].Get("alive", false))
+        ready := health.Get("windows_worker", false) && agentAlive
+        g_DeepBridge["ui"]["services"].Value := "Gateway " . DeepBridge_Port() . " · Agent " . (agentAlive ? "running" : "starting")
             . " · AHK worker " . (health.Get("windows_worker", false) ? "connected" : "connecting")
             . " · Fan APIs " . (health.Get("fan_connected", false) ? "connected" : "connecting")
             . " · Observatory " . DeepBridge_Port("MONITOR_PORT", 8766)

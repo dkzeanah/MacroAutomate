@@ -27,8 +27,12 @@ worker, API agent and observatory automatically. Use its own chat/task interface
 the existing Fan key is read from Credential Manager and inherited by the
 agent process. It is not written to `.env`. Every task uses the same tool-enabled
 agent; there is no Chat/Desktop switch. `bridge/desktop.py` owns service
-lifecycle and skips occupied ports on first setup. `bridge/transport.py` streams
-the same Chat Completions API directly to avoid unrelated SDK startup overhead.
+lifecycle and skips occupied ports on first setup. If the standalone launchers
+below are already running an idle copy of this bridge, the next Fan start stops
+that copy (and its launcher consoles) and takes the ports over; a bridge that is
+still running a task or script is never interrupted and Fan reports the conflict
+instead. `bridge/transport.py` streams the same Chat Completions API directly
+to avoid unrelated SDK startup overhead.
 The original manual launch scripts below remain available for standalone use.
 
 1. Unzip the folder to a chosen location and run `install.bat`. Open `.env` and set your DeepSeek API key (`DEEPSEEK_API_KEY`). Do **not** share this file.

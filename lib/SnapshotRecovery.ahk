@@ -38,6 +38,9 @@ global g_SnapRecLV := "", g_SnapRecQuery := "", g_SnapRecPic := ""
 global g_SnapRecEvidence := "", g_SnapRecStatus := "", g_SnapRecHistLV := ""
 global g_SnapRecHistSearch := "", g_SnapRecPreset := "", g_SnapRecUrlOnly := false
 global g_SnapRecCtl := Map()
+global g_SnapRecLastQuery := ""      ; query the visible list was built from
+global g_SnapRecSearchBusy := false  ; guards auto-refresh re-entry
+global g_SnapRecStartupTries := 0    ; startup preload waits for Track_AutoStart
 global g_ChromeHistCache := ""       ; path of the last History copy
 global g_ChromeHistCacheTs := 0
 global g_ChromeHistGui := "", g_ChromeHistLV := "", g_ChromeHistSearch := ""
@@ -858,7 +861,7 @@ SnapRec_DefaultQuery() {
 SnapRec_BuildTab(g) {
     global g_SnapRecLV, g_SnapRecQuery, g_SnapRecPic, g_SnapRecEvidence
     global g_SnapRecStatus, g_SnapRecHistLV, g_SnapRecHistSearch
-    global g_SnapRecPreset, g_SnapSigBtn, g_SnapRecCtl
+    global g_SnapRecPreset, g_SnapSigBtn, g_SnapRecCtl, g_SnapOnCycleDone
 
     ; Every control is registered in g_SnapRecCtl so SnapRec_Layout can reflow
     ; the tab from one place. The positions below are only a first guess - the
@@ -938,7 +941,7 @@ SnapRec_BuildTab(g) {
     g_SnapRecCtl["lv"] := g_SnapRecLV
 
     g_SnapRecStatus := g.Add("Text", "x430 y436 w440 cGray"
-        , "Choose a preset or enter a query, then press Search.")
+        , "Loading recent snapshots...")
     g_SnapRecCtl["status"] := g_SnapRecStatus
 
     g_SnapRecCtl["histHdr"] := g.Add("Text", "x430 y458 w440"
@@ -959,6 +962,16 @@ SnapRec_BuildTab(g) {
     g_SnapRecCtl["histLV"] := g_SnapRecHistLV
 
     SnapRec_Layout(880, 720)
+
+    ; One refresh per finished capture cycle: the list is a view over the
+    ; tracking store, so without this it keeps showing whatever the last Search
+    ; found and reads as "0 entries" while captures are actually being written.
+    g_SnapOnCycleDone := SnapRec_OnCycleDone
+
+    ; Fill the list during startup instead of waiting for the first click. The
+    ; delay lands after Track_AutoStart(), so the hints below also know whether
+    ; capture was restored.
+    SetTimer(SnapRec_StartupSearch, -3000)
 
     ; Keep the history archive current without anyone having to remember to.
     SetTimer(ChromeHist_AutoSyncTick, 300000)
@@ -1089,48 +1102,69 @@ SnapRec_FitColumns(totalW) {
     }
 }
 
-SnapRec_Search() {
+; queryOverride lets the auto-refresh re-run exactly the query the visible list
+; was built from, without adopting text the user is still typing into the box.
+SnapRec_Search(queryOverride := "") {
     global g_SnapRecQuery, g_SnapRecLV, g_SnapRecRows, g_SnapRecStatus, g_SnapRecUrlOnly
+    global g_SnapRecLastQuery, g_SnapRecSearchBusy
 
-    query := Trim(g_SnapRecQuery.Value)
+    if g_SnapRecSearchBusy
+        return
+    query := (queryOverride != "") ? queryOverride : Trim(g_SnapRecQuery.Value)
     if (query = "")
         return
-    if TrackDB_Ready() {
-        SnapRec_SearchDatabase(query)
-        return
-    }
 
-    ; Expand any ".." path segments typed into the query (Everything's search
-    ; syntax cannot resolve them itself, so such queries return nothing).
-    normChanged := false
-    query := SnapRec_NormalizeQuery(query, &normChanged)
-    if normChanged {
-        g_SnapRecQuery.Value := query
-        ShowStatus("Query path expanded to an absolute folder", "wait")
-    }
+    g_SnapRecSearchBusy := true
+    try {
+        g_SnapRecLastQuery := query
+        if TrackDB_Ready() {
+            SnapRec_SearchDatabase(query)
+            return
+        }
 
-    ; A query with no folder constraint asks Everything about the entire
-    ; machine. "dc:2026-09-03" alone matches every file created that day, and
-    ; the search call blocks the GUI while it builds that result set - which is
-    ; what makes the window stop responding. Scope it to the snapshot archive.
-    if !RegExMatch(query, "i)\b(ancestor|path|parent|folder):") {
-        query := 'file: ancestor:"' . DATA_DIR . '\tracking\snapshots\" ' . query
-        g_SnapRecQuery.Value := query
-        ShowStatus("Query had no folder limit - scoped it to the snapshot archive", "wait")
-    }
+        ; Expand any ".." path segments typed into the query (Everything's search
+        ; syntax cannot resolve them itself, so such queries return nothing).
+        normChanged := false
+        query := SnapRec_NormalizeQuery(query, &normChanged)
+        if normChanged {
+            g_SnapRecQuery.Value := query
+            ShowStatus("Query path expanded to an absolute folder", "wait")
+        }
 
-    ev := SnapRec_Everything()
-    if !IsObject(ev) {
-        g_SnapRecStatus.Value := "Everything3.dll could not be loaded (expected in lib\)."
-        return
+        ; A query with no folder constraint asks Everything about the entire
+        ; machine. "dc:2026-09-03" alone matches every file created that day, and
+        ; the search call blocks the GUI while it builds that result set - which is
+        ; what makes the window stop responding. Scope it to the snapshot archive.
+        if !RegExMatch(query, "i)\b(ancestor|path|parent|folder):") {
+            query := 'file: ancestor:"' . DATA_DIR . '\tracking\snapshots\" ' . query
+            g_SnapRecQuery.Value := query
+            ShowStatus("Query had no folder limit - scoped it to the snapshot archive", "wait")
+        }
+        g_SnapRecLastQuery := query
+
+        ev := SnapRec_Everything()
+        if !IsObject(ev) {
+            g_SnapRecStatus.Value := "Everything3.dll could not be loaded (expected in lib\)."
+            return
+        }
+        g_SnapRecStatus.Value := "Searching..."
+        res := ev.Search(query, 1000)
+        if !res.Ok {
+            g_SnapRecStatus.Value := "Everything search failed: " . res.Error
+                  . "   (is Everything 1.5 running?)"
+            return
+        }
+        SnapRec_ShowFileResults(res)
+    } finally {
+        g_SnapRecSearchBusy := false
     }
-    g_SnapRecStatus.Value := "Searching..."
-    res := ev.Search(query, 1000)
-    if !res.Ok {
-        g_SnapRecStatus.Value := "Everything search failed: " . res.Error
-              . "   (is Everything 1.5 running?)"
-        return
-    }
+}
+
+; File-backed listing, used only when the tracking store is not open. Captures
+; are stored as Base64 in snap_entry, so this path now serves legacy image
+; files rather than the normal archive.
+SnapRec_ShowFileResults(res) {
+    global g_SnapRecLV, g_SnapRecRows, g_SnapRecStatus, g_SnapRecUrlOnly
 
     ; Collect the image paths first, then resolve every snapshot row in a
     ; handful of batched queries rather than one lookup per result.
@@ -1227,7 +1261,116 @@ SnapRec_SearchDatabase(query) {
         g_SnapRecRows.Push(record)
         g_SnapRecLV.Add(, entry["ts"], clue["query"], clue["site"], entry["url"], clue["app"], g_SnapRecRows.Length)
     }
-    g_SnapRecStatus.Value := rows.Length . " database photos listed. Select one to view its evidence."
+    g_SnapRecStatus.Value := SnapRec_SearchStatus(rows.Length)
+}
+
+; Fill the list during startup so opening the tab shows what already exists.
+; Waits for Track_AutoStart() so the status hint describes the restored capture
+; state rather than the pre-startup default.
+SnapRec_StartupSearch() {
+    global g_SnapRecQuery, g_SnapRecStartupTries, g_TrackAutoStartDone
+    if !IsObject(g_SnapRecQuery)
+        return
+    if !g_TrackAutoStartDone {
+        g_SnapRecStartupTries += 1
+        if (g_SnapRecStartupTries <= 20) {      ; give up waiting after ~10 s
+            SetTimer(SnapRec_StartupSearch, -500)
+            return
+        }
+    }
+    if Trim(g_SnapRecQuery.Value) = ""
+        return
+    ; Timers have no caller to report an exception to, so failures are logged
+    ; instead of reaching the application's fatal startup/error handler.
+    try SnapRec_Search()
+    catch as err
+        try TrackLogError("SnapRec_StartupSearch", err)
+}
+
+; Called by the snapshot engine when a cycle finishes. Re-runs the query the
+; visible list came from, keeping the inspected row selected, so a finished
+; capture shows up without a Search click.
+SnapRec_OnCycleDone(cycleId) {
+    global g_SnapRecLV, g_SnapRecLastQuery, g_SnapRecSearchBusy, g_SnapRecStatus
+
+    if !IsObject(g_SnapRecLV)          ; tab not built (headless or early)
+        return
+    if (g_SnapRecLastQuery = "")       ; nobody has asked for a list yet
+        return
+    if g_SnapRecSearchBusy
+        return
+
+    keep := SnapRec_SelectedKey()
+    try {
+        SnapRec_Search(g_SnapRecLastQuery)
+        if (keep != "")
+            SnapRec_SelectRowByKey(keep)
+        if cycleId
+            g_SnapRecStatus.Value .= "   (refreshed after snapshot cycle #" . cycleId . ")"
+    } catch as err {
+        try TrackLogError("SnapRec_OnCycleDone", err)
+    }
+}
+
+; Identity of the selected row, as stored in g_SnapRecRows (snapshot:<id> or a
+; legacy file path). Empty when nothing is selected.
+SnapRec_SelectedKey() {
+    global g_SnapRecLV, g_SnapRecRows
+    row := g_SnapRecLV.GetNext()
+    if !row
+        return ""
+    idx := Integer(g_SnapRecLV.GetText(row, 6))
+    if (idx < 1 || idx > g_SnapRecRows.Length)
+        return ""
+    return g_SnapRecRows[idx]["path"]
+}
+
+; Re-select one row by identity after the list has been rebuilt. Re-selecting
+; also restores the preview and the evidence panel for that row.
+SnapRec_SelectRowByKey(key) {
+    global g_SnapRecLV, g_SnapRecRows
+    for i, record in g_SnapRecRows {
+        if (record["path"] != key)
+            continue
+        try g_SnapRecLV.Modify(0, "-Select")   ; drop the old selection first
+        try g_SnapRecLV.Modify(i, "Select Focus Vis")
+        SnapRec_OnSelect(i)
+        return true
+    }
+    return false
+}
+
+; One status line that says what was found and, when nothing was, which of the
+; three reasons applies: capture is off, no capture has finished yet, or
+; nothing inside this query/date range. "0 photos listed" alone read as a bug.
+SnapRec_SearchStatus(found) {
+    db := TrackDB()
+    if !db
+        return "0 listed - the tracking database is not open, so snapshots cannot be read."
+    if (found > 0)
+        return found . " snapshot(s) listed. Select one to see its evidence."
+
+    total := 0, hidden := 0
+    try total := Integer(db.Scalar("SELECT COUNT(*) FROM snap_entry"))
+    try hidden := Integer(db.Scalar("SELECT COUNT(*) FROM snap_entry WHERE COALESCE(is_excluded,0)=1"))
+
+    if (total = 0) {
+        if Snap_IsOn()
+            return "0 listed - snapshot capture is ON, but no cycle has finished yet. "
+                 . "The first one completes within 5 minutes (Ctrl+Alt+Shift+C captures immediately)."
+        return "0 listed - snapshot capture is OFF. Tick '5-min window snapshots' in the "
+             . "Tracking tab (or press Ctrl+Alt+T), then search again."
+    }
+
+    hint := "0 listed - " . total . " snapshot(s) exist, but none match this query or date range. "
+          . "Pick 'Everything ever captured', or widen the dates."
+    if (hidden = total)
+        hint .= "  Every stored snapshot is hidden by an exclusion - use Manage Exclusions."
+    else if (hidden > 0)
+        hint .= "  (" . hidden . " hidden by exclusions.)"
+    if !Snap_IsOn()
+        hint .= "  Capture is currently OFF, so nothing new is being added."
+    return hint
 }
 
 SnapRec_Selected() {

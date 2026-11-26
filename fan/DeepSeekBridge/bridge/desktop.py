@@ -11,10 +11,146 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from .common import storage_path
+from .common import storage_path, agent_heartbeat
 
 ROOT = Path(__file__).resolve().parent.parent
 RUNTIME = ROOT / '.runtime'
+CREATE_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+
+
+def parse_listeners(table: str, ports: set[int]) -> dict[int, list[int]]:
+    """Listening PIDs per watched port, parsed from `netstat -ano -p TCP`.
+
+    A port can have more than one Windows listener: SO_REUSEADDR lets a second
+    socket bind the same address, so every owner must be stopped for takeover.
+    """
+    owners: dict[int, list[int]] = {}
+    for line in table.splitlines():
+        fields = line.split()
+        if len(fields) < 5 or fields[0].upper() != 'TCP' or fields[3].upper() != 'LISTENING':
+            continue
+        if fields[1].startswith('['):
+            continue  # IPv6-only listeners do not block the IPv4 loopback bind.
+        _, separator, port = fields[1].rpartition(':')
+        if not separator:
+            continue
+        try:
+            number, pid = int(port), int(fields[4])
+        except ValueError:
+            continue
+        if number in ports and pid and pid not in owners.setdefault(number, []):
+            owners[number].append(pid)
+    return {number: pids for number, pids in owners.items() if pids}
+
+
+def listener_pids(ports: set[int]) -> dict[int, list[int]]:
+    try:
+        completed = subprocess.run(['netstat', '-ano', '-p', 'TCP'], capture_output=True,
+                                   text=True, timeout=10, creationflags=CREATE_NO_WINDOW)
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    return parse_listeners(completed.stdout, ports)
+
+
+def ports_available(ports: set[int]) -> bool:
+    """Exclusive loopback bind test; a released listener frees its port at once."""
+    for port in ports:
+        with socket.socket() as probe:
+            options = getattr(socket, 'SO_EXCLUSIVEADDRUSE', None)
+            if options is not None:
+                probe.setsockopt(socket.SOL_SOCKET, options, 1)
+            try:
+                probe.bind(('127.0.0.1', port))
+            except OSError:
+                return False
+    return True
+
+
+def bridge_health(port: int, token: str) -> dict | None:
+    """Authenticated health of this project's gateway, or None when it is absent."""
+    import httpx
+    try:
+        with httpx.Client(timeout=2, trust_env=False) as client:
+            response = client.get(f'http://127.0.0.1:{port}/health', headers={'X-Bridge-Token': token})
+        if response.is_success:
+            state = response.json()
+            if state.get('healthy') is True and state.get('tools'):
+                return state
+    except (httpx.HTTPError, ValueError):
+        pass
+    return None
+
+
+def observatory_identity(port: int) -> bool:
+    """The observatory's public workbench page proves ownership before takeover."""
+    import httpx
+    try:
+        with httpx.Client(timeout=2, trust_env=False) as client:
+            response = client.get(f'http://127.0.0.1:{port}/')
+        return response.is_success and 'Live Learning Workbench' in response.text
+    except (httpx.HTTPError, ValueError):
+        return False
+
+
+def bridge_busy(state: dict) -> bool:
+    """Takeover must never interrupt queued work or running scripts/jobs."""
+    activity = state.get('activity') or {}
+    return bool(activity.get('running_tasks') or activity.get('tools')
+                or activity.get('application_runs') or state.get('managed_scripts'))
+
+
+def stop_process(pid: int) -> None:
+    try:
+        subprocess.run(['taskkill', '/PID', str(pid), '/T', '/F'], capture_output=True,
+                       timeout=10, creationflags=CREATE_NO_WINDOW)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def parse_agent_pids(output: str) -> list[int]:
+    pids = []
+    for line in output.splitlines():
+        line = line.strip()
+        if line.isdigit() and int(line) > 0:
+            pids.append(int(line))
+    return pids
+
+
+def stale_agent_pids() -> list[int]:
+    """Queue daemons from this project that predate the heartbeat file.
+
+    A takeover runs once per upgrade, and the previous daemon does not publish
+    its PID. The parent image check keeps unrelated Python projects untouched.
+    """
+    root = str(ROOT).replace("'", "''")
+    script = (
+        f"$root='{root}';"
+        "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" |"
+        "Where-Object { $_.CommandLine -like '*-m bridge.agent*' -and $_.CommandLine -like '*--daemon*' } |"
+        "Where-Object { $parent=Get-CimInstance Win32_Process -Filter ('ProcessId=' + $_.ParentProcessId);"
+        " $parent.ExecutablePath -and $parent.ExecutablePath -like ($root + '*') } |"
+        "Select-Object -ExpandProperty ProcessId")
+    return _run_pid_query(script)
+
+
+def stale_launcher_pids() -> list[int]:
+    """Console wrappers of the standalone start_*.bat scripts, once their service is replaced."""
+    root = str(ROOT).replace("'", "''")
+    script = (
+        f"$root='{root}';"
+        "Get-CimInstance Win32_Process -Filter \"Name='cmd.exe'\" |"
+        "Where-Object { $_.CommandLine -like ('*' + $root + '*start_*.bat*') } |"
+        "Select-Object -ExpandProperty ProcessId")
+    return _run_pid_query(script)
+
+
+def _run_pid_query(script: str) -> list[int]:
+    try:
+        completed = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', script],
+                                   capture_output=True, text=True, timeout=15, creationflags=CREATE_NO_WINDOW)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return parse_agent_pids(completed.stdout)
 
 
 def parent_alive(pid: int) -> bool:
@@ -106,10 +242,45 @@ def main() -> None:
     try:
         from .process_job import ProcessJob
         job = ProcessJob()
-        for port in (int(os.getenv('BRIDGE_PORT', '8765')), int(os.getenv('MONITOR_PORT', '8766'))):
-            with socket.socket() as probe:
-                probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-                probe.bind(('127.0.0.1', port))
+        ports = {int(os.getenv('BRIDGE_PORT', '8765')), int(os.getenv('MONITOR_PORT', '8766'))}
+        gateway_port = int(os.getenv('BRIDGE_PORT', '8765'))
+        monitor_port = int(os.getenv('MONITOR_PORT', '8766'))
+        owners = listener_pids(ports)
+        if owners:
+            conflicts = []
+            existing = None
+            if gateway_port in owners:
+                existing = bridge_health(gateway_port, os.getenv('BRIDGE_TOKEN', ''))
+                if existing is None:
+                    conflicts.append(f'port {gateway_port}')
+            if monitor_port in owners and not observatory_identity(monitor_port):
+                conflicts.append(f'port {monitor_port}')
+            if conflicts:
+                publish('Bridge ' + ' and '.join(conflicts)
+                        + (' is' if len(conflicts) == 1 else ' are') + ' already in use by another program. '
+                        'Stop that program or change the ports in .env, then retry.')
+                return
+            if existing is not None and bridge_busy(existing):
+                publish('Bridge services started outside Fan are busy. Finish or cancel their task, then retry.')
+                return
+            # Every occupied port is an idle copy of this bridge (manual launcher
+            # or Harness setup). Fan is the single lifecycle owner, so take them
+            # over instead of failing on WinError 10048.
+            for pid in sorted({pid for pids in owners.values() for pid in pids}):
+                stop_process(pid)
+            agent = agent_heartbeat()
+            if agent:
+                stop_process(agent['pid'])
+            for pid in stale_agent_pids():  # Daemons from before the heartbeat existed.
+                stop_process(pid)
+            for pid in stale_launcher_pids():  # Their standalone launcher consoles.
+                stop_process(pid)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and not ports_available(ports):
+                time.sleep(.1)
+            if not ports_available(ports):
+                publish('The previous bridge services are still shutting down. Start services again in a moment.')
+                return
         # Tasks interrupted by a prior Fan exit must not run again on restart.
         db_path = storage_path('BRIDGE_DB', ROOT / 'bridge.sqlite3')
         if db_path.exists():

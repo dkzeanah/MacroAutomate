@@ -1136,6 +1136,28 @@ ResolveWorkflowPoint(target, &x, &y) {
         x := Integer(coord["x"]), y := Integer(coord["y"])
         return true
     }
+    ; winrel:<window>|rx,ry - a point inside a window as fractions of its size, so
+    ; it follows the window when it moves or resizes. <window> is any WinTitle
+    ; (title text, ahk_exe x.exe, ahk_class ...); the active match wins.
+    if RegExMatch(target, "i)^winrel:(.+)\|(\d*\.?\d+),(\d*\.?\d+)$", &relative) {
+        rx := Float(relative[2]), ry := Float(relative[3])
+        if rx > 1 || ry > 1
+            return false
+        hwnd := 0
+        try hwnd := WinActive(relative[1])
+        if !hwnd
+            hwnd := FindWorkflowWindow(relative[1])
+        if !hwnd
+            return false
+        try {
+            WinGetPos(&wx, &wy, &ww, &wh, "ahk_id " . hwnd)
+            if ww <= 0 || wh <= 0
+                return false
+            x := wx + Round(rx * ww), y := wy + Round(ry * wh)
+            return true
+        }
+        return false
+    }
     if InStr(target, ",") {
         parts := StrSplit(target, ",")
         if parts.Length >= 2 {
@@ -1228,7 +1250,9 @@ GetWorkflowActionNames() {
         "Click Element", "Hover Element", "Wait Element", "Replay Window Mouse",
         "Research Search", "Research Capture Links", "Research Launch Next", "Research Add Insight",
         ; ─── Timing & Notices ────────────────────────────────────
-        "Wait", "Show Notification", "Learned Rehearsal Step"
+        "Wait", "Show Notification", "Learned Rehearsal Step",
+        ; ─── Autopilot: people in the loop, portals, audit trail (lib\AutopilotActions.ahk)
+        "Ask Input", "Approval Gate", "Type Credential", "Open Page", "Human Check", "Capture Evidence"
     ]
 }
 
@@ -1262,13 +1286,15 @@ GetActionCategory(action) {
             return "Tracking"
         case "Wait", "Show Notification":
             return "Timing & Notices"
+        case "Ask Input", "Approval Gate", "Type Credential", "Open Page", "Human Check", "Capture Evidence":
+            return "Autopilot"
     }
     return "Mouse"
 }
 
 GetActionCategoryNames() {
     return ["(All)", "Mouse", "Keyboard", "Windows", "Patterns", "Looping", "OCR",
-            "Clipboard & Text", "Variables & Logic", "Tracking", "Timing & Notices"]
+            "Clipboard & Text", "Variables & Logic", "Tracking", "Timing & Notices", "Autopilot"]
 }
 
 MakeActionSpec(targetLabel, targetHint, paramLabel, paramHint, example, helpText,
@@ -1454,6 +1480,33 @@ GetWorkflowActionSpec(action) {
             return MakeActionSpec("", "", "", "", "", "Opens the next pending result link for the current query.", false, false, false, false)
         case "Research Add Insight":
             return MakeActionSpec("", "", "Insight", "required", "Insight=Supports v2 natively", "Attaches a key takeaway to the current query and marks the link done.", false, true, false, true, "param")
+
+        ; ─── Autopilot ───────────────────────────────────────────────────────
+        case "Ask Input":
+            return MakeActionSpec("Variable name", "letters/numbers/_", "Prompt", "question; default=...; mask=1",
+                "Variable name=invoiceNo; Prompt=Invoice number?",
+                "Asks the person running the workflow for a value and stores it as $var.<name>. mask=1 hides what is typed. Unattended runs must supply the value.",
+                true, true, true, true, "param")
+        case "Approval Gate":
+            return MakeActionSpec("", "", "What needs approval", "required", "What needs approval=Submit the timesheet for $var.week?",
+                "Pauses and asks a person to approve before the next step. No stops the workflow. Unattended runs stop here. Recorded in the audit trail.",
+                false, true, false, true, "param")
+        case "Type Credential":
+            return MakeActionSpec("Credential", "saved portal name", "Field", "username or password", "Credential=Payroll; Field=password",
+                "Types a username or password saved under Autopilot > Portals (Windows Credential Manager). Refuses unless the active window's title matches the portal.",
+                true, true, true, true, "param")
+        case "Open Page":
+            return MakeActionSpec("", "", "Page", "url=...; browser=; wait=; timeout=", "url=https://portal.example.com; wait=Sign in; timeout=20000",
+                "Opens an http(s) page (browser=chrome|edge|firefox|default) and waits for a browser window whose title contains wait=.",
+                false, true, false, true, "param")
+        case "Human Check":
+            return MakeActionSpec("Area", "window:A (default) / coords", "Options", "on=pause|stop; words=a|b", "on=pause",
+                "Looks for CAPTCHA, verification-code and sign-in approval prompts. If one is shown, a person completes it; Fan never solves it.",
+                false, false, true, true, "param")
+        case "Capture Evidence":
+            return MakeActionSpec("Area", "window:A (default) / full / coords", "Label", "what this shows", "Label=Confirmation page",
+                "Saves a screenshot into the run's audit trail (data\autopilot\runs).",
+                false, false, true, true, "param")
 
         default:
             return MakeActionSpec("Target", "optional", "Value", "optional", "", "See the action guide for details.")
@@ -1663,6 +1716,16 @@ GetActionParamSuggestions(action) {
             return ["invoice", "receipt", "uppercase", "lowercase", "titlecase", "trim", "date_iso", "[{clip}]"]
         case "Extract from Clipboard":
             return ["between:start|end", "field:,|1", "regex:\\d+"]
+        case "Type Credential":
+            return ["username", "password"]
+        case "Human Check":
+            return ["on=pause", "on=stop", "on=pause; words=security question"]
+        case "Approval Gate":
+            return ["Submit this form?", "Send this email?", "Pay this invoice?", "Delete these records?"]
+        case "Open Page":
+            return ["url=https://; timeout=20000", "url=https://; browser=chrome; wait=; timeout=30000"]
+        case "Ask Input":
+            return ["Value?", "Value?; default=", "Password?; mask=1"]
         default:
             return [""]
     }
@@ -1705,6 +1768,18 @@ GetActionParamHelp(action) {
             return "Use a preset or a custom template containing {clip}"
         case "Extract from Clipboard":
             return "between:start|end, field:delimiter|index, or regex:pattern"
+        case "Ask Input":
+            return "Target is the variable; Param is the question, then optional default=... and mask=1 (separated by semicolons)"
+        case "Approval Gate":
+            return "What the person approves; No stops the workflow"
+        case "Type Credential":
+            return "Target is the saved portal name (Autopilot > Portals); Param is username or password"
+        case "Open Page":
+            return "url=https://...; browser=chrome|edge|firefox|default; wait=title text; timeout=ms"
+        case "Human Check":
+            return "on=pause hands CAPTCHA / MFA prompts to you; on=stop fails the run"
+        case "Capture Evidence":
+            return "Target is the area (window:A default); Param is a label for the screenshot"
         default:
             return ""
     }

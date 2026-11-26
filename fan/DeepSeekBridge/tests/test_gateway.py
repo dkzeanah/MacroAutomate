@@ -1,4 +1,5 @@
 """Protocol and security checks for the gateway."""
+import json
 import os
 import threading
 import time
@@ -6,7 +7,7 @@ from urllib.parse import urlencode
 os.environ['BRIDGE_TOKEN'] = 'test-local-token'
 os.environ['BRIDGE_DB'] = ':memory:'  # overridden below with pytest temp database
 from fastapi.testclient import TestClient
-from bridge import gateway
+from bridge import common, gateway
 
 
 def test_denied_without_token():
@@ -19,6 +20,21 @@ def test_reject_unknown_tool():
     with TestClient(gateway.app) as client:
         response = client.post('/tools/execute_shell', json={}, headers={'X-Bridge-Token': 'test-local-token'})
         assert response.status_code == 404
+
+
+def test_health_reports_agent_heartbeat(tmp_path, monkeypatch):
+    monkeypatch.setattr(gateway, 'DB', tmp_path / 'health.sqlite3')
+    gateway.init_db()
+    heartbeat = tmp_path / 'agent.heartbeat'
+    monkeypatch.setattr(common, 'AGENT_HEARTBEAT', heartbeat)
+    headers = {'X-Bridge-Token': 'test-local-token'}
+    with TestClient(gateway.app) as client:
+        assert client.get('/health', headers=headers).json()['agent_alive'] is False
+        heartbeat.write_text(json.dumps({'pid': os.getpid(), 'at': time.time()}), encoding='utf-8')
+        state = client.get('/health', headers=headers).json()
+        assert state['agent_alive'] is True and state['agent_pid'] == os.getpid()
+        heartbeat.write_text(json.dumps({'pid': os.getpid(), 'at': time.time() - 60}), encoding='utf-8')
+        assert client.get('/health', headers=headers).json()['agent_alive'] is False
 
 
 def test_tool_roundtrip(tmp_path, monkeypatch):

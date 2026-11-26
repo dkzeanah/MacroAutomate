@@ -774,7 +774,7 @@ Use the UI's export functions where available. Close/stop the application before
 
 ### Recover prior material
 
-Enable snapshots and optional OCR in Tracking for material you want to recover. In Snapshot Recovery, search a phrase/preset; inspect the evidence and image; OCR the selected image if necessary; open its recorded URL/file or use Chrome-history title/time matching. History and filename clues are candidates, not proof of an exact source match. Everything integration can assist indexed-file search when its required installation/DLL is available.
+Five-minute window snapshots start with the application and resume automatically after a restart; untick **5-min window snapshots** in Tracking (or press Ctrl+Alt+T) to stop them, and tick **OCR on snapshot** to add recognized text. Captures are stored as Base64 rows in the tracking database, not as image files under `data/tracking/snapshots`, so the database grows while capture runs: use **Prune Old Data** in Tracking, and **Signature: Exclude Same** in Snapshot Recovery to stop storing repeated screens. In Snapshot Recovery, pick a preset such as **Today** or search a phrase; the list refreshes after every capture cycle. Inspect the evidence and image; OCR the selected image if necessary; open its recorded URL/file or use Chrome-history title/time matching. History and filename clues are candidates, not proof of an exact source match. Everything integration can assist indexed-file search when its required installation/DLL is available, and **Settings → Export snapshots…** writes image files from database photos.
 
 ## 14. Keyboard shortcuts
 
