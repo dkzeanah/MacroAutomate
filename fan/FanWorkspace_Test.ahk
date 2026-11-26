@@ -56,6 +56,8 @@ try {
                 FanNav_SettingsBuild()
         }
     }
+    TabCtrl.UseTab(25)
+    MainGui.Add("Text", "x20 y70 w800", "Chrome Learning route fixture")
     FanHome_Build(), FanNav_Init()
     Check(g_FanNav["mode"] = "classic" && TabCtrl.Value = 1, "original tabbed interface and Workflow are the default")
     FanNav_Cycle(1)
@@ -73,11 +75,13 @@ try {
             Check(!members.Has(page), "original page " . page . " has one classic tab")
             members[page] := true
         }
-    Check(members.Count = 23 && FanNav_ClassicGroups().Length = 20, "only learners and study pages are consolidated; all 23 tools remain")
+    Check(members.Count = 22 && FanNav_ClassicGroups().Length = 21, "the merged Learning page and dedicated Chrome page have one route each")
     FanNav_Open(16)
-    Check(g_FanNav["classicTabs"].Text = "App Learning" && g_FanNav["section"].Text = "Vision Scout", "Vision Scout is available inside the combined learning tab")
-    g_FanNav["section"].Choose(3), FanNav_SectionChanged()
-    Check(TabCtrl.Value = 17, "combined learning selector opens Usage Predictor")
+    Check(TabCtrl.Value = 14 && g_FanNav["classicTabs"].Text = "Learning" && !g_FanNav["section"].Visible, "Vision Scout legacy route opens one combined Learning page")
+    TabCtrl.Choose(17), FanNav_Sync()
+    Check(TabCtrl.Value = 14, "Usage Predictor IPC route resolves to the same combined Learning page")
+    FanNav_Open(25)
+    Check(g_FanNav["classicTabs"].Text = "Chrome Learning", "Chrome learning has a dedicated visible tab")
     FanNav_Open(19)
     Check(g_FanNav["classicTabs"].Text = "Study" && g_FanNav["section"].Text = "Live Portal", "Live Portal is available inside the combined Study tab")
     FanNav_Open(10), FanNav_SetMode("clean")
@@ -96,7 +100,7 @@ try {
             FanNav_Open(page)
             Check(TabCtrl.Value = page && g_FanNav["page"].Text = FanNav_Pages()[page][1], "navigation and selectors agree for page " . page)
         }
-    Check(seen.Count = 24, "all original tools and start page remain reachable")
+    Check(seen.Count = 23, "all active pages, Chrome and the start page remain reachable")
     TabCtrl.Choose(19), FanNav_Sync()
     Check(g_FanNav["group"].Text = "Study", "direct IPC-style page choice synchronizes navigation")
     FanNav_Open(22)

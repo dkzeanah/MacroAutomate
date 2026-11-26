@@ -223,7 +223,7 @@ AutoDiscovery_Tick() {
                     loc := el.Location
                     if loc.w > 0 && loc.h > 0 {
                         db.Run("INSERT INTO discovered_target(app_key,title,topic,name,role,acc_path,x,y,w,h,rel_x,rel_y,rel_w,rel_h,shortcut,last_ts) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(app_key,title,acc_path) DO UPDATE SET name=excluded.name,role=excluded.role,x=excluded.x,y=excluded.y,w=excluded.w,h=excluded.h,rel_x=excluded.rel_x,rel_y=excluded.rel_y,rel_w=excluded.rel_w,rel_h=excluded.rel_h,shortcut=excluded.shortcut,seen_count=seen_count+1,last_ts=excluded.last_ts",
-                            TrackAppKey(ctx["exe"],ctx["class"]), ctx["title"],topic,SubStr(name,1,120),role,item["path"],loc.x,loc.y,loc.w,loc.h,
+                            TrackAppKey(ctx["exe"],ctx["class"]) . (StrLower(ctx["exe"])= "chrome.exe" ? "|" . ChromeProfiles_TrackingScope(ctx["hwnd"])["key"] : ""), ctx["title"],topic,SubStr(name,1,120),role,item["path"],loc.x,loc.y,loc.w,loc.h,
                             (loc.x-ctx["x"])/ctx["w"],(loc.y-ctx["y"])/ctx["h"],loc.w/ctx["w"],loc.h/ctx["h"],shortcut,TrackTS())
                         saved++
                         AutoDiscovery_SaveAppTarget(ctx, item["path"], name, role, shortcut, loc)
@@ -255,11 +255,13 @@ AutoDiscovery_SaveAppTarget(ctx, path, name, role, shortcut, loc) {
     db := AppMapDB()
     if !db
         return
-    appId := db.Scalar("SELECT id FROM " . AppMap_AppTable() . " WHERE exe=? AND cls=? LIMIT 1", ctx["exe"], ctx["class"])
+    scope := StrLower(ctx["exe"])="chrome.exe" ? ChromeProfiles_TrackingScope(ctx["hwnd"])["key"] : ""
+    appId := db.Scalar("SELECT id FROM " . AppMap_AppTable() . " WHERE exe=? AND cls=? AND COALESCE(learning_scope,'')=COALESCE(?,'') LIMIT 1", ctx["exe"], ctx["class"],scope)
     if !appId {
         db.Run("INSERT INTO " . AppMap_AppTable() . "(name,exe,cls,title,win_x,win_y,win_w,win_h,learned_ts,notes) VALUES(?,?,?,?,?,?,?,?,?,?)",
             ctx["title"],ctx["exe"],ctx["class"],ctx["title"],ctx["x"],ctx["y"],ctx["w"],ctx["h"],TrackTS(),"Automatic passive discovery")
         appId := db.LastInsertId()
+        db.Run("UPDATE " . AppMap_AppTable() . " SET learning_scope=? WHERE id=?",scope,appId)
     }
     id := db.Scalar("SELECT id FROM ui_element WHERE app_id=? AND kind='auto-acc' AND acc_path=? AND source_title=? LIMIT 1", appId, path, ctx["title"])
     values := [SubStr(name,1,120),role,shortcut,loc.x,loc.y,loc.w,loc.h,

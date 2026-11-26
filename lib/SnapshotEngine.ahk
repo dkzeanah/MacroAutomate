@@ -266,7 +266,7 @@ Snap_CaptureWindow(cycleId, cycleDir, hwnd, index) {
     ; ─── Resolve identity so the snapshot ties into window/mouse/key data ────
     winId := 0, appId := 0
     try {
-        ident := TrackDB_ResolveWindow(title, class, exe)
+        ident := TrackDB_ResolveWindow(title, class, exe,false,hwnd)
         winId := ident["win_id"]
         appId := ident["app_id"]
     } catch as err {

@@ -28,7 +28,7 @@ MainGui.Add("Button", "x400 y2 w50 h20 cRed", "ABORT").OnEvent("Click", (*) => (
 ; calendar section below already called TabCtrl.UseTab(12) - which left that UI
 ; attached to a tab that did not exist, so it never rendered. Declaring it here
 ; restores it. "Tracking" (tab 13) is the behavior-tracking subsystem.
-TabCtrl := MainGui.Add("Tab3", "-Wrap +0x500 x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking", "App Learner", "Snapshot Recovery", "Vision Scout", "Usage Predictor", "Study Assistant", "Live Portal", "DeepSeek Bridge", "Media Intel", "Knowledge", "Scribe", "Start here"])
+TabCtrl := MainGui.Add("Tab3", "-Wrap +0x500 x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking", "Learning", "Snapshot Recovery", "Vision Scout", "Usage Predictor", "Study Assistant", "Live Portal", "DeepSeek Bridge", "Media Intel", "Knowledge", "Scribe", "Start here", "Chrome Learning"])
 SendMessage(0x1329, 0, 0x10001, TabCtrl)
 
 ; ═══════════════════════════════════════════════════════════════════════════════
@@ -72,6 +72,7 @@ Tab_DeepSeekBridge_Build()
 Tab_MediaIntel_Build()
 Tab_Knowledge_Build()
 Tab_Scribe_Build()
+ChromeLearning_Build()
 FanHome_Build()
 FanNav_Init()
 TabCtrl.UseTab(0)
@@ -91,6 +92,10 @@ try {
     ; Controls the hand-written GuiResize already repositions must be exempt,
     ; or they get moved twice and end up on top of one another.
     flowSkip := g_FanNav["controls"].Clone()
+    for ctl in g_LearnHub["controls"]
+        flowSkip.Push(ctl)
+    for ctl in g_ChromeLearn["controls"]
+        flowSkip.Push(ctl)
     ; Only the controls GuiResize REPOSITIONS need exempting. The ones it merely
     ; resizes (SeqLV, the status label, the group box) are fine to leave to the
     ; reflow - exempting those pinned the status label on top of its buttons.

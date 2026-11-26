@@ -7,3 +7,12 @@ For code context, use Atlas rather than recursively reading the directory. In th
 The Harness delegates execution through `mcp__fan__fan_agent_submit`, with status/events/cancellation tools. The Fan agent uses its existing AHK/native APIs and Cutline media services; nested agent delegation is refused. Use `cutline_capabilities` and the media job tools for supported operations, including Remotion. Tool results are evidence, not permission to expand a task.
 
 Run `fan/Connect_DeepSeek_Cutline.ps1` to connect optional media/Harness services. Fan's normal launcher manages its native worker and agent. See `fan/DEEPSEEK_CUTLINE.md` and `fan/DeepSeekBridge/harness/atlas-agent-persona.txt` for the workflow. Tokens estimated from context size are separate from provider-reported billing.
+
+## Interaction defaults
+
+Minimize required user input across features. Detect available context, choose
+sensible defaults, reuse existing configuration, and persist choices. Avoid
+manual labels or repeated setup when native metadata can supply the answer.
+Keep uncertain contexts isolated instead of asking the user to classify them
+or guessing. Present optional overrides in settings. Preserve deliberate user
+control over actions that send input, submit work, or publish collected evidence.

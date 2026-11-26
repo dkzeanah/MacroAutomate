@@ -39,6 +39,7 @@ InitDB()
 global g_GdipToken := Gdip_Startup()
 OnExit(ShutdownGdip)
 #Include Core\_Shell.ahk
+#Include tests\LearningChrome_Cases.ahk
 g_FanNav["classicTabs"].GetPos(&headerX, &headerY, &headerW, &headerH)
 rect := Buffer(16)
 SendMessage(0x130A, 0, rect.Ptr, g_FanNav["classicTabs"])
@@ -55,7 +56,7 @@ for ctl in g_FanNav["controls"]
 for key in ["OnTop", "Tabs"] {
     try excluded[MainGui[key].Hwnd] := true
 }
-for page in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23] {
+for page in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25] {
     FanNav_Open(page)
     controls := 0, interactive := 0
     for ctl in MainGui {
@@ -75,6 +76,7 @@ for page in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 
     FileAppend((ok ? "PASS " : "FAIL ") . "actual page " . page . " " . FanNav_ClassicPageName(page)
         . ": " . controls . " controls, " . interactive . " interactive`n", "*")
 }
+LearningChrome_Cases()
 ; Builders catch their own exceptions, so inspect the isolated error log too.
 if FanFileExist(ERROR_LOG_FILE) {
     errors := FanFileRead(ERROR_LOG_FILE)

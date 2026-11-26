@@ -1,3 +1,4 @@
+global g_VSLearningScope := "desktop"
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; VisionScout.ahk - MacroAutomator v9 self-learning subsystem (deepseek build)
 ; ═══════════════════════════════════════════════════════════════════════════════
@@ -145,6 +146,12 @@ VS_ApplySchema(db) {
           . "  count INTEGER NOT NULL DEFAULT 0,"
           . "  length INTEGER NOT NULL DEFAULT 0,"
           . "  first_seen TEXT, last_seen TEXT)")
+    columns := Map()
+    for column in db.Query("PRAGMA table_info(vs_sequence)")
+        columns[column["name"]] := true
+    if !columns.Has("learning_scope")
+        db.Exec("ALTER TABLE vs_sequence ADD COLUMN learning_scope TEXT DEFAULT 'desktop'")
+
 }
 
 ; ═══════════════════════════════════════════════════════════════════════════════
@@ -598,7 +605,12 @@ VS_MatchElement(sx, sy) {
     global g_VSElements
     best := Map()
     bestArea := 0x7FFFFFFF
+    ctx := TrackCtx_Get(0)
     for el in g_VSElements {
+        if Integer(el["win_id"]) && Integer(el["win_id"]) != ctx["win_id"]
+            continue
+        if StrLower(ctx.Get("exe","")) = "chrome.exe" && !Integer(el["win_id"])
+            continue
         x := Integer(el["x"]) - 6, y := Integer(el["y"]) - 6
         x2 := x + Integer(el["w"]) + 12, y2 := y + Integer(el["h"]) + 12
         if sx >= x && sx <= x2 && sy >= y && sy <= y2 {
@@ -638,12 +650,25 @@ VS_BumpElement(el, clickBool) {
 
 ; Refresh a promoted element's pattern at its current on-screen location.
 VS_RecapturePattern(el) {
+    browser := false, browserHwnd := 0
+    if Integer(el["win_id"]) {
+        row := TrackDB_WinRow(Integer(el["win_id"]))
+        if row.Count && StrLower(row.Get("exe","")) = "chrome.exe" {
+            ctx := TrackCtx_Get(0)
+            if ctx["win_id"] != Integer(el["win_id"]) || !InStr(row.Get("app_key",""),"chrome-")
+                return
+            browser := true, browserHwnd := ctx["hwnd"]
+        }
+    }
     ; Prefer the current live location (via the old pattern), else stored coords.
     x1 := Integer(el["x"]), y1 := Integer(el["y"])
     w := Integer(el["w"]), h := Integer(el["h"])
     if el["bin_text"] != "" {
         try {
-            ok := FindText(&fx, &fy, 0, 0, A_ScreenWidth, A_ScreenHeight, 0.2, 0.15, "|<vs>" . el["bin_text"])
+            bx := 0, by := 0, bw := A_ScreenWidth, bh := A_ScreenHeight
+            if browser
+                WinGetPos(&bx,&by,&bw,&bh,browserHwnd)
+            ok := FindText(&fx, &fy, bx, by, bx+bw, by+bh, 0.2, 0.15, "|<vs>" . el["bin_text"])
             if ok && ok.Length {
                 x1 := ok[1].x, y1 := ok[1].y
                 w := Max(8, ok[1].w), h := Max(8, ok[1].h)
@@ -889,11 +914,17 @@ VS_PollWindow() {
 ; queue for persistence, and run prediction. `elementId` is set by callers that
 ; already resolved the click target.
 VS_RecordEvent(kind, x, y, label, elementId := 0) {
-    global g_VSOn, g_VSRecent, g_VSSteps, g_VSFlushQueue, g_VSMaxSteps, g_VSMaxRecent
+    global g_VSOn, g_VSRecent, g_VSSteps, g_VSFlushQueue, g_VSMaxSteps, g_VSMaxRecent, g_VSLearningScope
     if !g_VSOn
         return
 
     ctx := TrackCtx_Get(500)
+    scope := StrLower(ctx.Get("exe","")) = "chrome.exe" ? "chrome-window:" . ctx["app_id"] : "desktop"
+    if scope != g_VSLearningScope {
+        g_VSSteps := [], g_VSRecent := []
+        g_VSLearningScope := scope
+        VS_DisarmOffer()
+    }
     ev := Map("ts", TrackTS(), "tick", A_TickCount, "kind", kind
             , "win_id", ctx["win_id"], "app_id", ctx["app_id"]
             , "element_id", elementId, "x", x, "y", y, "label", label)
@@ -998,7 +1029,7 @@ VS_MineSequencesTimer() {
 
 ; Mine frequent sub-sequences from the in-memory compressed step ring.
 VS_MineSequences() {
-    global g_VSSteps, g_VSSequences, g_VSMinSupport, g_VSMaxSeqLen
+    global g_VSSteps, g_VSSequences, g_VSMinSupport, g_VSMaxSeqLen, g_VSLearningScope
     if g_VSSteps.Length < g_VSMinSupport + 1
         return 0
 
@@ -1043,11 +1074,11 @@ VS_MineSequences() {
             steps := StrSplit(key, Chr(31))
             if steps.Length < 3
                 continue
-            sig := TrackHash(key)
-            db.Run("INSERT INTO vs_sequence(sig,steps,count,length,first_seen,last_seen) "
-                 . "VALUES(?,?,?,?,?,?) ON CONFLICT(sig) DO UPDATE SET "
+            sig := TrackHash((g_VSLearningScope = "desktop" ? "" : g_VSLearningScope . "|") . key)
+            db.Run("INSERT INTO vs_sequence(sig,steps,count,length,first_seen,last_seen,learning_scope) "
+                 . "VALUES(?,?,?,?,?,?,?) ON CONFLICT(sig) DO UPDATE SET "
                  . "steps=excluded.steps, count=excluded.count, length=excluded.length, last_seen=excluded.last_seen"
-                 , sig, VS_EncodeSteps(steps), entry["count"], steps.Length, now, now)
+                 , sig, VS_EncodeSteps(steps), entry["count"], steps.Length, now, now,g_VSLearningScope)
             learned++
         }
     } catch as err {
@@ -1074,7 +1105,7 @@ VS_AfterStep(token) {
 }
 
 VS_FindContinuation() {
-    global g_VSSteps, g_VSSequences, g_VSMinPrefix
+    global g_VSSteps, g_VSSequences, g_VSMinPrefix, g_VSLearningScope
     best := Map()
     bestScore := 0
     ; Try progressively longer recent tails (longest match wins).
@@ -1084,6 +1115,8 @@ VS_FindContinuation() {
         Loop k
             tail.Push(g_VSSteps[g_VSSteps.Length - k + A_Index])
         for seq in g_VSSequences {
+            if seq.Get("learning_scope","desktop") != g_VSLearningScope
+                continue
             steps := seq["stepsArr"]
             if steps.Length <= k
                 continue
@@ -1145,7 +1178,8 @@ VS_SeqName(steps) {
 ; ═══════════════════════════════════════════════════════════════════════════════
 
 VS_ArmOffer(cand) {
-    global g_VSPending, g_VSOfferArmed, g_VSLastOfferTick, g_VSLastOfferSig
+    global g_VSPending, g_VSOfferArmed, g_VSLastOfferTick, g_VSLastOfferSig, g_VSLearningScope
+    cand["learning_scope"] := g_VSLearningScope
     g_VSPending := cand
     g_VSLastOfferTick := A_TickCount
     g_VSLastOfferSig := cand["sig"]
@@ -1174,12 +1208,18 @@ VS_ContinueHandler(*) {
     if !g_VSPending.Count
         return
     cand := g_VSPending
+    ctx := TrackCtx_Get(0)
+    scope := StrLower(ctx.Get("exe","")) = "chrome.exe" ? "chrome-window:" . ctx["app_id"] : "desktop"
+    if cand.Get("learning_scope","desktop") != scope {
+        VS_DisarmOffer()
+        return
+    }
     VS_DisarmOffer()
-    VS_ExecuteContinuation(cand["continuation"])
+    VS_ExecuteContinuation(cand["continuation"],scope)
 }
 
 ; Execute the learned continuation steps.
-VS_ExecuteContinuation(steps) {
+VS_ExecuteContinuation(steps, scope := "desktop") {
     global g_VSReplaying
     if !steps.Length
         return
@@ -1188,6 +1228,14 @@ VS_ExecuteContinuation(steps) {
     try {
         ShowStatus("Vision Scout: running learned sequence (" . steps.Length . " steps)", "wait")
         for t in steps {
+            if scope != "desktop" {
+                ctx := TrackCtx_Get(0)
+                if "chrome-window:" . ctx["app_id"] != scope || StrLower(ctx.Get("exe","")) != "chrome.exe"
+                    break
+                ; Browser continuations stay in their original native window.
+                if InStr(t,"win:") = 1
+                    continue
+            }
             if VS_ExecuteStepToken(t)
                 done++
             Sleep(220)
@@ -1254,10 +1302,27 @@ VS_ClickElementById(id) {
 }
 
 VS_ClickElement(el) {
+    browser := false, browserHwnd := 0
+    if Integer(el["win_id"]) {
+        row := TrackDB_WinRow(Integer(el["win_id"]))
+        if row.Count && StrLower(row.Get("exe","")) = "chrome.exe" {
+            browser := true
+            for candidate in WinGetList("ahk_exe chrome.exe")
+                if TrackAppKey("chrome.exe",WinGetClass(candidate)) . "|" . ChromeProfiles_TrackingScope(candidate)["key"] = row.Get("app_key","") {
+                    browserHwnd := candidate
+                    break
+                }
+            if !browserHwnd || !WinActive("ahk_id " . browserHwnd)
+                return false
+        }
+    }
     ; 1. Visual: re-find the stored FindText pattern anywhere on screen.
     if el["bin_text"] != "" {
         try {
-            ok := FindText(&fx, &fy, 0, 0, A_ScreenWidth, A_ScreenHeight, 0.2, 0.15, "|<vs>" . el["bin_text"])
+            bx := 0, by := 0, bw := A_ScreenWidth, bh := A_ScreenHeight
+            if browser
+                WinGetPos(&bx,&by,&bw,&bh,browserHwnd)
+            ok := FindText(&fx, &fy, bx, by, bx+bw, by+bh, 0.2, 0.15, "|<vs>" . el["bin_text"])
             if ok && ok.Length {
                 Click(ok[1].mx, ok[1].my)
                 return true
@@ -1269,7 +1334,7 @@ VS_ClickElement(el) {
     if winId {
         winRow := TrackDB_WinRow(winId)
         if winRow.Count {
-            hwnd := Element_FindLiveWindow(winRow["name"])
+            hwnd := browser ? browserHwnd : Element_FindLiveWindow(winRow["name"])
             if hwnd {
                 try {
                     WinGetPos(&wx, &wy, &ww, &wh, "ahk_id " . hwnd)

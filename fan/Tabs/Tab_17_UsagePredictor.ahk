@@ -7,9 +7,8 @@
 
 Tab_UsagePredictor_Build() {
     global g_UPTabIndex
-    g_UPTabIndex := 17
-    TabCtrl.UseTab(g_UPTabIndex)
-    try UsagePredictor_BuildTab(MainGui)
+    g_UPTabIndex := 14
+    try UsagePredictor_ApplySchema()
     catch as err
         LogErrorToFile(err, "caught", "Usage Predictor tab construction")
 }

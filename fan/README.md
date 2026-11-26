@@ -1,9 +1,13 @@
 # fan — Combined Multi-File Build of Macro Automator v9
 
 Start with the [interface guide](TASK_WORKSPACE.md). Original tabs is the default;
-only the related learner and study pages share tabs. **Settings > Interface**
+the three learners now operate together in one **Learning** workspace, and
+**Chrome Learning** follows the focused browser window. Read the
+[Learning, Chrome and Study guide](LEARNING_CHROME_GUIDE.md) for capture, review,
+reuse, per-window profile labels and the original Live Portal workflow.
+**Settings > Interface**
 switches to the optional clean task workspace and back. All 23 original tools
-remain available, with their existing controls and shared evidence review.
+remain available through their engines and the combined collection/review controls.
 
 The [Learning Workbench guide](EVIDENCE_LEARNING.md) explains evidence-backed
 claims, generated lessons and sequence rehearsals, randomized background replay,

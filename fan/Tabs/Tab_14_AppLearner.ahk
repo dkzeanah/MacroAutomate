@@ -7,7 +7,12 @@
 
 Tab_AppLearner_Build() {
     TabCtrl.UseTab(14)
-    try AppLearner_BuildTab(MainGui)
+    try {
+        AppMapDB()
+        VisionScout_Init()
+        UsagePredictor_ApplySchema()
+        LearningHub_Build()
+    }
     catch as err
         LogErrorToFile(err, "caught", "App Learner tab construction")
 }

@@ -92,6 +92,8 @@ StatusBar.SetText("Ready | CAPSLOCK=Definition Mode | Ctrl+B=Load | Ctrl+Shift+B
 
 InitializeInstructions()
 FanHome_Refresh()
+SetTimer(LearningHub_State, 1500)
+ChromeLearning_Start()
 ; An explicit startup view for a local, non-interfering demonstration using
 ; the actual stored learner inventory. Normal startup stays quiet.
 if A_Args.Length && A_Args[1] = "--learning-workbench"

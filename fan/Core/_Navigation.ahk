@@ -8,7 +8,7 @@ FanNav_ClassicGroups() {
         ["Spools", [4]], ["Analytics", [5]], ["Clipboard", [6]],
         ["Hotkeys", [7]], ["Hotstrings", [8]], ["Triggers", [9]],
         ["Settings", [10]], ["Notepad", [11]], ["Calendar", [12]],
-        ["Tracking", [13]], ["App Learning", [14, 16, 17]],
+        ["Tracking", [13]], ["Learning", [14]], ["Chrome Learning", [25]],
         ["Snapshot Recovery", [15]], ["Study", [18, 19]],
         ["DeepSeek Bridge", [20]], ["Media Intel", [21]],
         ["Knowledge", [22]], ["Scribe", [23]]]
@@ -16,7 +16,8 @@ FanNav_ClassicGroups() {
 
 FanNav_ClassicPageName(page) {
     switch page {
-        case 14: return "App Learner"
+        case 14: return "Learning"
+        case 25: return "Chrome Learning"
         case 16: return "Vision Scout"
         case 17: return "Usage Predictor"
         case 18: return "Study Assistant"
@@ -28,7 +29,7 @@ FanNav_ClassicPageName(page) {
 FanNav_Groups() {
     return [Map("name", "Start", "pages", [24]),
         Map("name", "Automate", "pages", [1, 23, 4, 7, 8, 9, 20]),
-        Map("name", "Capture & learn", "pages", [13, 14, 16, 17, 3, 21, 15]),
+        Map("name", "Capture & learn", "pages", [14, 25, 13, 3, 21, 15]),
         Map("name", "Review & apply", "pages", [22]),
         Map("name", "Study", "pages", [18, 19]),
         Map("name", "Organize", "pages", [6, 11, 12, 5]),
@@ -51,7 +52,7 @@ FanNav_Pages() {
         ["Notes", "Keep notes that can explain your captures and procedures.", "Record the task, expected result, and limitations alongside a procedure."],
         ["Calendar", "Review dates and scheduled work.", "Review scheduled workflows under Automate when you need to change execution."],
         ["Activity tracking", "Record window time, mouse/keyboard activity and snapshots using the individual switches.", "Collect one representative task, stop the relevant recorder, then open Review & apply. Activity frequency alone does not establish relevance."],
-        ["App interface learner", "Map an application's accessible controls into named targets.", "Inspect the map in the target app, then use a named element in Workflow. Recheck after layout or DPI changes."],
+        ["Learning", "Map interfaces, observe visual targets and learn usage in one shared collection and review workspace.", "Choose a window, collect one task, stop the recorders, then inspect a result's evidence and next action before using it."],
         ["Find capture source", "Trace a stored snapshot back to its original page or window.", "Check the recovered URL or source before citing or reusing the capture."],
         ["Visual learner", "Discover visible targets and recurring interaction sequences.", "Review captured targets and their evidence. A pixel match alone does not verify a control's meaning."],
         ["Usage predictions", "Suggest continuations from repeated recorded sequences.", "Review the sequence and context before accepting a suggestion. Repetition is not proof that it is correct."],
@@ -61,7 +62,8 @@ FanNav_Pages() {
         ["Media analysis", "Extract summaries, frames and feature maps from media or windows.", "Inspect the source frames and timestamps; generated summaries remain interpretations of that source."],
         ["Evidence & knowledge", "Browse captured records and distinguish observations, checks and saved rehearsals.", "Select a category, search its recent records, and inspect an item. Open a learning claim's evidence before deciding whether to reuse it."],
         ["Record a procedure", "Record a task as a sequence of interactions with Workflow Scribe.", "Stop recording, inspect the steps and targets, then rehearse before reusing the procedure."],
-        ["Start here", "Choose a task, collect a small example, review the evidence, then apply the result.", "Use the guided routes below. Review & apply is the common destination for the collection tools."]]
+        ["Start here", "Choose a task, collect a small example, review the evidence, then apply the result.", "Use the guided routes below. Review & apply is the common destination for the collection tools."],
+        ["Chrome Learning", "Follow the focused Chrome window, label its profile and review retained viewport evidence.", "Capture a page deliberately, inspect controls and text, verify a live target, then add only relevant observed text to Study."]]
 }
 
 FanNav_Init() {
@@ -221,6 +223,7 @@ FanNav_Cycle(direction) {
 
 FanNav_Open(page, *) {
     global TabCtrl
+    page := FanNav_ResolvePage(page)
     TabCtrl.Choose(page)
     FanNav_Sync()
     if page = 22
@@ -228,6 +231,8 @@ FanNav_Open(page, *) {
     if page = 24
         FanHome_Refresh()
 }
+
+FanNav_ResolvePage(page) => page = 16 || page = 17 ? 14 : page
 
 FanNav_GroupChanged(*) {
     global g_FanNav
@@ -245,6 +250,9 @@ FanNav_PageChanged(*) {
 FanNav_Sync(*) {
     global g_FanNav, TabCtrl
     page := TabCtrl.Value
+    resolved := FanNav_ResolvePage(page)
+    if resolved != page
+        TabCtrl.Choose(resolved), page := resolved
     if page = g_FanNav["current"] {
         FanNav_Raise()
         return

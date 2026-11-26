@@ -1,3 +1,4 @@
+#Include %A_LineFile%\..\ChromeProfiles.ahk
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; AppLearner.ahk - Learn a program's whole interface into an object model,
 ;                  then drive it from a plain-text script (or from an LLM).
@@ -159,6 +160,11 @@ AppMap_Schema(db) {
          . "learned_ts TEXT DEFAULT '', "
          . "notes TEXT DEFAULT '')"
     db.Exec(sql)
+    columns := Map()
+    for column in db.Query("PRAGMA table_info(" . AppMap_AppTable() . ")")
+        columns[column["name"]] := true
+    if !columns.Has("learning_scope")
+        db.Exec("ALTER TABLE " . AppMap_AppTable() . " ADD COLUMN learning_scope TEXT")
 
     ; kind: control | acc | menu | menuitem | menuitem-ocr
     ; acc_path: comma path for Acc.ElementFromPath   menu_path: File > Save As
@@ -247,8 +253,9 @@ AppMap_LearnWindow(hwnd, opts) {
         return Map()
     }
 
-    ; One app row per exe+class pair; relearning replaces its elements.
-    appId := db.Scalar("SELECT id FROM " . AppMap_AppTable() . " WHERE exe=? AND cls=?", exe, cls)
+    scope := StrLower(exe) = "chrome.exe" ? ChromeProfiles_TrackingScope(hwnd)["key"] : ""
+    ; Browser maps belong to one detected profile and native window session.
+    appId := db.Scalar("SELECT id FROM " . AppMap_AppTable() . " WHERE exe=? AND cls=? AND COALESCE(learning_scope,'')=COALESCE(?,'')", exe, cls,scope)
     if IsInteger(appId) && Integer(appId) > 0 {
         appId := Integer(appId)
         db.Run("UPDATE " . AppMap_AppTable() . " SET name=?, title=?, win_x=?, win_y=?, win_w=?, win_h=?, learned_ts=? WHERE id=?"
@@ -259,6 +266,8 @@ AppMap_LearnWindow(hwnd, opts) {
              . "VALUES(?,?,?,?,?,?,?,?,?)", title, exe, cls, title, wx, wy, ww, wh, AppMap_TS())
         appId := Integer(db.Scalar("SELECT last_insert_rowid()"))
     }
+
+    db.Run("UPDATE " . AppMap_AppTable() . " SET learning_scope=? WHERE id=?",scope,appId)
 
     AppLog("══════ Learning '" . TrackEllipsis(title, 50) . "'  (" . exe . " / " . cls . ") ══════")
     counts := Map("id", appId, "controls", 0, "acc", 0, "menus", 0, "altocr", 0
@@ -936,6 +945,15 @@ AppMap_Resolve(appId, ref) {
 AppMap_LiveHwnd(app) {
     if (!app.Count || app["exe"] = "")
         return 0
+    if StrLower(app["exe"]) = "chrome.exe" {
+        scope := app.Get("learning_scope","")
+        if scope = ""
+            return 0
+        for candidate in WinGetList("ahk_exe chrome.exe")
+            if ChromeProfiles_TrackingScope(candidate)["key"] = scope
+                return candidate
+        return 0
+    }
     hwnd := 0
     try hwnd := WinExist("ahk_exe " . app["exe"] . " ahk_class " . app["cls"])
     if !hwnd
@@ -955,7 +973,8 @@ AppMap_Locate(app, el) {
     if el["kind"] = "auto-acc" {
         hwnd := 0
         for candidate in WinGetList("ahk_exe " . app["exe"] . " ahk_class " . app["cls"])
-            if WinGetTitle("ahk_id " . candidate) = el.Get("source_title", "") {
+            if WinGetTitle("ahk_id " . candidate) = el.Get("source_title", "")
+                && (StrLower(app["exe"]) != "chrome.exe" || ChromeProfiles_TrackingScope(candidate)["key"] = app.Get("learning_scope","")) {
                 hwnd := candidate
                 break
             }

@@ -7,13 +7,13 @@ the tools. Your choice is remembered across launches. `/settings`, `/bridge` and
 the workbench launch arguments still open their requested pages. Existing
 hotkeys and native IPC page IDs remain compatible.
 
-The tabbed interface retains all 23 original tools under 20 visible tabs. Only
-closely related pages are combined: **App Learning** contains App Learner, Vision
-Scout and Usage Predictor; **Study** contains Study Assistant and Live Portal.
-Use the **View** selector in the top toolbar to choose the page within a combined
-tab. Each combined tab remembers its last selected page during the session.
-Other tabs retain their original names and contents. The tab strip scrolls at
-narrow window widths and expands with the window.
+**Learning** combines App Learner, Vision Scout and Usage Predictor into one real
+collection/review workspace, with no learner sub-view switch. **Chrome Learning**
+is a dedicated browser interface with focus following, window-session isolation
+and automatic Chrome profile detection. See the [Learning, Chrome and Study guide](LEARNING_CHROME_GUIDE.md).
+**Study** retains Study Assistant and Live Portal through its top-toolbar **View**
+selector. Other tabs retain their original names and contents. The tab strip
+scrolls at narrow window widths and expands with the window.
 
 While the main MacroAutomate window is active, **Tab** selects the next tab and
 **Shift+Tab** selects the previous one, wrapping at either end. In the clean view,
@@ -39,7 +39,7 @@ clean Start page for Original tabs returns to Workflow.
 | --- | --- |
 | Start | Guided routes and inventory overview |
 | Automate | Workflow, Scribe, scheduled workflows, hotkeys, hotstrings, triggers, agent workbench |
-| Capture & learn | Activity tracking, app interface learner, visual learner, usage predictions, OCR, media analysis, capture-source recovery |
+| Capture & learn | Combined Learning, Chrome Learning, activity tracking, OCR, media analysis, capture-source recovery |
 | Review & apply | Evidence and knowledge, linked evidence ledger and saved rehearsals |
 | Study | Study library and live study session |
 | Organize | Clipboard, notes, calendar and workflow analytics |

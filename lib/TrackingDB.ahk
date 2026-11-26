@@ -1,3 +1,4 @@
+#Include %A_LineFile%\..\ChromeProfiles.ahk
 ; ═══════════════════════════════════════════════════════════════════════════════
 ; TrackingDB.ahk - Schema and data access for the MacroAutomator tracking store
 ; ═══════════════════════════════════════════════════════════════════════════════
@@ -449,13 +450,13 @@ TrackDB_MetaSet(key, value) {
 ; ═══════════════════════════════════════════════════════════════════════════════
 
 ; Resolve (creating on first sight) the app row for an exe/class pair.
-TrackDB_AppId(exe, class) {
+TrackDB_AppId(exe, class, scope := "", label := "") {
     global g_TrackAppCache
     db := TrackDB()
     if !db
         return 0
 
-    key := TrackAppKey(exe, class)
+    key := TrackAppKey(exe, class) . (scope != "" ? "|" . scope : "")
     if g_TrackAppCache.Has(key)
         return g_TrackAppCache[key]
 
@@ -463,6 +464,9 @@ TrackDB_AppId(exe, class) {
     SplitPath(exe, , , , &display)
     if (display = "")
         display := exe
+
+    if label != ""
+        display .= " [" . label . "]"
 
     db.Run("INSERT INTO app(app_key,exe,class,display,first_seen,last_seen) "
          . "VALUES(?,?,?,?,?,?) ON CONFLICT(app_key) DO UPDATE SET last_seen=excluded.last_seen"
@@ -476,14 +480,17 @@ TrackDB_AppId(exe, class) {
 
 ; Resolve (creating on first sight) the win row for a normalised window name.
 ; Returns a Map: win_id, app_id, name.
-TrackDB_ResolveWindow(title, class, exe, aggressive := false) {
+TrackDB_ResolveWindow(title, class, exe, aggressive := false, hwnd := 0) {
     global g_TrackWinCache
     db := TrackDB()
     result := Map("win_id", 0, "app_id", 0, "name", "")
     if !db
         return result
 
-    appId := TrackDB_AppId(exe, class)
+    scope := Map("key","","label","")
+    if StrLower(exe) = "chrome.exe" && hwnd
+        scope := ChromeProfiles_TrackingScope(hwnd)
+    appId := TrackDB_AppId(exe, class,scope["key"],scope["label"])
     if !appId
         return result
 
@@ -526,7 +533,7 @@ TrackDB_WinRow(winId) {
     db := TrackDB()
     if !db
         return Map()
-    return db.QueryRow("SELECT w.*, a.exe AS exe, a.class AS class, a.display AS app_display "
+    return db.QueryRow("SELECT w.*, a.exe AS exe, a.class AS class, a.display AS app_display, a.app_key AS app_key "
                      . "FROM win w JOIN app a ON a.id=w.app_id WHERE w.id=?", winId)
 }
 
