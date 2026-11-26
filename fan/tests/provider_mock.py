@@ -59,6 +59,8 @@ class Handler(BaseHTTPRequestHandler):
                 response = b'{broken'
             else:
                 text = body['messages'][-1]['content']
+                if self.path.startswith('/media/'):
+                    text = json.dumps([{'ts_ms': 0, 'label': 'Fixture scene', 'description': 'Synthetic video observation', 'category': 'scene', 'confidence': .9}])
                 if self.path.startswith('/planner/'):
                     text = 'TYPE 1 Paris' if 'COMPILER FEEDBACK:' in text else 'CHOOSE 1 Paris'
                 if self.path.startswith('/semantic/'):
@@ -74,4 +76,13 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass
 
-ThreadingHTTPServer(('127.0.0.1', 18766), Handler).serve_forever()
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', type=int, default=18766)
+    parser.add_argument('--ready-file')
+    args = parser.parse_args()
+    server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
+    if args.ready_file:
+        Path(args.ready_file).write_text(str(server.server_port), encoding='utf-8')
+    server.serve_forever()

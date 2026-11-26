@@ -56,7 +56,8 @@ FanVision_Dispatch(name, args) {
             case "fan_page_image": result := FanPage_Image(args)
             default: throw ValueError("Unknown perception tool: " . name)
         }
-        try DeepActivity_Result(name, result)
+        if name != "fan_page_probe"
+            try DeepActivity_Result(name, result)
         return result
     } finally {
         DeepActivity_Resume()
@@ -282,7 +283,7 @@ FanVision_Finish(frame, initialHash := "") {
     return frame
 }
 
-FanVision_Controls(hwnd, region, limit := 200, thorough := false) {
+FanVision_Controls(hwnd, region, limit := 200, thorough := false, readOnlyText := false) {
     FanVision_Trace("Accessibility","Acc.ElementFromHandle",Map("hwnd",hwnd,"region",region,"limit",limit))
     out := [], queue := [], visited := 0, cursor := 1, started := A_TickCount, treeLimited := false
     try queue.Push(Map("el", Acc.ElementFromHandle(hwnd), "path", "", "depth", 0))
@@ -299,7 +300,7 @@ FanVision_Controls(hwnd, region, limit := 200, thorough := false) {
                 try name := SubStr(el.Name, 1, 2000)
                 try stateText := el.StateText
                 protected := !!(state & 0x20000000) || InStr(StrLower(stateText), "protected") != 0
-                if !protected
+                if !protected && (!readOnlyText || !RegExMatch(role,"i)edit|text field|combo") || RegExMatch(name,"i)^address.*(search|bar)"))
                     try value := SubStr(el.Value, 1, 4000)
                 try action := SubStr(el.DefaultAction, 1, 200)
                 try description := SubStr(el.Description, 1, 1000)

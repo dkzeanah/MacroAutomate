@@ -617,3 +617,12 @@ The original DeepSeek split remains byte-identical apart from the intentional
 path/layout changes above. The combined build then layers on the newer DeepSeek
 tray icons and the ChatGPT Usage Predictor integration documented in this file
 and `SPLIT_MANIFEST.md`.
+
+
+Chrome Learning collects changed readable page text and links automatically,
+with a remembered pause switch, per-profile/window provenance and an unread review
+queue. Media Intel's primary Analyze action uses the selected video directly,
+runs the existing Cutline analyzer in a Python worker and supports progress/cancel.
+DeepSeek descriptions reuse the existing provider in a separate worker. See the
+[Learning, Chrome and Study guide](LEARNING_CHROME_GUIDE.md) for the review workflow
+and the distinction between local visual metrics and semantic descriptions.

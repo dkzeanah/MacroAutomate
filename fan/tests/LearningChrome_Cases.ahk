@@ -8,6 +8,8 @@ LearningChrome_Check(ok, message) {
 LearningChrome_Fit(controls, width, height, label) {
     rects := [], failures := []
     for ctl in controls {
+        if !ctl.Visible
+            continue
         actual := LearningUI_Rect(ctl)
         x := actual["x"], y := actual["y"], w := actual["w"], h := actual["h"]
         name := ctl.Type . " " . SubStr(ctl.Text,1,28)
@@ -62,6 +64,8 @@ LearningChrome_Cases() {
     LearningChrome_Check(TabCtrl.Value=14 && g_LearnHub["ui"]["results"].Hwnd=learnedHandle,"legacy learner routes share the same real controls, not hidden alternate views")
     LearningChrome_ContextCases()
     LearningChrome_ProfileCases()
+    LearningChrome_AutomaticReviewCases()
+    LearningChrome_MediaCases()
 }
 
 LearningChrome_ContextCases() {
@@ -152,4 +156,90 @@ LearningChrome_ProfileCases() {
     LearningChrome_Check(!UsagePredictor_ReplayAction(Map("kind","KEY","data",Map("learning_scope","chrome-window:impossible","key","^s"))),"prediction replay refuses a different active Chrome window before sending input")
     for window in [first,second,third]
         window.Destroy()
+}
+
+LearningChrome_AutomaticReviewCases() {
+    db := TrackDB(), prior := g_ChromeLearn["target"]
+    context := Map("context_id","review-window","hwnd",123,"profile_id","chrome:review","profile_label","Review profile")
+    db.Run("INSERT INTO chrome_learning_capture(page_id,context_id,profile_label,captured_ts,title,url,profile_id,capture_kind,summary,item_count,reviewed) VALUES('review-auto','review-window','Review profile','2026-11-26','Readable guide','https://example.test','chrome:review','auto_text','New useful source material',3,0)")
+    g_ChromeLearn["target"] := context, g_ChromeLearn["ui"]["scope"].Choose(4)
+    ChromeLearning_LoadCaptures()
+    LearningChrome_Check(g_ChromeLearn["captures"].Length=1 && InStr(g_ChromeLearn["ui"]["details"].Value,"New useful source"),"automatic review shows unread observations and their learned summary for this window")
+    ChromeLearning_Reviewed()
+    LearningChrome_Check(!g_ChromeLearn["captures"].Length && db.Scalar("SELECT reviewed FROM chrome_learning_capture WHERE page_id='review-auto'")=1,"reviewing an observation persists its state and removes it from the unread queue")
+    g_ChromeLearn["target"] := prior, g_ChromeLearn["ui"]["scope"].Choose(1)
+}
+
+LearningChrome_MediaCases() {
+    global DATA_DIR, g_MediaActiveJob, g_StudyLLM_Endpoint
+    originalDir := DATA_DIR, previousCache := EnvGet("CUTLINE_CACHE_DIR")
+    DATA_DIR := A_Temp . "\FanMediaGui-" . DllCall("GetCurrentProcessId","UInt")
+    DirCreate(DATA_DIR), EnvSet("CUTLINE_CACHE_DIR",DATA_DIR . "\cache")
+    fixture := A_ScriptDir . "\tests\runtime\media & verification.mp4"
+    if !FileExist(fixture) {
+        helper := A_ScriptDir . "\bridge\tests\make_media_fixture.py"
+        RunWait('"' . FanPython_Executable() . '" "' . helper . '" "' . MediaBridge_Root() . '" "' . fixture . '"',,"Hide")
+        if !FileExist(fixture)
+            throw Error("Unable to generate the media verification fixture")
+    }
+    FanNav_Open(21)
+    g_MediaCtl["video"].Value := fixture
+    before := TrackDB().Scalar("SELECT COUNT(*) FROM media_job")
+    MediaUI_AnalyzeSelected()
+    LearningChrome_Check(g_MediaActiveJob!="" && !g_MediaCtl["run"].Enabled,"selected video starts an asynchronous Python analysis without requiring a selected job")
+    deadline := A_TickCount+90000
+    while g_MediaActiveJob && A_TickCount < deadline
+        Sleep(100)
+    job := TrackDB().QueryRow("SELECT * FROM media_job ORDER BY id DESC LIMIT 1")
+    LearningChrome_Check(!g_MediaActiveJob && job.Count && TrackDB().Scalar("SELECT COUNT(*) FROM media_job")=before+1 && job["status"]="analyzed","native Media Intel callback stores a completed Cutline job")
+    LearningChrome_Check(job.Count && Media_Timeline(job["id"]).Length>=3 && Media_Frames(job["id"]).Length>=2,"real video analysis retains scene cuts, shots and preview frames")
+    if job.Count {
+        sheet := Media_ContactSheet(job["id"],2)
+        LearningChrome_Check(sheet["ok"] && FileExist(sheet.Get("path","")),"contact sheet uses actual preview paths from the Python analyzer")
+        if !sheet["ok"]
+            FileAppend(sheet.Get("error","") . "`n","*")
+        report := Media_ExportReport(job["id"])
+        LearningChrome_Check(FileExist(report) && InStr(FileRead(report),"Cutline"),"analyzed video exports a readable report")
+        clip := Media_HighlightClip(fixture,0,1000)
+        LearningChrome_Check(clip["ok"] && FileExist(clip.Get("path","")),"clip creation works for the analyzed source video")
+    }
+    bridged := MediaBridge_AnalyzeVideo(fixture)
+    LearningChrome_Check(bridged.Get("ok",false) && bridged["result"].Get("cuts",[]).Length>=1,"legacy media bridge API reuses the same automatic Python analysis worker")
+    extracted := Media_ExtractFrames(fixture,1,4)
+    LearningChrome_Check(extracted["ok"] && extracted["frames"].Length>=2,"shared ffmpeg runner preserves percent image-sequence patterns during extraction")
+    ready := DATA_DIR . "\provider-port.txt"
+    Run('"' . FanPython_Executable() . '" "' . A_ScriptDir . '\tests\provider_mock.py" --port 0 --ready-file "' . ready . '"',,"Hide",&mockPid)
+    deadline := A_TickCount+10000
+    while !FileExist(ready) && A_TickCount<deadline
+        Sleep(100)
+    if !FileExist(ready)
+        throw Error("Loopback media fixture did not start")
+    unicodeSource := DATA_DIR . "\短片 % verification.mp4"
+    FileCopy(fixture,unicodeSource,1)
+    unicodeFrames := Media_ExtractFrames(unicodeSource,1,4)
+    LearningChrome_Check(unicodeFrames["ok"] && unicodeFrames["frames"].Length>=2,"FFmpeg handles Unicode and literal percent signs in selected video paths")
+    oldKey := EnvGet("DEEPSEEK_API_KEY"), oldEndpoint := g_StudyLLM_Endpoint
+    EnvSet("DEEPSEEK_API_KEY","synthetic-loopback-fixture")
+    g_StudyLLM_Endpoint := "http://127.0.0.1:" . Trim(FileRead(ready)) . "/media"
+    MediaUI_DescribeSelected()
+    deadline := A_TickCount+60000
+    while g_MediaActiveJob && A_TickCount < deadline
+        Sleep(100)
+    semanticCount := TrackDB().Scalar("SELECT COUNT(*) FROM media_event WHERE label='Fixture scene'")
+    LearningChrome_Check(!g_MediaActiveJob && semanticCount>=1,"saved video frames are described asynchronously through the existing provider pipeline (loopback fixture)")
+    beforeSemantic := TrackDB().Scalar("SELECT COUNT(*) FROM media_job")
+    MediaUI_Run()
+    deadline := A_TickCount+60000
+    while g_MediaActiveJob && A_TickCount < deadline
+        Sleep(100)
+    LearningChrome_Check(!g_MediaActiveJob && TrackDB().Scalar("SELECT COUNT(*) FROM media_job")=beforeSemantic+1
+        && TrackDB().Scalar("SELECT COUNT(*) FROM media_event WHERE label='Fixture scene'")>semanticCount,"selected video extracts frames and completes semantic analysis without an existing job")
+    EnvSet("DEEPSEEK_API_KEY",oldKey), g_StudyLLM_Endpoint := oldEndpoint
+    if ProcessExist(mockPid)
+        ProcessClose(mockPid)
+    for key, ctl in g_MediaCtl {
+        rect := LearningUI_Rect(ctl)
+        LearningChrome_Check(rect["x"]>=8 && rect["y"]>=50 && rect["x"]+rect["w"]<=1100 && rect["y"]+rect["h"]<=820,"Media Intel control fits: " . key)
+    }
+    DATA_DIR := originalDir, EnvSet("CUTLINE_CACHE_DIR",previousCache)
 }
