@@ -10,6 +10,8 @@
 #Include AutopilotActions.ahk
 #Include SelfHeal.ahk
 #Include AutopilotUI.ahk
+#Include AutopilotRecorder.ahk
+#Include KnowledgeBase.ahk
 
 global g_Autopilot := Map("jobs", Map(), "routines", [], "ui", Map(), "compiled", 0, "lastRun", 0,
     "lastReport", "", "toast", 0, "ready", false, "scanBusy", false)
@@ -29,6 +31,9 @@ Autopilot_Start() {
         return false
     }
     try Autopilot_PruneJobs()
+    try Hotkey("^!F9", Recorder_Toggle, "On")
+    catch as err
+        LogErrorToFile(err, "caught", "Recorder hotkey Ctrl+Alt+F9")
     SetTimer(Autopilot_ScanTick, 5 * 60000)
     SetTimer(Autopilot_ScanTick, -90000)  ; first look shortly after startup, never during it
     return true
@@ -82,10 +87,13 @@ Autopilot_Python() {
     return ""
 }
 
-Autopilot_Job(mode, request, callback, timeoutMs := 120000) {
+; module: the Python CLI to run (fan.autopilot.cli or fan.knowledge.cli).
+; slot:   jobs sharing a slot never run at the same time (defaults to the mode).
+Autopilot_Job(mode, request, callback, timeoutMs := 120000, module := "fan.autopilot.cli", slot := "") {
     global g_Autopilot
     jobs := g_Autopilot["jobs"]
-    if jobs.Has(mode) && ProcessExist(jobs[mode]["pid"]) {
+    key := slot != "" ? slot : mode
+    if jobs.Has(key) && ProcessExist(jobs[key]["pid"]) {
         callback.Call(Map("ok", false, "error", "A " . mode . " job is already running"))
         return false
     }
@@ -101,12 +109,14 @@ Autopilot_Job(mode, request, callback, timeoutMs := 120000) {
     file := FileOpen(dir . "\request.json", "w", "UTF-8-RAW")
     file.Write(TrackJsonEncode(request))
     file.Close()
-    try Run(python . ' -m fan.autopilot.cli "' . dir . '\request.json"', APP_ROOT, "Hide", &pid)
+    if !RegExMatch(module, "^fan\.(autopilot|knowledge)\.cli$")
+        throw ValueError("Unknown helper module: " . module)
+    try Run(python . ' -m ' . module . ' "' . dir . '\request.json"', APP_ROOT, "Hide", &pid)
     catch as err {
         callback.Call(Map("ok", false, "error", "Could not start the Autopilot helper: " . err.Message))
         return false
     }
-    jobs[mode] := Map("pid", pid, "dir", dir, "callback", callback, "deadline", A_TickCount + timeoutMs, "exitedAt", 0)
+    jobs[key] := Map("pid", pid, "dir", dir, "callback", callback, "deadline", A_TickCount + timeoutMs, "exitedAt", 0, "mode", mode)
     SetTimer(Autopilot_PollJobs, 300)
     return true
 }

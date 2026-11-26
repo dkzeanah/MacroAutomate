@@ -69,6 +69,9 @@ def run(request: dict, job_dir: Path) -> dict:
         result = {"ok": not errors, "profile": clean, "errors": errors, "warnings": warnings}
     elif mode == "portal_report":
         result = portal.build_report(request["run_dir"], reveal_typed=bool(request.get("reveal_typed")))
+    elif mode == "sop_build":
+        from . import sop
+        result = sop.build(request)
     else:
         result = {"ok": False, "error": f"Unknown Autopilot mode '{mode}'"}
     result.setdefault("mode", mode)

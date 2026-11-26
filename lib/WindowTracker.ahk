@@ -121,7 +121,7 @@ TrackCtx_Refresh() {
         return g_TrackCtx
     }
 
-    ident := TrackDB_ResolveWindow(info["title"], info["class"], info["exe"])
+    ident := TrackDB_ResolveWindow(info["title"], info["class"], info["exe"],false,info["hwnd"])
     g_TrackCtx["win_id"] := ident["win_id"]
     g_TrackCtx["app_id"] := ident["app_id"]
     g_TrackCtx["name"] := ident["name"]

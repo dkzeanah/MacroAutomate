@@ -6,7 +6,7 @@ FanPage_Probe(args) {
     region := FanVision_Region(Map(), hwnd), frame := FanVision_Frame(hwnd, region)
     if !DllCall("IsWindowVisible", "Ptr", hwnd) || DllCall("IsIconic", "Ptr", hwnd)
         return Map("ok", false, "error", "Chrome must be visible and not minimized", "frame", frame)
-    catalog := FanVision_Controls(hwnd, region, 1500, true)
+    catalog := FanVision_Controls(hwnd, region, args.Get("_passive",false) ? 1000 : 1500, true, args.Get("_passive",false))
     FanVision_Finish(frame)
     if !frame["geometry_stable"]
         return Map("ok", false, "error", "Chrome changed while verifying its page", "frame", frame)

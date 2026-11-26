@@ -542,7 +542,7 @@ UsagePredictor_IsSensitive(ctx) {
 ; ---------------------------------------------------------------------------
 
 UsagePredictor_RecordEvent(kind, token, data, ctx) {
-    global g_UPRecentEvents, g_UPLastEventTick, g_UPReplaying
+    global g_UPRecentEvents, g_UPLastEventTick, g_UPReplaying, g_UPPrediction, g_UPPredictionSignature
     if g_UPReplaying || token = "" || !TrackDB_Ready()
         return
 
@@ -553,6 +553,14 @@ UsagePredictor_RecordEvent(kind, token, data, ctx) {
     g_UPLastEventTick := now
     data["delay_ms"] := delayMs
 
+    static lastScope := ""
+    scope := StrLower(ctx.Get("exe","")) = "chrome.exe" ? "chrome-window:" . ctx["app_id"] : "desktop"
+    if lastScope != scope {
+        g_UPRecentEvents := []
+        g_UPPrediction := [], g_UPPredictionSignature := ""
+    }
+    lastScope := scope
+    data["learning_scope"] := scope
     UsagePredictor_LearnTransitions(token, kind, data)
     db := TrackDB()
     db.Run("INSERT INTO usage_event(ts,tick,app_id,win_id,kind,token,data,automated) "
@@ -586,7 +594,7 @@ UsagePredictor_LearnTransitions(nextToken, nextKind, nextData) {
         Loop prefixLen
             prefixTokens.Push(g_UPRecentEvents[start + A_Index - 1]["token"])
         prefixText := UsagePredictor_Join(prefixTokens, " > ")
-        prefixHash := TrackHash(prefixText)
+        prefixHash := TrackHash((nextData.Get("learning_scope","desktop") = "desktop" ? "" : nextData["learning_scope"] . "|") . prefixText)
         if prefixLen = 2
             LearningLab_CheckPrediction(prefixHash,prefixText,nextToken)
         db.Run("INSERT INTO usage_transition(prefix_hash,prefix_text,prefix_len,next_token,next_kind,next_data,support,last_ts) "
@@ -660,8 +668,9 @@ UsagePredictor_BuildPrediction() {
 }
 
 UsagePredictor_BestNext(tokens) {
-    global g_UPMinSupport, g_UPMinConfidence
+    global g_UPMinSupport, g_UPMinConfidence, g_UPRecentEvents
     db := TrackDB()
+    scope := g_UPRecentEvents.Length ? g_UPRecentEvents[-1]["data"].Get("learning_scope","desktop") : "desktop"
     maxPrefix := Min(5, tokens.Length)
     prefixLen := maxPrefix
     while prefixLen >= 2 {
@@ -671,7 +680,7 @@ UsagePredictor_BestNext(tokens) {
             parts.Push(tokens[start + A_Index - 1])
         prefixText := UsagePredictor_Join(parts, " > ")
         rows := db.Query("SELECT * FROM usage_transition WHERE prefix_hash=? AND prefix_text=? "
-            . "ORDER BY support DESC LIMIT 20", TrackHash(prefixText), prefixText)
+            . "ORDER BY support DESC LIMIT 20", TrackHash((scope = "desktop" ? "" : scope . "|") . prefixText), prefixText)
         if rows.Length {
             total := 0
             for row in rows
@@ -955,7 +964,7 @@ UsagePredictor_ContextAt(x, y) {
         return empty
     if (ww < 1 || wh < 1)
         return empty
-    identity := TrackDB_ResolveWindow(title, windowClass, exe)
+    identity := TrackDB_ResolveWindow(title, windowClass, exe,false,hwnd)
     return Map("win_id", identity["win_id"], "app_id", identity["app_id"], "hwnd", hwnd,
         "title", title, "name", identity["name"], "exe", exe, "class", windowClass,
         "x", wx, "y", wy, "w", ww, "h", wh)
@@ -1186,6 +1195,14 @@ UsagePredictor_AcceptPrediction(*) {
 
 UsagePredictor_ReplayAction(action) {
     kind := action["kind"], data := action["data"]
+    scope := data.Get("learning_scope","desktop")
+    if scope != "desktop" {
+        ctx := TrackCtx_Get(0)
+        if StrLower(ctx.Get("exe","")) != "chrome.exe" || "chrome-window:" . ctx["app_id"] != scope
+            return false
+        if kind = "APP"
+            return true
+    }
     switch kind {
         case "APP":
             return UsagePredictor_ActivateApp(data)
@@ -1257,9 +1274,17 @@ UsagePredictor_ReplayClick(data) {
 }
 
 UsagePredictor_LocateElement(row) {
+    browser := StrLower(row.Get("exe","")) = "chrome.exe"
+    if browser {
+        ctx := TrackCtx_Get(0)
+        if !row.Has("app_id") || ctx["app_id"] != Integer(row["app_id"]) || StrLower(ctx.Get("exe","")) != "chrome.exe"
+            return Map()
+    }
     pattern := row["pattern"]
     if (pattern != "") {
         vx := SysGet(76), vy := SysGet(77), vw := SysGet(78), vh := SysGet(79)
+        if browser
+            vx := ctx["x"], vy := ctx["y"], vw := ctx["w"], vh := ctx["h"]
         try {
             found := FindText(&fx := 0, &fy := 0, vx, vy, vx + vw - 1, vy + vh - 1,
                 0.20, 0.20, pattern)
@@ -1269,7 +1294,9 @@ UsagePredictor_LocateElement(row) {
     }
 
     hwnd := 0
-    if row.Has("raw_title") && row["raw_title"] != ""
+    if browser
+        hwnd := ctx["hwnd"]
+    if !browser && row.Has("raw_title") && row["raw_title"] != ""
         try hwnd := WinExist(row["raw_title"])
     if (!hwnd && row.Has("exe") && row["exe"] != "")
         try hwnd := WinExist("ahk_exe " . row["exe"])

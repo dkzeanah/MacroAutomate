@@ -11,7 +11,7 @@ FanNav_ClassicGroups() {
         ["Tracking", [13]], ["Learning", [14]], ["Chrome Learning", [25]],
         ["Snapshot Recovery", [15]], ["Study", [18, 19]],
         ["DeepSeek Bridge", [20]], ["Media Intel", [21]],
-        ["Knowledge", [22]], ["Scribe", [23]], ["Autopilot", [26, 27, 28, 29]]]
+        ["Knowledge", [22]], ["Scribe", [23]], ["Autopilot", [26, 27, 32, 28, 29]], ["Knowledge base", [30, 31]]]
 }
 
 FanNav_ClassicPageName(page) {
@@ -26,13 +26,17 @@ FanNav_ClassicPageName(page) {
         case 27: return "Describe it"
         case 28: return "Portals"
         case 29: return "Reliability"
+        case 30: return "Head topics"
+        case 31: return "Document inbox"
+        case 32: return "Record & SOP"
         default: return FanNav_Pages()[page][1]
     }
 }
 
 FanNav_Groups() {
     return [Map("name", "Start", "pages", [24]),
-        Map("name", "Autopilot", "pages", [26, 27, 28, 29]),
+        Map("name", "Autopilot", "pages", [26, 27, 32, 28, 29]),
+        Map("name", "Knowledge base", "pages", [30, 31]),
         Map("name", "Automate", "pages", [1, 23, 4, 7, 8, 9, 20]),
         Map("name", "Capture & learn", "pages", [14, 25, 13, 3, 21, 15]),
         Map("name", "Review & apply", "pages", [22]),
@@ -72,7 +76,10 @@ FanNav_Pages() {
         ["Routine finder", "See the work you repeat, measured from the local activity log, with a drafted workflow for each routine.", "Select a routine, read its steps, Create workflow, then Simulate before running it."],
         ["Describe it", "Describe a task in plain English; Fan builds and checks a workflow from its real actions and your saved names.", "Build, review the Check column and notes, edit any marked step, then Save and Simulate."],
         ["Portals", "Save website sign-ins in Windows Credential Manager, generate login workflows and run them with an audit trail.", "Add a portal, Create login workflow, then Run && record while you watch; open the report afterwards."],
-        ["Reliability", "Self-healing settings, the health of each workflow, and every target Fan had to re-find.", "Review open heals; Apply fix makes the re-found target permanent, Undo fix restores the step."]]
+        ["Reliability", "Self-healing settings, the health of each workflow, and every target Fan had to re-find.", "Review open heals; Apply fix makes the re-found target permanent, Undo fix restores the step."],
+        ["Knowledge base", "Everything you have read, split into single ideas and grouped under up to 20 head topics Fan discovers.", "Add a folder, select a head to read it simplest-first, then search or ask a question."],
+        ["Document inbox", "Watched folders: documents are read, their fields extracted, and records exported or entered by a workflow.", "Watch a folder, check a record's fields, then export CSV or set a data-entry workflow for its type."],
+        ["Record & SOP", "Record a task once and get an SOP, a narrated training video and a runnable workflow.", "Start recording (Ctrl+Alt+F9), do the task, stop, review the steps, then Build SOP."]]
 }
 
 FanNav_Init() {
@@ -241,6 +248,10 @@ FanNav_Open(page, *) {
         FanHome_Refresh()
     if page >= 26 && page <= 29
         AutopilotUI_PageShown(page)
+    if page = 30 || page = 31
+        KB_PageShown(page)
+    if page = 32
+        try Recorder_RefreshBuilt()
 }
 
 FanNav_ResolvePage(page) => page = 16 || page = 17 ? 14 : page

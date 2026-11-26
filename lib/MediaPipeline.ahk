@@ -151,9 +151,11 @@ Media_RunCapture(exe, argsLine) {
     outFile := d . "\run_" . stamp . ".txt"
     batFile := d . "\run_" . stamp . ".cmd"
     try {
-        f := FileOpen(batFile, "w")
-        f.Write("@echo off`r`n")
-        f.Write('"' . exe . '" ' . argsLine . ' > "' . outFile . '" 2>&1`r`n')
+        f := FileOpen(batFile, "w", "UTF-8-RAW")
+        f.Write("@echo off`r`nchcp 65001 >nul`r`n")
+        ; Batch files expand %0 in ffmpeg's %06d image pattern. Preserve
+        ; literal percent signs in both frame patterns and user file paths.
+        f.Write('"' . StrReplace(exe,"%","%%") . '" ' . StrReplace(argsLine,"%","%%") . ' > "' . StrReplace(outFile,"%","%%") . '" 2>&1`r`n')
         f.Close()
     } catch {
         return out
@@ -162,7 +164,7 @@ Media_RunCapture(exe, argsLine) {
     try code := RunWait(A_ComSpec . ' /c "' . batFile . '"', , "Hide")
     out["code"] := code
     if FileExist(outFile) {
-        try out["out"] := FileRead(outFile)
+        try out["out"] := FileRead(outFile,"UTF-8")
     }
     try FileDelete(outFile)
     try FileDelete(batFile)
@@ -331,7 +333,7 @@ Media_Frames(jobId) {
 ; ─────────────────────────────────────────────────────────────────────────────
 ; question: what to look for (e.g. "describe the key actions and UI states").
 ; Returns Map(ok, events, cost, batches, error).
-Media_AnalyzeJob(jobId, question := "", batchSize := 8) {
+Media_AnalyzeJob(jobId, question := "", batchSize := 8, progress := 0) {
     global g_MediaCancel
     g_MediaCancel := false
     out := Map("ok", false, "events", [], "cost", 0.0, "batches", 0, "error", "")
@@ -366,6 +368,8 @@ Media_AnalyzeJob(jobId, question := "", batchSize := 8) {
                . 'each element: {"ts_ms": <int ms from the labels>, "label": <short>, '
                . '"description": <one sentence>, "category": <word>, '
                . '"confidence": <0..1>}. Only real, visible events.'
+        if IsObject(progress)
+            progress.Call((i-1)/frames.Length,"Describing frames " . i . "–" . (j-1) . " of " . frames.Length)
         res := MediaLLM_AnalyzeJson(batch, instr, Map("maxTokens", 1100))
         batches++
         if !res["ok"] {
@@ -538,19 +542,29 @@ Media_ContactSheet(jobId, cols := 5, outPath := "") {
     frames := Media_Frames(jobId)
     if !frames.Length
         return Map("ok", false, "error", "no frames")
-    ; Build a frame list file so ffmpeg tiles exactly the stored frames.
-    listDir := frames[1]["path"]
-    SplitPath(listDir, , &srcDir)
-    rows := Ceil(frames.Length / cols)
-    if (outPath = "")
+    ; Stage the actual stored frame paths. Cutline previews and scene captures
+    ; do not necessarily use the FPS extractor's frame_%06d naming convention.
+    directory := Media_TempDir() . "\sheet_" . A_TickCount . "_" . Random(1000,9999)
+    DirCreate(directory)
+    rows := Ceil(frames.Length / Max(1,cols))
+    if outPath = ""
         outPath := Media_OutDir() . "\contactsheet_" . jobId . ".jpg"
-    ; Use the glob of the source dir (frames share one dir per extraction run).
-    args := '-y -pattern_type sequence -i "' . srcDir . '\frame_%06d.jpg" '
-          . '-vf "scale=320:-1,tile=' . cols . 'x' . rows . '" -frames:v 1 -q:v 3 "' . outPath . '"'
-    r := Media_RunCapture(exe, args)
-    return FileExist(outPath)
-        ? Map("ok", true, "path", outPath)
-        : Map("ok", false, "error", "ffmpeg code " . r["code"])
+    try {
+        for index, frame in frames {
+            if !FileExist(frame["path"])
+                return Map("ok",false,"error","Stored preview frame is missing: " . frame["path"])
+            FileCopy(frame["path"],directory . "\frame_" . Format("{:06}",index) . ".jpg")
+        }
+        args := '-y -i "' . directory . '\frame_%06d.jpg" '
+            . '-vf "scale=320:-1,tile=' . Max(1,cols) . 'x' . rows . '" -frames:v 1 -q:v 3 "' . outPath . '"'
+        result := Media_RunCapture(exe,args)
+        return FileExist(outPath) ? Map("ok",true,"path",outPath)
+            : Map("ok",false,"error","Contact sheet failed (ffmpeg " . result["code"] . "): " . SubStr(result["out"],-1200))
+    } finally {
+        Loop Files, directory . "\frame_*.jpg"
+            FileDelete(A_LoopFilePath)
+        DirDelete(directory)
+    }
 }
 
 ; Cut a clip [startMs, endMs] from a source video (stream copy where possible).

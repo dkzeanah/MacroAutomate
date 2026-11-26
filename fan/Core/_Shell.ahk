@@ -28,7 +28,7 @@ MainGui.Add("Button", "x400 y2 w50 h20 cRed", "ABORT").OnEvent("Click", (*) => (
 ; calendar section below already called TabCtrl.UseTab(12) - which left that UI
 ; attached to a tab that did not exist, so it never rendered. Declaring it here
 ; restores it. "Tracking" (tab 13) is the behavior-tracking subsystem.
-TabCtrl := MainGui.Add("Tab3", "-Wrap +0x500 x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking", "Learning", "Snapshot Recovery", "Vision Scout", "Usage Predictor", "Study Assistant", "Live Portal", "DeepSeek Bridge", "Media Intel", "Knowledge", "Scribe", "Start here", "Chrome Learning", "Routine finder", "Describe it", "Portals", "Reliability"])
+TabCtrl := MainGui.Add("Tab3", "-Wrap +0x500 x5 y28 w890 h730 vTabs", ["Workflow", "Patterns", "Live OCR", "Spools", "Analytics", "Clipboard", "Hotkeys", "Hotstrings", "Triggers", "Settings", "Notepad", "Calendar", "Tracking", "Learning", "Snapshot Recovery", "Vision Scout", "Usage Predictor", "Study Assistant", "Live Portal", "DeepSeek Bridge", "Media Intel", "Knowledge", "Scribe", "Start here", "Chrome Learning", "Routine finder", "Describe it", "Portals", "Reliability", "Knowledge base", "Document inbox", "Record & SOP"])
 SendMessage(0x1329, 0, 0x10001, TabCtrl)
 
 ; ═══════════════════════════════════════════════════════════════════════════════
@@ -73,9 +73,17 @@ Tab_MediaIntel_Build()
 Tab_Knowledge_Build()
 Tab_Scribe_Build()
 ChromeLearning_Build()
+; Autopilot (26-29, 32) and the knowledge base (30-31). Each builder is isolated
+; so a failure in one page never prevents the main window from opening.
 try AutopilotUI_Build()
 catch as err
     LogErrorToFile(err, "caught", "Autopilot pages")
+try KB_BuildPages()
+catch as err
+    LogErrorToFile(err, "caught", "Knowledge base pages")
+try Recorder_BuildPage()
+catch as err
+    LogErrorToFile(err, "caught", "Record & SOP page")
 FanHome_Build()
 FanNav_Init()
 TabCtrl.UseTab(0)

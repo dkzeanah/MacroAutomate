@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Sidebar entry",
-    "description": "Adds a left sidebar entry that opens its own panel page."
+    "title": "Video analysis",
+    "description": "Extracts 1 fps frames from a video and produces multi-frame, sequence-aware descriptions with a vision model."
   }
 }

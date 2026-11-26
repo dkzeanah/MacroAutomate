@@ -83,10 +83,14 @@ catch as err
 try FanAPI_Start(g_DeepBridge["root"])
 catch as apiStartupError
     LogErrorToFile(apiStartupError, "caught", "Fan internal agent API initialization")
-; Autopilot: schema, background routine discovery (idle-only), self-heal ledger.
+; Autopilot: schema, background routine discovery (idle-only), self-heal ledger,
+; the Ctrl+Alt+F9 procedure recorder, and the knowledge-base inbox watcher.
 try Autopilot_Start()
 catch as autopilotError
     LogErrorToFile(autopilotError, "caught", "Autopilot initialization")
+try KB_Start()
+catch as knowledgeError
+    LogErrorToFile(knowledgeError, "caught", "Knowledge base initialization")
 
 StatusBar.SetText("Ready | CAPSLOCK=Definition Mode | Ctrl+B=Load | Ctrl+Shift+B=Fire | ESC=Abort")
 

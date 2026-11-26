@@ -11,6 +11,7 @@
 ; result JSON. No stdio protocol or background server is needed.
 ; ═══════════════════════════════════════════════════════════════════════════════
 
+#Include %A_LineFile%\..\WorkspaceJobs.ahk
 global g_MediaBridgePy := ""
 
 ; Resolve the avideditor project root (setting override, then common locations).
@@ -56,10 +57,14 @@ MediaBridge_Shim() {
 }
 
 MediaBridge_Available() {
-    return MediaBridge_Python() != "" && DirExist(MediaBridge_PyDir()) && FileExist(MediaBridge_Shim())
+    try return FanPython_Executable() != "" && FileExist(MediaBridge_PyDir() . "\sidecar\analyze.py")
+    catch
+        return false
 }
 
 MediaBridge_Status() {
+    if FileExist(MediaBridge_PyDir() . "\sidecar\analyze.py")
+        return "Cutline analyzer ready; Python runtime detected automatically"
     if MediaBridge_Available()
         return "avideditor engine: " . MediaBridge_Python()
     root := MediaBridge_Root()
@@ -119,7 +124,15 @@ MediaBridge_Call(method, params) {
 MediaBridge_AnalyzeVideo(path) {
     if !FileExist(path)
         return Map("ok", false, "result", "", "error", "video not found: " . path)
-    return MediaBridge_Call("analyze", Map("path", path, "use_cache", true))
+    box := Map("done",false,"result",Map())
+    WorkspaceJobs_Start("media_local",Map("path",path,"engine_root",MediaBridge_Root()),MediaBridge_Analyzed.Bind(box))
+    while !box["done"]
+        Sleep(50)
+    return box["result"]
+}
+
+MediaBridge_Analyzed(box, result) {
+    box["result"] := result, box["done"] := true
 }
 
 ; Store a Cutline analysis result into the media timeline as a job + events
@@ -161,6 +174,9 @@ MediaBridge_StoreAnalysis(sourcePath, result) {
         sumParts.Push(Format("{:.1f}", result["duration"] + 0.0) . "s")
     if (result.Has("samples") && result["samples"] is Array)
         sumParts.Push(result["samples"].Length . " samples")
+    metrics := result.Get("summary",Map())
+    if metrics is Map && metrics.Has("mean_motion")
+        sumParts.Push("mean motion " . metrics["mean_motion"] . "; brightness " . metrics.Get("mean_brightness",0))
     summary := "Cutline (OpenCV): " . Study_Join(sumParts, ", ")
     TrackDB().Run("UPDATE media_job SET status='analyzed', summary=? WHERE id=?", summary, jobId)
     return jobId

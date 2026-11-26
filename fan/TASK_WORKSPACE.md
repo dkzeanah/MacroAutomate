@@ -10,7 +10,7 @@ hotkeys and native IPC page IDs remain compatible.
 **Learning** combines App Learner, Vision Scout and Usage Predictor into one real
 collection/review workspace, with no learner sub-view switch. **Chrome Learning**
 is a dedicated browser interface with focus following, window-session isolation
-and user-assigned profile labels. See the [Learning, Chrome and Study guide](LEARNING_CHROME_GUIDE.md).
+and automatic Chrome profile detection. See the [Learning, Chrome and Study guide](LEARNING_CHROME_GUIDE.md).
 **Study** retains Study Assistant and Live Portal through its top-toolbar **View**
 selector. Other tabs retain their original names and contents. The tab strip
 scrolls at narrow window widths and expands with the window.

@@ -39,5 +39,6 @@
 #Include %A_ScriptDir%\..\lib\FanHarness.ahk
 #Include %A_ScriptDir%\..\lib\LearningProcedure.ahk
 #Include %A_ScriptDir%\..\lib\LearningHub.ahk
+#Include %A_ScriptDir%\..\lib\ChromeProfiles.ahk
 #Include %A_ScriptDir%\..\lib\ChromeLearning.ahk
 

@@ -122,6 +122,102 @@ to solve or bypass them.
 - **Health.** Each workflow gets a badge from its last 20 runs: New, Reliable, Mostly
   reliable, Self-healing, or Needs attention.
 
+## 5. Record & SOP (record once)
+
+Press **Start recording** (or **Ctrl+Alt+F9**), do the task once the normal way, then stop.
+Fan records:
+
+- **Clicks**, each with a screenshot of the window. The click point and the visible label next to
+  the pointer are read from a crop saved at that moment.
+- **Double-clicks**, window switches, shortcut keys and typing.
+- **Masked typing.** Typing in sign-in, password and verification windows is masked: it is
+  never written, and the workflow asks for it at run time.
+
+A small red banner shows the recording is on, and Fan's own windows are ignored. Review or
+remove steps, then press **Build SOP**. One folder (`data\autopilot\recordings\<time>`) gets:
+
+- **`sop.html`** (printable, with the click circled), **`sop.md`**, and **`sop.docx`** (a Word
+  document written directly, no Office needed).
+- **`video.mp4`**: one captioned segment per step, narrated by the Windows voice and rendered by ffmpeg.
+- **A saved workflow.** Its clicks are window-relative, and each click's self-heal anchor (label,
+  offset, pixels) is seeded from the recording. A moved button can be re-found from the very
+  first run.
+
+**SOP from last audited run** turns a Portals *Run & record* into the same documents. *Polish
+wording with AI* (off by default) sends only the step text to DeepSeek.
+
+## 6. Knowledge base (head topics)
+
+**Add files / Add folder / Add Fan notes** reads documents locally:
+
+- PDF (pypdf, then a built-in reader, then Windows OCR for scans).
+- Word, Excel, PowerPoint and OpenDocument, read straight from their XML.
+- `.doc`/`.xls` through Word or Excel when installed.
+- CSV/TSV (one idea per row, labelled by its header), JSON, HTML, email, RTF, text, and images (OCR).
+
+Each document becomes single-sentence **ideas**:
+
+- **Roots.** Words are reduced to roots, so `dome`, `domes`, `GeodesicDome`, `geodesic-domes`
+  and `www.domes.com` all count as `dome`. Run-together words are split by known roots.
+- **Accrual.** A sentence seen again in any document is not duplicated: its count grows and the
+  new source is linked. A changed file replaces its old contribution; an unchanged one is skipped.
+
+**Fan's own model (`fan-ri-256`).** A 256-dimension distributional model trained only on what
+you ingested, with no download:
+
+- Each root's vector blends its spelling (character n-grams) with the words around it (Random Indexing).
+- Roots used in similar contexts converge.
+- Elements are re-embedded as the model grows.
+
+**Vector database in SQLite.** `data\knowledge\knowledge.sqlite` stores every idea's float32
+vector and an FTS5 full-text index:
+
+- **Search:** vector similarity blended with keyword evidence.
+- **Index:** the `sqlite-vec` extension (`vec0`, cosine) when it loads. Otherwise a self-coded
+  `vec_cosine()` SQL function with FTS5 recall. Both give the same answers.
+- **Recovery:** the vec0 index rebuilds itself after the fallback was used.
+
+**Head topics** (up to 20) are discovered from frequent roots, using two signals: the words
+around them, and the pages they appear on.
+
+- **Seeding:** farthest-first, so each head is a distinct subject.
+- **Tidying:** near-duplicates merge, and lone words fold into their nearest head.
+- **Stable names:** heads keep their ids across rediscovery. **Rename head** locks a name you choose.
+- **Order:** each head's ideas run from definitions and simple wording (level 1) to dependent,
+  rare and technical ones (level 5).
+- **Rediscovery:** runs automatically as the corpus grows by a quarter.
+
+**Ask** routes a question to its heads and returns the best ideas, simplest first, with a
+"start here" definition.
+
+**Export knowledge pack** writes `knowledge_pack.json`, the compact model:
+
+- vocabulary with spellings;
+- learned vectors for the strongest roots;
+- each head's routing centroid, member roots, phrases, definitions and level-ordered curriculum.
+
+It can classify new text without the database (`fan.knowledge.model.Pack`), and a Markdown
+primer per head is written alongside.
+
+## 7. Document inbox
+
+Fan watches `data\inbox` plus any folders you add. Every two minutes, and only when a folder
+changed, new or changed documents are read:
+
+- they join the knowledge base;
+- their type is recognized (invoice, receipt, purchase order, statement, quote, contract,
+  resume, letter, form);
+- fields are extracted: number, PO, date, due date, total (from the "Amount due / Total /
+  Balance" line), subtotal, tax, currency, vendor, bill-to, terms, email and phone.
+
+*Use AI to read documents* (off by default) sends the text to DeepSeek to fill fields the
+patterns missed; those are marked "AI (check it)". Edit fields in place.
+
+- **Export CSV** appends new records to one file per type in `data\intake\exports`, never twice.
+- **Data-entry workflow** rules (document type → workflow) make Fan ask, when a matching document
+  arrives, whether to enter it. The workflow starts with the fields as variables (`$var.total`,
+  `$var.vendor`, `$var.due_date`…), runs with an audit trail, and the record is marked entered.
+
 ## New workflow actions
 
 | Action | Target | Param |
@@ -140,6 +236,24 @@ window wins.
 Unattended runs (agent API, `interactive=false`) never prompt. Ask Input needs values in the
 run options' `inputs` map. Approval Gate and an on-screen verification prompt stop the run.
 
+Any workflow run can also start with values: `ExecuteSequenceVerified(steps, speed, Map("variables", Map(...)))`.
+
+## Chrome learning and Media Intel
+
+- **Chrome learning** learns readable page text and links automatically after you pause on a
+  page. It needs no clicks and makes no model calls.
+  - It skips sign-in, checkout, mail, private-message and credential-bearing pages.
+  - Profiles are detected from each window's own Chrome identity.
+  - Review is per window or per profile, with NEW markers and new-only filters.
+
+  See [LEARNING_CHROME_GUIDE.md](LEARNING_CHROME_GUIDE.md).
+- **Media Intel**
+  - **Analyze video (local)** runs the Cutline OpenCV analyzer (shots, cuts, motion, preview
+    frames) with whichever installed Python has OpenCV.
+  - **Describe content** extracts frames and asks the DeepSeek vision model.
+  - Frame extraction was broken by `%` expansion in the ffmpeg batch file and is fixed.
+    Contact sheets work for every frame source.
+
 ## How it is built
 
 | Part | File |
@@ -149,7 +263,14 @@ run options' `inputs` map. Approval Gate and an on-screen verification prompt st
 | Self-healing | `lib/SelfHeal.ahk` |
 | Schema, job runner, ledger and evidence, portals, discovery and notifications | `lib/Autopilot.ahk` |
 | The four pages | `lib/AutopilotUI.ahk` |
-| Analysis (standard library only) | `fan/autopilot/` — `routines.py`, `compiler.py`, `offline.py`, `catalog.py`, `portal.py`, `llm.py`, `cli.py` |
+| Analysis (standard library only) | `fan/autopilot/` — `routines.py`, `compiler.py`, `offline.py`, `catalog.py`, `portal.py`, `sop.py`, `llm.py`, `cli.py` |
+| Recorder and the Record & SOP page | `lib/AutopilotRecorder.ahk` |
+| Knowledge base and Document inbox pages, job queue, folder watcher | `lib/KnowledgeBase.ahk` |
+| Knowledge engine | `fan/knowledge/` — `text.py`, `parsers.py`, `embed.py`, `store.py`, `heads.py`, `ingest.py`, `model.py`, `intake.py`, `cli.py`, `pdf_ocr.ps1` |
+| Chrome auto-learning and Media Intel workers | `lib/WorkspaceJobs.ahk`, `lib/ChromeProfiles.ahk`, `fan/bridge/browser_learning.py`, `fan/bridge/media_analysis.py`, `fan/bridge/workspace_worker.py`, `fan/BrowserObservationWorker.ahk`, `fan/MediaAnalysisWorker.ahk` |
+
+Optional accelerators, installed in the DeepSeek Bridge virtual environment: `sqlite-vec` (vector
+index) and `pypdf` (PDF text). Without them the built-in fallbacks are used.
 
 The app runs analysis as a short job: it writes `data\autopilot\jobs\<id>\request.json`,
 starts `python -m fan.autopilot.cli <request.json>` hidden (the DeepSeek Bridge virtual environment, else
@@ -160,7 +281,7 @@ live in the unified tracking database.
 ## Tests
 
 ```powershell
-fan\DeepSeekBridge\.venv\Scripts\python.exe -m pytest fan\tests\test_autopilot.py fan\tests\test_autopilot_ahk.py fan\tests\test_workflow_engine.py
+fan\DeepSeekBridge\.venv\Scripts\python.exe -m pytest fan\tests --ignore=fan\tests\test_algebra_solver.py
 ```
 
 `test_autopilot.py` covers mining, validation, the offline and model compilers (with a

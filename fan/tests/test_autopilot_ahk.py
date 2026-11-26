@@ -380,7 +380,8 @@ TrackDB() => FakeDB()
         Every app function they call that is defined elsewhere is stubbed automatically,
         so the real control layout, list rendering and draft review code all execute.
         """
-        own = [LIB / n for n in ("Autopilot.ahk", "AutopilotActions.ahk", "AutopilotUI.ahk", "SelfHeal.ahk")]
+        own = [LIB / n for n in ("Autopilot.ahk", "AutopilotActions.ahk", "AutopilotUI.ahk", "SelfHeal.ahk",
+                                 "AutopilotRecorder.ahk", "KnowledgeBase.ahk")]
         strip = lambda text: re.sub(r";[^\n]*", "", re.sub(r'"(?:`.|[^"`\n])*"|\'(?:`.|[^\'`\n])*\'', '""', text))
         definition = re.compile(r"^([A-Za-z_]\w*)\([^)]*\)\s*(?:\{|=>)", re.M)  # top level only, not class methods
         own_defs = {m.group(1) for f in own for m in definition.finditer(read(f))}
@@ -420,11 +421,13 @@ global g_WorkflowRunning := false, g_AbortSequence := false, g_IsPaused := false
 global MainGui := Gui("+Resize", "Autopilot UI fixture")
 MainGui.SetFont("s9", "Segoe UI")
 names := []
-loop 29
+loop 32
     names.Push("Page " . A_Index)
 global TabCtrl := MainGui.Add("Tab3", "x5 y28 w890 h730", names)
 Study_GetSetting(key, default := "") => default
-TrackDB_MetaGet(key, default := "") => key = "autopilot_toasts" ? "0" : default
+TrackDB_MetaGet(key, default := "") => key = "autopilot_toasts" ? "0"
+    : key = "sop_builds" ? '[{"at":"2026-11-26 09:00:00","title":"Send invoice","steps":7,"video":"v.mp4","html":"s.html","docx":"s.docx","folder":"f","workflow":"Send invoice"}]'
+    : key = "kb_inbox_folders" ? '["C:\\Inbox"]' : key = "kb_intake_rules" ? '{"invoice":"Payroll login"}' : default
 TrackDB_MetaSet(*) => 0
 TrackDB_Ready() => true
 TrackDB() => FakeDB()
@@ -483,6 +486,33 @@ class FakeDB {
     Autopilot_Toast("Fan spotted a routine", "Test", [["OK", (*) => 0]], 1)
     Check(IsObject(g_Autopilot["toast"]), "Toast renders")
     g_Autopilot["toast"].Destroy()
+
+    ; ── Knowledge base, Document inbox, Record & SOP ──
+    KB_BuildPages()
+    Recorder_BuildPage()
+    kb := g_KB["ui"]
+    heads := TrackJsonDecode('[{"id":1,"name":"Dome","aliases":["dome","domes"],"elements":10,"sources":4,"locked":false,"roots":["dome","strut","hub"],"phrases":["geodesic dome"],"levels":[1,6,3,0,0]},{"id":0,"name":"(unsorted)","aliases":[],"elements":2,"sources":0,"locked":false,"roots":[],"phrases":[],"levels":[0,0,0,0,0]}]')
+    KB_StatusDone(Map("ok", true, "mode", "kb_status", "heads", heads, "stats", Map("backend_detail", "sqlite-vec v0.1.9 (vec0, cosine)", "model", "fan-ri-256-v1",
+        "elements", 12, "sources", 4, "roots", 90, "megabytes", 0.4, "last_discovery", "now")))
+    Check(kb["heads"].GetCount() = 2 && kb["heads"].GetText(1, 4) = "1·6·3·0·0" && InStr(kb["backend"].Value, "sqlite-vec"), "Head topics render")
+    kb["heads"].Modify(1, "Select Focus")
+    KB_HeadDone(TrackJsonDecode('{"ok":true,"elements":[{"id":5,"seq":1,"level":2,"definition":true,"text":"A geodesic dome is a sphere of triangles.","source":"domes.txt","path":"","head_id":1,"score":""}]}'))
+    Check(kb["elements"].GetCount() = 1 && kb["elements"].GetText(1, 2) = "2 ★", "A head's ideas render simplest first")
+    KB_QueryDone(TrackJsonDecode('{"ok":true,"question":"q","heads":[{"id":1,"name":"Dome","score":0.8}],"start_here":[{"text":"A dome is a sphere."}],"answer":[{"id":5,"text":"Hubs join struts.","level":2,"head_id":1,"score":0.91,"source":"domes.txt","locator":"page 1","path":""}],"summary":"Hubs join struts."}'))
+    Check(InStr(kb["answer"].Value, "Dome 80%") && InStr(kb["answer"].Value, "Start here") && kb["results"].GetText(1, 1) = "91%", "Answers render with their heads")
+    KB_RecordsDone(TrackJsonDecode('{"ok":true,"records_list":[{"id":3,"received":"2026-11-26","title":"acme.pdf","doc_type":"invoice","status":"new","path":"","fields":{"number":"INV-1","vendor":"Acme","total":1240.0},"field_sources":{"total":"label"}}]}'))
+    Check(kb["records"].GetCount() = 1 && kb["records"].GetText(1, 8) = "1240.0", "Inbox records render")
+    kb["records"].Modify(1, "Select Focus")
+    KB_RecordSelected(kb["records"], 1, true)
+    Check(InStr(kb["fields"].Value, "total: 1240.0   (label)"), "A record's fields are editable with their origin")
+    KB_ShowRule()
+    Check(InStr(kb["ruleInfo"].Value, "invoice → Payroll login"), "Data-entry rules are listed")
+    g_Rec["events"] := TrackJsonDecode('[{"kind":"app","exe":"EXCEL.EXE","title":"Book1"},{"kind":"click","button":"Left","label":"Save","rel_x":0.1,"rel_y":0.1,"title":"Book1","shot":"002.png","double":0},{"kind":"type","masked":1,"length":8,"title":"Sign in"}]')
+    Recorder_ShowEvents()
+    rec := g_Rec["ui"]
+    Check(rec["events"].GetCount() = 3 && rec["events"].GetText(2, 2) = "Click “Save”" && rec["events"].GetText(3, 2) = "Typed 8 characters (masked)", "Recorded steps render")
+    Recorder_RefreshBuilt()
+    Check(rec["built"].GetCount() = 1 && rec["built"].GetText(1, 4) = "yes", "Built SOPs are listed")
     MainGui.Destroy()
 '''.replace("COMPILED_JSON", "'" + compiled.replace("'", "") + "'").replace("ROUTINE_JSON", "'" + routine.replace("'", "") + "'") + FOOTER
         self.run_ahk(fixture)

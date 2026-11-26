@@ -1,9 +1,12 @@
 # fan — Combined Multi-File Build of Macro Automator v9
 
 **New: [Autopilot](AUTOPILOT.md)** finds the routines you repeat and drafts a workflow for each.
-It also turns plain English into checked workflows, signs in to web portals from Windows
-Credential Manager with an audit report for every run, and self-heals targets that moved.
-Look for the **Autopilot** tab.
+It turns plain English into checked workflows, signs in to web portals from Windows
+Credential Manager with an audit report, and self-heals moved targets. It can also record a
+task once to produce an SOP, a narrated training video and a workflow. The
+**Knowledge base** splits your documents into single ideas under up to 20 head topics it
+discovers, stored in a SQLite vector index. The **Document inbox** reads invoices and forms
+from watched folders into records and workflows.
 
 Start with the [interface guide](TASK_WORKSPACE.md). Original tabs is the default;
 the three learners now operate together in one **Learning** workspace, and
@@ -622,3 +625,12 @@ The original DeepSeek split remains byte-identical apart from the intentional
 path/layout changes above. The combined build then layers on the newer DeepSeek
 tray icons and the ChatGPT Usage Predictor integration documented in this file
 and `SPLIT_MANIFEST.md`.
+
+
+Chrome Learning collects changed readable page text and links automatically,
+with a remembered pause switch, per-profile/window provenance and an unread review
+queue. Media Intel's primary Analyze action uses the selected video directly,
+runs the existing Cutline analyzer in a Python worker and supports progress/cancel.
+DeepSeek descriptions reuse the existing provider in a separate worker. See the
+[Learning, Chrome and Study guide](LEARNING_CHROME_GUIDE.md) for the review workflow
+and the distinction between local visual metrics and semantic descriptions.

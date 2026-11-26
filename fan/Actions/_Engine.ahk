@@ -371,6 +371,11 @@ ExecuteSequenceVerified(steps, speedMultiplier := 1.0, opts := 0) {
     if !nested {
         g_AbortSequence := false
         g_WorkflowVariables := Map()
+        ; Callers may start a run with values (e.g. fields read from a document): $var.<name>.
+        if opts is Map && opts.Get("variables", 0) is Map
+            for name, value in opts["variables"]
+                if RegExMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$")
+                    g_WorkflowVariables[name] := value, g_SpoolVariables[name] := value
         g_SequenceCallStack := []
         if opts is Map && opts.Get("sequenceName", "") != ""
             g_SequenceCallStack.Push(opts["sequenceName"])

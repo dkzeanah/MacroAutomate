@@ -29,7 +29,7 @@ LearningHub_Build() {
     global TabCtrl, g_LearnHub
     TabCtrl.UseTab(14)
     LearningHub_Add("Text", "title", "x16 y58 w850 h26", "Learning — collect, review, reuse").SetFont("s13 bold")
-    LearningHub_Add("Text", "guide", "x16 y90 w850 h42", "1 Choose a window.  2 Map its controls or enable the two recorders while doing one task.  3 Stop, select a result below, and review its evidence before reuse. Chrome pages have their own window/profile-aware workspace.")
+    LearningHub_Add("Text", "guide", "x16 y90 w850 h42", "1 Choose a window.  2 Map controls or enable recorders while doing one task.  3 Stop and review a result before reuse.`r`nAll three learners share the results below. Use Chrome Learning for window/profile-aware browser evidence.")
     LearningHub_Add("Text", "windowLabel", "x16 y142 w58 h18", "Window:")
     LearningHub_Add("DropDownList", "window", "x78 y138 w534", [])
     LearningHub_Add("Button", "options", "x624 y138 w94 h27", "Options").OnEvent("Click",LearningHub_Options)

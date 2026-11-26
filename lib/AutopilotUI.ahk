@@ -60,7 +60,7 @@ AutopilotUI_Build() {
         button.OnEvent("Click", AutopilotUI_UseExample.Bind(example[2]))
     }
     ui["describe"] := MainGui.Add("Edit", "x16 y148 w860 h92 Multi WantReturn", AutopilotUI_Examples()[1][2])
-    ui["build"] := MainGui.Add("Button", "x16 y248 w150 h28 Default", "Build workflow")
+    ui["build"] := MainGui.Add("Button", "x16 y248 w150 h28", "Build workflow")
     ui["offline"] := MainGui.Add("CheckBox", "x176 y254 w150", "Offline only (no AI)")
     ui["titles"] := MainGui.Add("CheckBox", "x330 y254 w270", "Share open window titles with the model")
     ui["describeStatus"] := MainGui.Add("Text", "x606 y254 w270 h18 cGray", "")

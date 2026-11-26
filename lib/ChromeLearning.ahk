@@ -1,7 +1,7 @@
-; Dedicated native Chrome learning surface. Focus following never activates Fan,
-; captures a page, starts a study session or sends input to Chrome.
+﻿; Dedicated native Chrome learning surface. Focus following never activates Fan,
+; sends input to Chrome. Passive reading is a separate, remembered switch.
 global g_ChromeLearn := Map("ui", Map(), "controls", [], "windows", [], "contexts", Map(),
-    "target", Map(), "captures", [], "capture", Map(), "elements", [], "page", "", "offset", 0, "job", Map(), "pendingPage", Map(), "image", Map(), "foreground", 0)
+    "target", Map(), "captures", [], "capture", Map(), "elements", [], "page", "", "offset", 0, "job", Map(), "pendingPage", Map(), "image", Map(), "foreground", 0, "autoJob", "", "autoLast", 0, "stableSince", 0, "autoIdentity", "")
 
 ChromeLearning_Add(kind, key, options, text := "") {
     ctl := MainGui.Add(kind, options, text)
@@ -13,23 +13,24 @@ ChromeLearning_Add(kind, key, options, text := "") {
 ChromeLearning_Build() {
     TabCtrl.UseTab(25)
     ChromeLearning_Add("Text", "title", "x16 y58 w850 h26", "Chrome learning — window, profile, page evidence").SetFont("s13 bold")
-    ChromeLearning_Add("Text", "guide", "x16 y86 w850 h44", "Choose the Chrome window, assign its profile label, then Capture visible page. Review observed controls and text, verify a target, or add useful text to Study. Focus following changes this panel's target without activating Fan or capturing automatically.")
-    ChromeLearning_Add("CheckBox", "follow", "x16 y134 w680 h22", "Follow focused Chrome window and select this learning tab (without activating Fan)").OnEvent("Click", ChromeLearning_FollowChanged)
+    ChromeLearning_Add("Text", "guide", "x16 y86 w850 h44", "Readable page text and links are learned automatically after you pause browsing. Review new entries by window or profile below.`r`nCapture adds a full screenshot when useful; observations stay local and do not become verified Study answers.")
+    ChromeLearning_Add("CheckBox", "follow", "x16 y134 w540 h22", "Follow focused Chrome window (without activating Fan)").OnEvent("Click", ChromeLearning_FollowChanged)
+    ChromeLearning_Add("CheckBox", "auto", "x570 y134 w298 h22", "Automatically learn readable page content").OnEvent("Click",ChromeLearning_AutoChanged)
     ChromeLearning_Add("DropDownList", "window", "x16 y164 w700", []).OnEvent("Change", ChromeLearning_WindowChanged)
     ChromeLearning_Add("Button", "windows", "x730 y164 w138 h27", "Refresh Chrome").OnEvent("Click", ChromeLearning_Windows)
     ChromeLearning_Add("Text", "profileLabel", "x16 y204 w50 h18", "Profile:")
-    ChromeLearning_Add("Edit", "profile", "x70 y200 w250 h25")
-    SendMessage(0x1501, true, StrPtr("Unknown — assign a label for this window"), g_ChromeLearn["ui"]["profile"])
-    ChromeLearning_Add("Button", "saveProfile", "x332 y200 w120 h27", "Assign label").OnEvent("Click", ChromeLearning_SaveProfile)
-    ChromeLearning_Add("Text", "profileNote", "x468 y203 w400 h30", "User-assigned label; profile identity is not inferred from a title or process ID.")
+    ChromeLearning_Add("Edit", "profile", "x70 y200 w380 h25 ReadOnly")
+    SendMessage(0x1501, true, StrPtr("Detecting Chrome profile…"), g_ChromeLearn["ui"]["profile"])
+    ChromeLearning_Add("Button", "saveProfile", "x332 y200 w120 h27", "Detect again").OnEvent("Click", ChromeLearning_Redetect)
+    ChromeLearning_Add("Text", "profileNote", "x468 y203 w400 h30", "Automatic, from this window’s Chrome identity. No manual labels needed.")
     ChromeLearning_Add("Text", "context", "x16 y240 w850 h36", "")
-    buttons := [["capture", "Capture visible page", ChromeLearning_Capture], ["savedRefresh", "Refresh saved captures", ChromeLearning_LoadCaptures],
+    buttons := [["capture", "Capture visible page", ChromeLearning_Capture], ["savedRefresh", "Reviewed → next new", ChromeLearning_Reviewed],
         ["library", "Study library", (*) => FanNav_Open(18)], ["portal", "Live Portal", (*) => FanNav_Open(19)],
         ["studyHelp", "How Study works", ChromeLearning_StudyHelp]]
     for item in buttons
         ChromeLearning_Add("Button", item[1], "x16 y284 w160 h28", item[2]).OnEvent("Click", item[3])
     ChromeLearning_Add("DropDownList", "saved", "x16 y322 w610", []).OnEvent("Change", ChromeLearning_OpenSaved)
-    ChromeLearning_Add("DropDownList", "scope", "x638 y322 w230 Choose1", ["Current window session", "All saved Chrome sessions"]).OnEvent("Change", ChromeLearning_LoadCaptures)
+    ChromeLearning_Add("DropDownList", "scope", "x638 y322 w230 Choose4", ["Current window", "Current profile", "All profiles / windows", "Current window: new only", "Current profile: new only"]).OnEvent("Change", ChromeLearning_ScopeChanged)
     ChromeLearning_Add("Edit", "search", "x16 y360 w640 h25")
     SendMessage(0x1501, true, StrPtr("Search this captured page, then press Search"), g_ChromeLearn["ui"]["search"])
     ChromeLearning_Add("Button", "searchButton", "x670 y360 w70 h27", "Search").OnEvent("Click", (*) => ChromeLearning_GetPage(0))
@@ -41,8 +42,9 @@ ChromeLearning_Build() {
     for action in [["verify", "Verify live target", ChromeLearning_Verify], ["copy", "Copy observed text", ChromeLearning_Copy],
         ["import", "Add text to Study", ChromeLearning_Import], ["help", "Browser learning guide", ChromeLearning_Help]]
         ChromeLearning_Add("Button", action[1], "x16 y710 w200 h28", action[2]).OnEvent("Click", action[3])
-    ChromeLearning_Add("Text", "status", "x16 y748 w850 h20", "Ready. Captures and profile labels stay local; no model call is made by this interface.")
+    ChromeLearning_Add("Text", "status", "x16 y748 w850 h20", "Ready. Page text and profile/window records stay local; no model call is made by automatic learning.")
     g_ChromeLearn["ui"]["follow"].Value := FanData_Config().Get("chrome_learning_follow", true)
+    g_ChromeLearn["ui"]["auto"].Value := FanData_Config().Get("chrome_learning_auto",true)
     ChromeLearning_Schema()
     ChromeLearning_Windows()
     ChromeLearning_Help()
@@ -56,10 +58,11 @@ ChromeLearning_Layout(width, height) {
     offset := LearningUI_Offset(u["title"]), offsetX := offset[1], offsetY := offset[2]
     u["title"].Move(16-offsetX,58-offsetY,width-32,26)
     u["guide"].Move(16-offsetX,86-offsetY,width-32,44)
-    u["follow"].Move(16-offsetX,134-offsetY,width-32,22)
+    u["follow"].Move(16-offsetX,134-offsetY,width-330,22)
+    u["auto"].Move(width-314-offsetX,134-offsetY,298,22)
     u["window"].Move(16-offsetX,164-offsetY,width-182), u["windows"].Move(width-154-offsetX,164-offsetY)
-    u["profileLabel"].Move(16-offsetX,204-offsetY), u["profile"].Move(70-offsetX,200-offsetY)
-    u["saveProfile"].Move(332-offsetX,200-offsetY), u["profileNote"].Move(468-offsetX,203-offsetY,width-484,30)
+    u["profileLabel"].Move(16-offsetX,204-offsetY), u["profile"].Move(70-offsetX,200-offsetY,Max(180,width-634))
+    u["saveProfile"].Move(width-548-offsetX,200-offsetY), u["profileNote"].Move(width-412-offsetX,203-offsetY,396,30)
     u["context"].Move(16-offsetX,240-offsetY,width-32,36)
     u["saved"].Move(16-offsetX,322-offsetY,width-274), u["scope"].Move(width-246-offsetX,322-offsetY)
     for index, key in ["capture", "savedRefresh", "library", "portal", "studyHelp"]
@@ -69,8 +72,10 @@ ChromeLearning_Layout(width, height) {
     leftW := Floor((width-48)*.57), rightX := leftW+32, rightW := width-rightX-16
     bodyH := Max(240,height-500), pictureH := Min(175,Floor(bodyH*.48))
     u["elements"].Move(16-offsetX,400-offsetY,leftW,bodyH)
+    textOnly := g_ChromeLearn["capture"].Get("capture_kind","") = "auto_text"
+    u["picture"].Visible := !textOnly
     u["picture"].Move(rightX-offsetX,400-offsetY,rightW,pictureH)
-    u["details"].Move(rightX-offsetX,410+pictureH-offsetY,rightW,bodyH-pictureH-10)
+    u["details"].Move(rightX-offsetX,(textOnly ? 400 : 410+pictureH)-offsetY,rightW,textOnly ? bodyH : bodyH-pictureH-10)
     for index, key in ["verify", "copy", "import", "help"]
         u[key].Move(16+(index-1)*Floor((width-32)/4)-offsetX,height-86-offsetY,Floor((width-32)/4)-8,28)
     u["status"].Move(16-offsetX,height-48-offsetY,width-32,20)
@@ -83,6 +88,21 @@ ChromeLearning_Schema() {
     db := TrackDB()
     db.Exec("CREATE TABLE IF NOT EXISTS chrome_learning_context (context_id TEXT PRIMARY KEY, hwnd INTEGER, pid INTEGER, opened_ts TEXT, last_seen TEXT, title TEXT, profile_label TEXT, profile_source TEXT)")
     db.Exec("CREATE TABLE IF NOT EXISTS chrome_learning_capture (page_id TEXT PRIMARY KEY, context_id TEXT, profile_label TEXT, captured_ts TEXT, title TEXT, url TEXT)")
+    for table in ["chrome_learning_context","chrome_learning_capture"] {
+        columns := Map()
+        for column in db.Query("PRAGMA table_info(" . table . ")")
+            columns[column["name"]] := true
+        for column in ["profile_id","profile_path","app_user_model_id","capture_kind","summary"]
+            if !columns.Has(column)
+                db.Exec("ALTER TABLE " . table . " ADD COLUMN " . column . " TEXT")
+    }
+    columns := Map()
+    for column in db.Query("PRAGMA table_info(chrome_learning_capture)")
+        columns[column["name"]] := true
+    for column in ["item_count","reviewed"]
+        if !columns.Has(column)
+            db.Exec("ALTER TABLE chrome_learning_capture ADD COLUMN " . column . " INTEGER DEFAULT 0")
+    db.Exec("CREATE INDEX IF NOT EXISTS ix_chrome_learning_profile ON chrome_learning_capture(profile_id,captured_ts)")
     db.Exec("CREATE INDEX IF NOT EXISTS ix_chrome_learning_context ON chrome_learning_capture(context_id,captured_ts)")
 }
 
@@ -91,13 +111,21 @@ ChromeLearning_Context(hwnd) {
         return Map()
     key := String(hwnd), pid := WinGetPID(hwnd), contexts := g_ChromeLearn["contexts"]
     if !contexts.Has(key) || contexts[key]["pid"] != pid {
-        context := Map("context_id", "chrome-" . A_Now . "-" . hwnd . "-" . A_TickCount,
+        context := Map("context_id", ChromeProfiles_WindowSession(hwnd),
             "hwnd", hwnd, "pid", pid, "title", WinGetTitle(hwnd), "profile_label", "", "profile_source", "unknown", "url", "", "url_title", "")
         contexts[key] := context
-        TrackDB().Run("INSERT INTO chrome_learning_context VALUES(?,?,?,?,?,?,?,?)", context["context_id"], hwnd, pid, TrackTS(), TrackTS(), context["title"], "", "unknown")
+        TrackDB().Run("INSERT OR IGNORE INTO chrome_learning_context(context_id,hwnd,pid,opened_ts,last_seen,title,profile_label,profile_source) VALUES(?,?,?,?,?,?,?,?)", context["context_id"], hwnd, pid, TrackTS(), TrackTS(), context["title"], "", "unknown")
     }
     context := contexts[key]
     context["title"] := WinGetTitle(hwnd)
+    if A_TickCount-context.Get("profile_checked",-30000) >= 10000 {
+        detected := ChromeProfiles_Detect(hwnd)
+        for field, value in detected
+            context[field] := value
+        context["profile_checked"] := A_TickCount
+        TrackDB().Run("UPDATE chrome_learning_context SET last_seen=?,title=?,profile_label=?,profile_source=?,profile_id=?,profile_path=?,app_user_model_id=? WHERE context_id=?",
+            TrackTS(),context["title"],context["profile_label"],context["profile_source"],context["profile_id"],context["profile_path"],context["app_user_model_id"],context["context_id"])
+    }
     return context
 }
 
@@ -135,7 +163,7 @@ ChromeLearning_Windows(*) {
     }
 }
 
-ChromeLearning_Label(context) => context.Get("profile_label", "") != "" ? context["profile_label"] . " (assigned)" : "Profile unknown"
+ChromeLearning_Label(context) => context.Get("profile_label", "") != "" ? context["profile_label"] : "Profile unavailable"
 
 ChromeLearning_WindowChanged(*) {
     index := g_ChromeLearn["ui"]["window"].Value
@@ -143,6 +171,8 @@ ChromeLearning_WindowChanged(*) {
         g_ChromeLearn["target"] := g_ChromeLearn["windows"][index]
         ChromeLearning_RenderContext()
         ChromeLearning_LoadCaptures()
+        if g_ChromeLearn["captures"].Length
+            ChromeLearning_GetPage(0)
     }
 }
 
@@ -160,20 +190,18 @@ ChromeLearning_RenderContext() {
     context := g_ChromeLearn["target"], u := g_ChromeLearn["ui"]
     if !context.Count
         return
-    u["profile"].Value := context["profile_label"]
+    u["profile"].Value := ChromeLearning_Label(context)
+    u["profileNote"].Value := context.Get("profile_id","") != ""
+        ? "Detected automatically · " . context["profile_source"] . "`r`n" . context.Get("profile_path","")
+        : "Chrome identity unavailable. Retrying automatically; this window’s data stays isolated."
     url := context["url_title"] = context["title"] && context["url"] != "" ? context["url"] : "not read for this page yet — capture to observe it"
     u["context"].Value := TrackEllipsis(ChromeLearning_Label(context),30) . " | Window " . context["hwnd"] . " | PID " . context["pid"] . " | " . TrackEllipsis(context["title"],55) . "`r`nAddress: " . TrackEllipsis(url,115)
 }
 
-ChromeLearning_SaveProfile(*) {
-    context := g_ChromeLearn["target"]
-    if !context.Count
-        return
-    context["profile_label"] := SubStr(Trim(g_ChromeLearn["ui"]["profile"].Value),1,120)
-    context["profile_source"] := context["profile_label"] != "" ? "user_assigned" : "unknown"
-    TrackDB().Run("UPDATE chrome_learning_context SET profile_label=?,profile_source=? WHERE context_id=?", context["profile_label"],context["profile_source"],context["context_id"])
+ChromeLearning_Redetect(*) {
+    for key, context in g_ChromeLearn["contexts"]
+        context["profile_checked"] := -30000
     ChromeLearning_Windows()
-    g_ChromeLearn["ui"]["status"].Value := "Label assigned to this live window. Existing captures retain the label recorded when captured. This is not account verification."
 }
 
 ChromeLearning_FollowChanged(ctl, *) {
@@ -203,16 +231,76 @@ ChromeLearning_Poll() {
     try {
         hwnd := WinExist("A"), previous := g_ChromeLearn["foreground"]
         g_ChromeLearn["foreground"] := hwnd
-        if !hwnd || !g_ChromeLearn["ui"]["follow"].Value || StrLower(WinGetProcessName(hwnd)) != "chrome.exe"
+        if !hwnd || StrLower(WinGetProcessName(hwnd)) != "chrome.exe"
             return
-        context := g_ChromeLearn["target"]
-        title := WinGetTitle(hwnd)
-        if previous != hwnd || !context.Count || context["hwnd"] != hwnd || context["title"] != title {
-            g_ChromeLearn["ui"]["scope"].Choose(1)
+        context := ChromeLearning_Context(hwnd), title := WinGetTitle(hwnd)
+        identity := hwnd . "|" . title
+        if identity != g_ChromeLearn["autoIdentity"] {
+            g_ChromeLearn["autoIdentity"] := identity
+            g_ChromeLearn["stableSince"] := A_TickCount
+        }
+        target := g_ChromeLearn["target"]
+        if g_ChromeLearn["ui"]["follow"].Value && (previous != hwnd || !target.Count || target["hwnd"] != hwnd) {
+            g_ChromeLearn["ui"]["scope"].Choose(4)
             ChromeLearning_SelectWindow(hwnd)
             FanNav_Open(25)
         }
+        inputInfo := Buffer(8,0), NumPut("UInt",8,inputInfo,0)
+        DllCall("GetLastInputInfo","Ptr",inputInfo), lastInput := NumGet(inputInfo,4,"UInt")
+        changed := lastInput != context.Get("last_probe_input",-1) || A_TickCount-context.Get("last_probe_tick",-300000)>=300000
+        if changed && g_ChromeLearn["ui"]["auto"].Value && !g_ChromeLearn["autoJob"] && !g_ChromeLearn["job"].Count
+            && A_TickCount-g_ChromeLearn["stableSince"] >= 3500 && A_TimeIdlePhysical >= 1200
+            && A_TickCount-g_ChromeLearn["autoLast"] >= 15000 {
+            g_ChromeLearn["autoLast"] := A_TickCount
+            context["last_probe_input"] := lastInput, context["last_probe_tick"] := A_TickCount
+            args := context.Clone(), args["db_path"] := TrackDB().path
+            args["ahk_path"] := A_IsCompiled ? A_ProgramFiles . "\AutoHotkey\v2\AutoHotkey64.exe" : A_AhkPath
+            try g_ChromeLearn["autoJob"] := WorkspaceJobs_Start("browser_observe",args,ChromeLearning_AutoResult.Bind(context.Clone()),0,65000)
+            catch as startupError
+                g_ChromeLearn["ui"]["status"].Value := startupError.Message
+        }
     }
+}
+
+ChromeLearning_AutoChanged(ctl, *) {
+    config := FanData_Config(), config["chrome_learning_auto"] := ctl.Value = 1
+    FanData_SaveConfig(config)
+    if !ctl.Value && g_ChromeLearn["autoJob"]
+        WorkspaceJobs_Cancel(g_ChromeLearn["autoJob"])
+}
+
+ChromeLearning_AutoResult(context, result) {
+    g_ChromeLearn["autoJob"] := ""
+    if !result.Get("ok",false) {
+        if g_ChromeLearn["contexts"].Has(String(context["hwnd"]))
+            g_ChromeLearn["contexts"][String(context["hwnd"])]["last_probe_input"] := -1
+        g_ChromeLearn["ui"]["status"].Value := "Automatic learning: " . result.Get("error","Unavailable; will retry")
+        return
+    }
+    if result.Get("captured",false) {
+        target := g_ChromeLearn["target"]
+        if target.Count && target["context_id"] = context["context_id"] {
+            ChromeLearning_LoadCaptures()
+            ChromeLearning_GetPage(0)
+        }
+        g_ChromeLearn["ui"]["status"].Value := ChromeLearning_Label(context) . ": learned " . result.Get("item_count",0) . " new items. Review entries marked NEW."
+    }
+}
+
+ChromeLearning_Reviewed(*) {
+    capture := g_ChromeLearn["capture"]
+    if !capture.Count
+        return
+    TrackDB().Run("UPDATE chrome_learning_capture SET reviewed=1 WHERE page_id=?",capture["page_id"])
+    ChromeLearning_LoadCaptures()
+    for index, row in g_ChromeLearn["captures"] {
+        if !row.Get("reviewed",0) {
+            g_ChromeLearn["ui"]["saved"].Choose(index)
+            ChromeLearning_OpenSaved()
+            return
+        }
+    }
+    g_ChromeLearn["ui"]["status"].Value := "Reviewed. No unread entries in this window/profile filter."
 }
 
 ChromeLearning_StartJob(tool, args, callback) {
@@ -282,7 +370,7 @@ ChromeLearning_Capture(*) {
 ChromeLearning_Captured(context, page) {
     if !page.Get("page_id","")
         throw Error("Capture returned no page identity")
-    TrackDB().Run("INSERT OR REPLACE INTO chrome_learning_capture VALUES(?,?,?,?,?,?)",page["page_id"],context["context_id"],context["profile_label"],TrackTS(),page.Get("title",context["title"]),page.Get("url",""))
+    TrackDB().Run("INSERT OR REPLACE INTO chrome_learning_capture(page_id,context_id,profile_label,captured_ts,title,url,profile_id,profile_path,app_user_model_id) VALUES(?,?,?,?,?,?,?,?,?)",page["page_id"],context["context_id"],context["profile_label"],TrackTS(),page.Get("title",context["title"]),page.Get("url",""),context.Get("profile_id",""),context.Get("profile_path",""),context.Get("app_user_model_id",""))
     live := g_ChromeLearn["target"]
     if !live.Count || live["context_id"] != context["context_id"] {
         g_ChromeLearn["ui"]["status"].Value := "Capture saved for its original window. The selected window changed; its results were not mixed into this panel."
@@ -298,12 +386,17 @@ ChromeLearning_Captured(context, page) {
 ChromeLearning_LoadCaptures(*) {
     context := g_ChromeLearn["target"], u := g_ChromeLearn["ui"]
     g_ChromeLearn["captures"] := [], names := []
-    if context.Count || u["scope"].Value = 2 {
-        g_ChromeLearn["captures"] := u["scope"].Value = 2
-            ? TrackDB().Query("SELECT * FROM chrome_learning_capture ORDER BY captured_ts DESC,rowid DESC LIMIT 100")
-            : TrackDB().Query("SELECT * FROM chrome_learning_capture WHERE context_id=? ORDER BY captured_ts DESC,rowid DESC LIMIT 100",context["context_id"])
+    if context.Count || u["scope"].Value = 3 {
+        scope := u["scope"].Value
+        unread := scope >= 4 ? " AND COALESCE(reviewed,0)=0" : ""
+        if scope = 3
+            g_ChromeLearn["captures"] := TrackDB().Query("SELECT * FROM chrome_learning_capture ORDER BY captured_ts DESC,rowid DESC LIMIT 100")
+        else if (scope = 2 || scope = 5) && context.Get("profile_id","") != ""
+            g_ChromeLearn["captures"] := TrackDB().Query("SELECT * FROM chrome_learning_capture WHERE profile_id=?" . unread . " ORDER BY captured_ts DESC,rowid DESC LIMIT 100",context["profile_id"])
+        else
+            g_ChromeLearn["captures"] := TrackDB().Query("SELECT * FROM chrome_learning_capture WHERE context_id=?" . unread . " ORDER BY captured_ts DESC,rowid DESC LIMIT 100",context["context_id"])
         for capture in g_ChromeLearn["captures"]
-            names.Push(capture["captured_ts"] . " | " . (capture["profile_label"] != "" ? capture["profile_label"] : "Profile unknown") . " | " . capture["title"] . " | " . capture["url"])
+            names.Push((capture.Get("reviewed",0) ? "" : "NEW | ") . (capture.Get("capture_kind","") = "auto_text" ? "Auto text | " : "Screenshot | ") . capture["captured_ts"] . " | " . (capture["profile_label"] != "" ? capture["profile_label"] : "Profile unavailable") . " | " . capture["title"] . " | " . capture["context_id"])
     }
     u["saved"].Delete(), u["saved"].Add(names)
     u["elements"].Delete(), g_ChromeLearn["elements"] := [], u["picture"].Value := "", g_ChromeLearn["image"] := Map(), g_ChromeLearn["pendingPage"] := Map()
@@ -314,12 +407,29 @@ ChromeLearning_LoadCaptures(*) {
                 selected := index
         u["saved"].Choose(selected), g_ChromeLearn["page"] := g_ChromeLearn["captures"][selected]["page_id"]
         g_ChromeLearn["capture"] := g_ChromeLearn["captures"][selected]
-        u["details"].Value := "Choose a saved capture to load its elements. Captures shown here belong to this window session only."
+        u["details"].Value := g_ChromeLearn["capture"].Get("summary","") . "`r`n`r`nChoose a saved capture to load its elements. The scope selector filters by window or detected profile; every capture retains its original window identity."
     } else {
         g_ChromeLearn["page"] := ""
         g_ChromeLearn["capture"] := Map()
-        u["details"].Value := "No captures for this window session yet. Capture visible page to collect controls and text. Historical captures from other sessions are available in the existing standalone Chrome Page Learner."
+        u["details"].Value := "No entries match this window/review filter. Browse a readable page briefly for automatic learning, or Capture visible page for a screenshot. Use Current profile to review this profile’s other windows, or All profiles / windows for legacy records."
     }
+    ChromeLearning_RefreshLayout()
+}
+
+ChromeLearning_ScopeChanged(*) {
+    ChromeLearning_LoadCaptures()
+    ChromeLearning_GetPage(0)
+}
+
+ChromeLearning_RefreshLayout() {
+    MainGui.GetClientPos(,,&width,&height)
+    ChromeLearning_Layout(width,height)
+}
+
+ChromeLearning_Provenance() {
+    capture := g_ChromeLearn["capture"]
+    return "Profile: " . capture.Get("profile_label","") . "`r`nWindow: " . capture.Get("context_id","")
+        . "`r`nSource: " . capture.Get("url","") . "`r`nObserved: " . capture.Get("captured_ts","") . "`r`n`r`n"
 }
 
 ChromeLearning_OpenSaved(*) {
@@ -330,6 +440,7 @@ ChromeLearning_OpenSaved(*) {
         g_ChromeLearn["ui"]["details"].Value := "Loading the selected capture's evidence…"
         g_ChromeLearn["page"] := g_ChromeLearn["captures"][index]["page_id"]
         g_ChromeLearn["capture"] := g_ChromeLearn["captures"][index]
+        ChromeLearning_RefreshLayout()
         ChromeLearning_GetPage(0)
     }
 }
@@ -358,7 +469,10 @@ ChromeLearning_ShowPage(pageId, offset, result) {
         u["elements"].Add(,element.Get("kind",""),element.Get("description",element.Get("name","")),element.Get("group",""))
     u["status"].Value := g_ChromeLearn["elements"].Length . " shown, starting at " . offset . " / " . result.Get("matches",result.Get("element_count",0)) . " matches. Historical viewport; verify before reuse."
     u["details"].Value := "Select an observed element. Verify live target checks current identity and geometry without clicking. Add text to Study is deliberate; browser capture does not automatically become a verified answer."
-    ChromeLearning_StartJob("fan_page_image",Map("page_id",pageId),ChromeLearning_ImageReady.Bind(pageId,""))
+    if g_ChromeLearn["capture"].Get("capture_kind","") = "auto_text"
+        u["details"].Value := ChromeLearning_Provenance() . g_ChromeLearn["capture"].Get("summary","") . "`r`n`r`nAutomatic text observation; no screenshot or model inference. Select an item to inspect its text/link. Capture visible page adds image evidence."
+    else
+        ChromeLearning_StartJob("fan_page_image",Map("page_id",pageId),ChromeLearning_ImageReady.Bind(pageId,""))
 }
 
 ChromeLearning_Selected() {
@@ -372,11 +486,11 @@ ChromeLearning_ElementSelected(lv, row, selected) {
     element := ChromeLearning_Selected()
     if !element.Count
         return
-    g_ChromeLearn["ui"]["details"].Value := "OBSERVED: " . element.Get("description","") . "`r`nRole: " . element.Get("role","")
+    g_ChromeLearn["ui"]["details"].Value := ChromeLearning_Provenance() . "OBSERVED: " . element.Get("description","") . "`r`nRole: " . element.Get("role","")
         . "`r`nOCR: " . element.Get("ocr_text","") . "`r`nLink: " . element.Get("href","")
         . "`r`nLink evidence: " . element.Get("link_status","") . "`r`nPattern: " . element.Get("pattern_status","")
         . "`r`nUse: verify the live target, then use its observed label/reference in a reviewed workflow. Retained coordinates alone are not a locator."
-    if !g_ChromeLearn["job"].Count
+    if !g_ChromeLearn["job"].Count && g_ChromeLearn["capture"].Get("capture_kind","") != "auto_text"
         ChromeLearning_StartJob("fan_page_image",Map("page_id",g_ChromeLearn["page"],"element_id",element["element_id"]),ChromeLearning_ImageReady.Bind(g_ChromeLearn["page"],element["element_id"]))
 }
 
@@ -436,19 +550,19 @@ ChromeLearning_Import(*) {
     if text = ""
         return
     text := "Browser observation (not a verified answer).`r`nPage ID: " . capture["page_id"] . "`r`nWindow session: " . capture["context_id"]
-        . "`r`nAssigned profile: " . capture["profile_label"] . "`r`nURL: " . capture["url"] . "`r`n`r`n" . text
+        . "`r`nCaptured profile: " . capture["profile_label"] . "`r`nProfile identity: " . capture.Get("profile_id","") . "`r`nURL: " . capture["url"] . "`r`n`r`n" . text
     result := Study_ImportNotes("Chrome [" . capture["profile_label"] . "]: " . capture["title"] . " | " . capture["url"],text,"Browser learning",capture["profile_label"])
     g_ChromeLearn["ui"]["status"].Value := result["ok"] ? "Selected observed text added as a Study source. Review it in Study library; no answer was verified automatically." : result["detail"]
 }
 
 ChromeLearning_Help(*) {
-    g_ChromeLearn["ui"]["details"].Value := "WINDOWS / PROFILES: HWND + process + a fresh window-session identity separate captures. Assign a descriptive profile label; titles and shared Chrome processes do not prove profile identity.`r`n`r`nCAPTURE: takes a fresh, visible viewport through the existing local Chrome Page Learner. Hidden menus and scrolled-away content require another capture. This interface makes no model call.`r`n`r`nREVIEW: choose a capture, search its observed controls and OCR, inspect the screenshot, then Verify live target. Verification does not click or prove an answer is correct.`r`n`r`nUSE: copy the observed text/reference, or deliberately Add text to Study. Study library reviews sources and answers. Live Portal is for a separately pinned study session; focus following does not start it."
+    g_ChromeLearn["ui"]["details"].Value := "WINDOWS / PROFILES: HWND + process + a fresh window-session identity separate captures. Profiles are detected from window-specific Chrome shell properties and local profile metadata. No labeling is required. If detection is unavailable, data remains isolated by window and detection retries automatically.`r`n`r`nAUTOMATIC: learns changed visible document text and links after a short pause, without screenshots or model calls. NEW entries and new-only filters form the review queue; Reviewed → next new saves your progress.`r`n`r`nCAPTURE: takes a fresh, visible viewport through the existing local Chrome Page Learner. Hidden menus and scrolled-away content require another capture. This interface makes no model call.`r`n`r`nREVIEW: choose a capture, search its observed controls and OCR, inspect the screenshot, then Verify live target. Verification does not click or prove an answer is correct.`r`n`r`nUSE: copy the observed text/reference, or deliberately Add text to Study. Study library reviews sources and answers. Live Portal is for a separately pinned study session; focus following does not start it."
 }
 
 ChromeLearning_StudyHelp(*) {
     window := Gui("+Resize +MinSize600x380 +Owner" . MainGui.Hwnd,"How Study and Chrome learning connect")
     window.SetFont("s10","Segoe UI")
-    helpText := window.Add("Edit","x16 y16 w720 h390 ReadOnly Multi VScroll", "STUDY LIBRARY`r`nImport PDFs, notes or selected browser evidence. Questions and versioned answers live in the shared memory. The answer engine first reuses an exact verified answer, then checks similar answers and local source passages. DeepSeek is an optional fallback, and generated answers remain candidates.`r`n`r`nLIVE PORTAL (the browser workflow)`r`nPin the specific Chrome window using the Live Portal picker or Ctrl+Shift+U. Start in observe/suggest mode. Focus and target checks guard the pinned window. Fill mode enters answers; submit mode additionally needs the explicit auto-submit setting. Chrome focus alone does not change these modes or start a session.`r`n`r`nCHROME LEARNING`r`nThis is the browser evidence workspace: distinguish windows, label profiles, capture visible pages and inspect their controls/text. It follows focus without activating Fan or capturing every page. Add only relevant observed text to Study; web browsing and searches are not automatically trusted knowledge.`r`n`r`nREVIEW / REUSE`r`nCheck cited source material, correct answers, verify them deliberately, then use spaced review or export. A screenshot, a repeated action and a model suggestion establish different things. Ctrl+Shift+Esc aborts live automation.")
+    helpText := window.Add("Edit","x16 y16 w720 h390 ReadOnly Multi VScroll", "STUDY LIBRARY`r`nImport PDFs, notes or selected browser evidence. Questions and versioned answers live in the shared memory. The answer engine first reuses an exact verified answer, then checks similar answers and local source passages. DeepSeek is an optional fallback, and generated answers remain candidates.`r`n`r`nLIVE PORTAL (the browser workflow)`r`nPin the specific Chrome window using the Live Portal picker or Ctrl+Shift+U. Start in observe/suggest mode. Focus and target checks guard the pinned window. Fill mode enters answers; submit mode additionally needs the explicit auto-submit setting. Chrome focus alone does not change these modes or start a session.`r`n`r`nCHROME LEARNING`r`nThis is the browser evidence workspace: automatically distinguish profiles and windows, capture visible pages and inspect their controls/text. It follows focus without activating Fan and automatically retains changed readable content after a short dwell. Add only relevant observed text to Study; web browsing and searches are not automatically trusted knowledge.`r`n`r`nREVIEW / REUSE`r`nCheck cited source material, correct answers, verify them deliberately, then use spaced review or export. A screenshot, a repeated action and a model suggestion establish different things. Ctrl+Shift+Esc aborts live automation.")
     libraryButton := window.Add("Button","x16 y420 w150 h30","Study library")
     libraryButton.OnEvent("Click",(*)=>(window.Hide(),FanNav_Open(18)))
     portalButton := window.Add("Button","x180 y420 w150 h30","Live Portal")
@@ -465,6 +579,8 @@ ChromeLearning_HelpLayout(text, buttons, width, height) {
 
 ChromeLearning_OnExit(*) {
     SetTimer(ChromeLearning_Poll,0), SetTimer(ChromeLearning_PollJob,0)
+    if g_ChromeLearn["autoJob"]
+        WorkspaceJobs_Cancel(g_ChromeLearn["autoJob"])
     if g_ChromeLearn.Get("destroyHook",0)
         DllCall("UnhookWinEvent","Ptr",g_ChromeLearn["destroyHook"])
     if g_ChromeLearn.Get("destroyCallback",0)
